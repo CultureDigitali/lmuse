@@ -1,0 +1,91 @@
+// Stringhe UI centralizzate (it + en). t(lang, key, vars) con sostituzione {var}.
+
+type Lang = 'it' | 'en';
+
+const STRINGS: Record<Lang, Record<string, string>> = {
+  it: {
+    open_panel: 'Apri lmuse',
+    settings: 'Impostazioni',
+    provider: 'Provider',
+    model: 'Modello',
+    api_key: 'Chiave API',
+    base_url: 'Base URL',
+    max_steps: 'Max passi',
+    max_retries: 'Retry su errore',
+    run_timeout: 'Timeout task (minuti)',
+    remember_key: 'Ricorda la chiave (altrimenti solo per questa sessione)',
+    clear_key: 'Cancella chiave',
+    clear_all: 'Cancella tutti i dati',
+    confirm_clear_all: 'Cancellare chiave, impostazioni, cronologia e inbox?',
+    privacy_section: 'Privacy',
+    mask_pii: 'Maschera email/IBAN/carte/numeri nello snapshot',
+    hide_passwords: 'Blocca digitazione nei campi password',
+    send_screenshots: 'Invia screenshot al modello',
+    allowed_domains: 'Domini consentiti (CSV, vuoto = tutti)',
+    allowed_domains_ph: 'es. example.com, wikipedia.org',
+    get_key: 'Ottieni una chiave {provider} →',
+    hint_ok:
+      'Descrivi un task, es. «Cerca il prezzo di un volo Milano–Roma per domani e riassumi le opzioni».',
+    hint_no_key: 'Prima configura provider e chiave API nelle impostazioni.',
+    compose_ph: "Cosa deve fare l'agente?",
+    run: 'Avvia',
+    stop: 'Ferma',
+    running: 'in esecuzione',
+    step_of: 'passo {n}/{max}',
+    copy_result: 'Copia risultato',
+    copied: 'Copiato',
+    inbox_title: 'Risultato pronto dal task precedente:',
+    inbox_dismiss: 'Segna letto',
+    recent: 'Recenti:',
+    vision_warn: 'Questo modello non accetta immagini: gli screenshot non funzioneranno.',
+    not_configured: 'Completa la configurazione ⚙ per avviare.',
+    export_settings: 'Esporta impostazioni (senza chiave)',
+    keyboard_stop: 'Fermare il task (Ctrl/Cmd+Shift+X)',
+  },
+  en: {
+    open_panel: 'Open lmuse',
+    settings: 'Settings',
+    provider: 'Provider',
+    model: 'Model',
+    api_key: 'API key',
+    base_url: 'Base URL',
+    max_steps: 'Max steps',
+    max_retries: 'Retries on error',
+    run_timeout: 'Task timeout (minutes)',
+    remember_key: 'Remember key (otherwise session only)',
+    clear_key: 'Clear key',
+    clear_all: 'Clear all data',
+    confirm_clear_all: 'Clear key, settings, history and inbox?',
+    privacy_section: 'Privacy',
+    mask_pii: 'Mask emails/IBAN/cards/numbers in snapshots',
+    hide_passwords: 'Block typing into password fields',
+    send_screenshots: 'Send screenshots to the model',
+    allowed_domains: 'Allowed domains (CSV, empty = all)',
+    allowed_domains_ph: 'e.g. example.com, wikipedia.org',
+    get_key: 'Get a {provider} key →',
+    hint_ok: 'Describe a task, e.g. "Find flight prices Milan–Rome for tomorrow and summarize options".',
+    hint_no_key: 'First set provider and API key in settings.',
+    compose_ph: 'What should the agent do?',
+    run: 'Run',
+    stop: 'Stop',
+    running: 'running',
+    step_of: 'step {n}/{max}',
+    copy_result: 'Copy result',
+    copied: 'Copied',
+    inbox_title: 'Result ready from previous task:',
+    inbox_dismiss: 'Mark read',
+    recent: 'Recent:',
+    vision_warn: 'This model does not accept images: screenshots will not work.',
+    not_configured: 'Complete setup ⚙ to start.',
+    export_settings: 'Export settings (no key)',
+    keyboard_stop: 'Stop the task (Ctrl/Cmd+Shift+X)',
+  },
+};
+
+export function t(lang: Lang, key: string, vars?: Record<string, string | number>): string {
+  const raw = STRINGS[lang][key] ?? STRINGS.it[key] ?? key;
+  if (!vars) return raw;
+  return raw.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? `{${name}}`));
+}
+
+export type { Lang };

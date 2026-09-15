@@ -1,0 +1,53 @@
+{
+  "name": "lmuse",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Estensione Chrome MV3: un agente AI che usa il browser per svolgere task, con la tua chiave LLM (multi-provider).",
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "release": "pnpm check && rm -rf release && mkdir -p release && cd dist && zip -r ../release/lmuse-0.2.0.zip ."
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.53",
+    "@ai-sdk/azure": "^4.0.70",
+    "@ai-sdk/cerebras": "^3.0.48",
+    "@ai-sdk/deepseek": "^3.0.44",
+    "@ai-sdk/google": "^4.0.70",
+    "@ai-sdk/groq": "^4.0.41",
+    "@ai-sdk/mistral": "^4.0.43",
+    "@ai-sdk/openai": "^4.0.66",
+    "@ai-sdk/openai-compatible": "^3.0.48",
+    "@ai-sdk/xai": "^4.0.58",
+    "ai": "^7.0.101",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/chrome": "^0.2.9",
+    "@types/node": "^26.5.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}
