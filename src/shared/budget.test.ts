@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ToolBudget } from './budget';
+import { FailureCircuit, ToolBudget } from './budget';
 
 describe('ToolBudget', () => {
   it('rifiuta max non validi', () => {
@@ -22,5 +22,24 @@ describe('ToolBudget', () => {
     b.reset();
     expect(b.exhausted).toBe(false);
     expect(b.tryConsume()).toBe(true);
+  });
+});
+
+describe('FailureCircuit', () => {
+  it('rifiuta max non validi', () => {
+    expect(() => new FailureCircuit(0)).toThrow();
+  });
+  it('si apre dopo N errori consecutivi, reset su successo', () => {
+    const c = new FailureCircuit(3);
+    expect(c.open).toBe(false);
+    c.recordFailure();
+    c.recordFailure();
+    expect(c.open).toBe(false);
+    c.recordFailure();
+    expect(c.open).toBe(true);
+    expect(c.failures).toBe(3);
+    c.recordSuccess();
+    expect(c.open).toBe(false);
+    expect(c.failures).toBe(0);
   });
 });

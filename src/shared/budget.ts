@@ -30,3 +30,33 @@ export class ToolBudget {
     this.used = 0;
   }
 }
+
+/**
+ * Circuit breaker: dopo N errori consecutivi il run si ferma invece di
+ * insistere a vuoto. Si resetta al primo successo.
+ */
+export class FailureCircuit {
+  private consecutive = 0;
+
+  constructor(readonly maxConsecutive = 5) {
+    if (!Number.isFinite(maxConsecutive) || maxConsecutive < 1) {
+      throw new Error('Circuit breaker non valido.');
+    }
+  }
+
+  get failures(): number {
+    return this.consecutive;
+  }
+
+  get open(): boolean {
+    return this.consecutive >= this.maxConsecutive;
+  }
+
+  recordSuccess(): void {
+    this.consecutive = 0;
+  }
+
+  recordFailure(): void {
+    this.consecutive += 1;
+  }
+}

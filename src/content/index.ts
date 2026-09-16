@@ -1,4 +1,7 @@
 import { buildSnapshot, getElement } from './snapshot';
+import { isPressAllowed } from './keys';
+import { describeFocused, selectOption, waitFor, bodyText } from './actions';
+import { maskPii } from '../shared/pii';
 
 // Content script (isolated world): esegue snapshot e azioni DOM su richiesta
 // del service worker. Non legge né esporta nulla di suo: agisce solo su
@@ -8,10 +11,29 @@ type Incoming =
   | { kind: 'LMUSE_SNAPSHOT'; maskPii: boolean }
   | { kind: 'LMUSE_CLICK'; ref: number }
   | { kind: 'LMUSE_TYPE'; ref: number; text: string; submit: boolean; allowPassword: boolean }
-  | { kind: 'LMUSE_SCROLL'; direction: 'up' | 'down' | 'top' | 'bottom'; ref?: number };
+  | { kind: 'LMUSE_SCROLL'; direction: 'up' | 'down' | 'top' | 'bottom'; ref?: number }
+  | { kind: 'LMUSE_SELECT'; ref: number; value: string }
+  | { kind: 'LMUSE_WAIT'; waitKind: 'text' | 'selector'; value: string; timeoutMs: number }
+  | { kind: 'LMUSE_PRESS'; key: string }
+  | { kind: 'LMUSE_TEXT'; maxChars: number; maskPii: boolean }
+  | { kind: 'LMUSE_LINKS'; max: number }
+  | { kind: 'LMUSE_RECT'; ref: number };
 
-const KINDS = new Set(['LMUSE_SNAPSHOT', 'LMUSE_CLICK', 'LMUSE_TYPE', 'LMUSE_SCROLL']);
+const KINDS = new Set([
+  'LMUSE_SNAPSHOT',
+  'LMUSE_CLICK',
+  'LMUSE_TYPE',
+  'LMUSE_SCROLL',
+  'LMUSE_SELECT',
+  'LMUSE_WAIT',
+  'LMUSE_PRESS',
+  'LMUSE_TEXT',
+  'LMUSE_LINKS',
+  'LMUSE_RECT',
+]);
 const MAX_TYPE_CHARS = 2000;
+const MAX_TEXT_CHARS = 8000;
+const MAX_LINKS = 200;
 
 function clickElement(el: Element): void {
   if (el instanceof HTMLElement) {
@@ -78,6 +100,18 @@ interface ReplyPayload {
   valueLength?: number;
   /** % scroll raggiunta dopo scroll (R151). */
   scrollPercent?: number;
+  /** Label opzione selezionata (SELECT). */
+  selected?: string;
+  /** Ms attesi dal WAIT. */
+  waitedMs?: number;
+  /** Descrittore elemento focalizzato dopo PRESS. */
+  focused?: string;
+  /** Testo pagina (TEXT). */
+  text?: string;
+  /** Link pagina (LINKS). */
+  links?: { text: string; href: string }[];
+  /** Rettangolo elemento in CSS px + DPR (RECT). */
+  rect?: { x: number; y: number; w: number; h: number; dpr: number };
 }
 
 function currentScrollPercent(): number {
@@ -169,6 +203,78 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
             window.scrollTo({ top: document.body.scrollHeight });
           }
           reply({ ok: true, scrollPercent: currentScrollPercent() });
+          break;
+        }
+        case 'LMUSE_SELECT': {
+          if (!validRef(msg.ref)) throw new Error('Ref non valido.');
+          const value = String(msg.value ?? '').trim();
+          if (!value) throw new Error('Valore opzione vuoto.');
+          const el = getElement(msg.ref);
+          if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
+          const label = selectOption(el, value);
+          reply({ ok: true, selected: label });
+          break;
+        }
+        case 'LMUSE_WAIT': {
+          const value = String(msg.value ?? '').trim();
+          if (!value) throw new Error('Testo/selettore vuoto.');
+          if (msg.waitKind !== 'text' && msg.waitKind !== 'selector') {
+            throw new Error('Tipo attesa non valido (text|selector).');
+          }
+          if (msg.waitKind === 'selector') {
+            try {
+              document.querySelector(value);
+            } catch {
+              throw new Error(`Selettore CSS non valido: "${value}".`);
+            }
+          }
+          const waitedMs = await waitFor(msg.waitKind, value, msg.timeoutMs);
+          reply({ ok: true, waitedMs });
+          break;
+        }
+        case 'LMUSE_PRESS': {
+          if (!isPressAllowed(msg.key)) {
+            throw new Error(
+              `Tasto "${msg.key}" non consentito (solo navigazione: Escape, Tab, frecce, Home, End, Pag).`,
+            );
+          }
+          const target = (document.activeElement as HTMLElement) ?? document.body;
+          target.dispatchEvent(new KeyboardEvent('keydown', { key: msg.key, bubbles: true }));
+          target.dispatchEvent(new KeyboardEvent('keyup', { key: msg.key, bubbles: true }));
+          reply({ ok: true, focused: describeFocused() });
+          break;
+        }
+        case 'LMUSE_TEXT': {
+          const max = Math.min(Math.max(msg.maxChars, 500), MAX_TEXT_CHARS);
+          const raw = bodyText().slice(0, max);
+          reply({ ok: true, text: msg.maskPii !== false ? maskPii(raw) : raw });
+          break;
+        }
+        case 'LMUSE_LINKS': {
+          const max = Math.min(Math.max(msg.max, 1), MAX_LINKS);
+          const links = [...document.querySelectorAll('a[href]')].slice(0, max).map((a) => ({
+            text: ((a.textContent ?? '').replace(/\s+/g, ' ').trim() || '(senza testo)').slice(0, 80),
+            href: (a as HTMLAnchorElement).href,
+          }));
+          reply({ ok: true, links });
+          break;
+        }
+        case 'LMUSE_RECT': {
+          if (!validRef(msg.ref)) throw new Error('Ref non valido.');
+          const el = getElement(msg.ref);
+          if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
+          const rect = el.getBoundingClientRect();
+          if (rect.width < 2 || rect.height < 2) throw new Error('Elemento non visibile.');
+          reply({
+            ok: true,
+            rect: {
+              x: Math.round(rect.x),
+              y: Math.round(rect.y),
+              w: Math.round(rect.width),
+              h: Math.round(rect.height),
+              dpr: window.devicePixelRatio || 1,
+            },
+          });
           break;
         }
       }

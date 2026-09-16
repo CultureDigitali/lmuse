@@ -1,0 +1,21 @@
+name: Feature request
+description: Proponi una miglioria per lmuse
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema (cosa non riesci a fare oggi?)
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta (come dovrebbe funzionare?)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Tool browser, Approval/sicurezza, Privacy, UI pannello, Provider/modelli, Docs, Altro]

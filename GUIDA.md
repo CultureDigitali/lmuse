@@ -36,7 +36,9 @@ src/shared/errors.ts        Errori provider → italiano (testato)
 src/shared/budget.ts        Budget tool-call per run (testato)
 src/shared/i18n.ts          Stringhe UI it/en
 src/background/providers.ts Crea il modello AI SDK dal provider configurato
-src/background/tools.ts     9 tool browser con approval+budget/errori/timeout, inject on-demand
+src/background/tools.ts     18 tool browser (snapshot, navigate, back/forward, reload,
+                             click, type, select, wait, press, scroll, screenshot×2,
+                             read_text, links, tabs×3) con approval+budget/errori/circuit
 src/background/agent.ts     ToolLoopAgent + system prompt + timeout combinato
 src/background/index.ts     Service worker: RUN/STOP, approval runtime, badge, inbox, usage
 src/content/snapshot.ts     Distilla il DOM in albero [ref] compatti (redatto)
@@ -51,22 +53,23 @@ reference/nanobrowser/      Clone di riferimento (fuori git, opzionale):
 ## Flusso di un task
 
 ```
-┌─────────┐  RUN(task)   ┌──────────────┐  prompt+tools  ┌───────────┐
-│  Panel  │ ──────────→ │ ServiceWorker │ ────────────→ │   LLM     │
-│  React  │ ←────────── │  (RUN/STOP,   │ ←──────────── │ (provider │
-└─────────┘  STEP/DONE  │  badge,inbox) │  tool-call    │  scelto)  │
-      ↑                 └──────┬───────┘               └───────────┘
-      │ messaggi live          │ chrome.tabs.sendMessage (+timeout 10s)
-      │                        ↓
-      │                 ┌──────────────┐
-      └──────────────── │Content script│ → snapshot redatto / click / type / scroll
-         risultato      │ (isolated)   │
-         in inbox       └──────────────┘
+┌─────────┐  RUN(task)   ┌──────────────┐  prompt+18 tools ┌───────────┐
+│  Panel  │ ──────────→ │ ServiceWorker │ ──────────────→ │   LLM     │
+│  React  │ ←────────── │  (RUN/STOP,   │ ←────────────── │ (provider │
+└─────────┘  STEP/DONE  │  approval,   │  tool-call      │  scelto)  │
+  ↑ APPROVE/DENY        │  badge,usage) │                 └───────────┘
+  │ (banner 120s)       └──────┬───────┘
+  │ messaggi live              │ scripting on-demand + sendMessage (10s)
+  │                            ↓
+  │                     ┌──────────────┐
+  └──────────────────── │Content script│ → snapshot / click / type / select /
+     risultato          │ (isolated)   │   wait / press / read / links
+     in inbox           └──────────────┘
 ```
 
 Scrivi la richiesta → il worker avvia `ToolLoopAgent` → l'agente cicla
-`snapshot → azione → osserva` (max passi default 25, budget tool = passi×3) → vedi ogni
-tool in diretta → resoconto finale con passi · token · tempo. Se chiudi il pannello, il run
+`snapshot → azione → osserva` (max passi default 25, budget tool = passi×3, circuit
+breaker dopo 5 errori consecutivi) → vedi ogni tool in diretta → resoconto finale con passi · token · tempo. Se chiudi il pannello, il run
 prosegue e il risultato ti aspetta nell'inbox. Lo screenshot va al modello come immagine
 (disattivabile); se il modello non supporta le immagini, le impostazioni te lo segnalano.
 
@@ -93,6 +96,16 @@ Policy in ⚙ → Privacy (`approval`): `off` · `sensitive` (default) · `all`.
 - `all`: conferma per ogni azione tranne snapshot ed elenco tab.
 - Timeout 120s → negata; STOP sblocca subito anche un'attesa di conferma.
 - Ogni decisione finisce nel log (approvato/negato + motivo).
+
+## Domini fidati, template, preset (v0.4.0)
+
+- Dal banner approval puoi spuntare "Ricorda questo dominio": le prossime navigazioni
+  lì non chiederanno conferma (gestibili in ⚙, max 50).
+- **Template**: salva il task corrente e riusalo con un click (max 20, solo locali).
+- **Preset**: Veloce (12 passi, niente screenshot), Preciso (40 passi, retry alti),
+  Locale (Ollama qwen3:8b).
+- **Health-check**: "Prova connessione" in ⚙ fa una chiamata minima al provider e
+  mostra OK o l'errore mappato in italiano.
 
 ## Cosa vede il modello
 
@@ -124,21 +137,27 @@ quando non servono. "Cancella tutti i dati" azzera anche le statistiche.
 
 ## Impostazioni (tutte, con default)
 
-| Chiave               | Default     | Note                                 |
-| -------------------- | ----------- | ------------------------------------ |
-| providerId / model   | openai/gpt… | catalogo in `src/shared/settings.ts` |
-| baseUrl              | ''          | Azure/custom/locali                  |
-| maxSteps             | 25 (3–100)  | budget tool = maxSteps × 3           |
-| maxRetries           | 2 (0–6)     | retry SDK su errori transienti       |
-| runTimeoutMin        | 15 (1–120)  | timeout globale run                  |
-| rememberKey          | true        | false = chiave solo in sessione      |
-| privacyMaskPii       | true        | redazione snapshot (banner se OFF)   |
-| privacyHidePasswords | true        | blocco digitazione password          |
-| privacyHostOnly      | false       | solo origin+path, niente query       |
-| keepHistory          | true        | false = nessuna persistenza task     |
-| approval             | sensitive   | off / sensitive / all                |
-| sendScreenshots      | true        | OFF = tool screenshot rifiutato      |
-| allowedDomains       | ''          | CSV, vuoto = tutti                   |
+| Chiave               | Default      | Note                                 |
+| -------------------- | ------------ | ------------------------------------ |
+| providerId / model   | openai/gpt…  | catalogo in `src/shared/settings.ts` |
+| baseUrl              | ''           | Azure/custom/locali                  |
+| maxSteps             | 25 (3–100)   | budget tool = maxSteps × 3           |
+| maxRetries           | 2 (0–6)      | retry SDK su errori transienti       |
+| runTimeoutMin        | 15 (1–120)   | timeout globale run                  |
+| rememberKey          | true         | false = chiave solo in sessione      |
+| privacyMaskPii       | true         | redazione snapshot (banner se OFF)   |
+| privacyHidePasswords | true         | blocco digitazione password          |
+| privacyHostOnly      | false        | solo origin+path, niente query       |
+| keepHistory          | true         | false = nessuna persistenza task     |
+| approval             | sensitive    | off / sensitive / all                |
+| approvalTimeoutSec   | 120 (30–300) | timeout conferma → negata            |
+| snapshotMaxChars     | 12000        | 4000–20000, taglio snapshot          |
+| sendScreenshots      | true         | OFF = tool screenshot rifiutato      |
+| allowedDomains       | ''           | CSV, vuoto = tutti                   |
+| trustedDomains       | []           | max 50, niente conferma navigate     |
+| savedPrompts         | []           | template task, max 20                |
+| theme                | auto         | auto / dark / light                  |
+| locale               | auto         | auto / it / en                       |
 
 ## Comandi tastiera
 
@@ -156,8 +175,10 @@ Requisiti: Node ≥ 22 (`nvm use 22`), pnpm 9.
 ```bash
 pnpm install        # installa dipendenze
 pnpm typecheck      # tsc --noEmit
-pnpm test           # vitest (112 test)
+pnpm test           # vitest (176 test)
 pnpm test:coverage  # coverage v8 (soglie 85/85/80 su src/shared)
+pnpm test:e2e        # smoke su Chromium reale (auto-scaricato in ~/.cache)
+pnpm check-links     # link relativi nei .md
 pnpm lint           # eslint flat
 pnpm format         # prettier
 pnpm check          # typecheck + test + lint + build
@@ -166,8 +187,9 @@ pnpm dev            # ricompila a ogni modifica (watch)
 pnpm release        # check + verify-dist + zip di dist/ in release/
 ```
 
-CI (GitHub Actions): install → typecheck → test → lint → format:check → build →
-verify-dist → check-size → audit → secret-scan, a ogni push/PR.
+CI (GitHub Actions): verify (typecheck → coverage → lint → format → build →
+verify-dist → size → links → audit → secret-scan) + job e2e separato
+(Chromium + xvfb), a ogni push/PR.
 
 **Caricare l'estensione in Chrome:**
 
@@ -199,20 +221,27 @@ verify-dist → check-size → audit → secret-scan, a ogni push/PR.
 - **Pagina senza elementi / "prova screenshot"?** Siti Canvas/grafica non hanno DOM
   accessibile: usa lo screenshot e descrivi dove cliccare è impossibile — meglio un sito
   alternativo o task diverso.
+- **"Troppi errori consecutivi"?** Il circuit breaker ha fermato il run dopo 5 tool
+  falliti di fila: cambia pagina o riformula il task, poi Riprova.
+- **Menu a tendina non selezionabile?** Usa `browser_select` (valore o testo opzione);
+  se l'opzione manca, il tool elenca le disponibili.
+- **Pagina che carica in ritardo?** `browser_wait` attende testo/selettore fino a 30s.
+- **Come riuso un task?** Salvalo come template (area cronologia) o copia il log intero
+  dalla toolbar (filtro + download disponibili).
 
 ## Roadmap
 
 - [x] Cronologia task locale (max 20)
 - [x] Approvazione umana per azioni sensibili
+- [x] Test e2e smoke (resta: pubblicazione Chrome Web Store con listing definitivi)
 - [ ] Streaming dei token nel pannello (oggi: eventi per tool + risposta finale)
 - [ ] `optional_host_permissions` con consenso per-sito (alternativa a `<all_urls>`)
 - [ ] Modalità senza chiave via Chrome Built-in AI (Prompt API, Gemini Nano locale)
 - [ ] Offscreen document per task molto lunghi (il worker MV3 può addormentarsi)
-- [ ] Test e2e + pubblicazione Chrome Web Store (icone/store listing definitivi)
 
 ## Stato onesto
 
-`pnpm check` verde (typecheck + 112 test + lint + build), coverage shared > 90%,
-Prettier verde, CI attiva con audit + secret-scan + check-size.
+`pnpm check` verde (typecheck + 176 test + lint + build), e2e smoke verde su Chromium,
+coverage shared > 90%, Prettier verde, CI attiva con audit + secret-scan + check-size.
 Il giro completo con chiave reale va provato caricando `dist/` in Chrome: se un provider
 cambia formato risposta, si aggiusta in `providers.ts`.

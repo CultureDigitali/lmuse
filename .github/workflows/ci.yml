@@ -18,13 +18,31 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm test
+      - run: pnpm test:coverage
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm build
       - run: pnpm verify-dist
       - run: pnpm check-size
+      - run: pnpm check-links
       - run: pnpm audit --audit-level=high
       - name: secret-scan
         run: |
           ! grep -rEn '(sk-[A-Za-z0-9]{20,}|xox[bap]-|ghp_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{20,})' src public sidepanel scripts || (echo 'secret-scan: possibile chiave live nel codice' && exit 1)
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: install Chromium
+        run: |
+          node --input-type=module -e "import {install, Browser} from '@puppeteer/browsers'; import {homedir} from 'node:os'; import {join} from 'node:path'; import {readFileSync} from 'node:fs'; const build = readFileSync('scripts/e2e-smoke.mjs', 'utf8').match(/CHROMIUM_BUILD = '(\d+)'/)[1]; await install({browser: Browser.CHROMIUM, buildId: build, cacheDir: join(homedir(), '.cache', 'puppeteer')}); console.log('chromium', build, 'ok');"
+      - run: xvfb-run -a pnpm test:e2e

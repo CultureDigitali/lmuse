@@ -1,5 +1,30 @@
 # Changelog — lmuse
 
+## 0.4.0 (2026-09-16) — Nuovi tool e fiducia
+
+Terzo loop da 100 migliorie (gigiloop): 18 tool browser, health-check, trusted domains,
+template/preset, e2e smoke, log UX.
+
+**Tool browser (da 9 a 18)**
+
+- `browser_select` (menu a tendina), `browser_wait` (testo/selettore, max 30s),
+  `browser_press` (solo tasti navigazione, mai Invio), `browser_reload`,
+  `browser_forward`, `browser_read_text` (redatto), `browser_links` (cap 200),
+  `browser_tab_duplicate`, `browser_screenshot_element` (crop locale).
+- Auto-snapshot dopo ogni azione; circuit breaker dopo 5 errori consecutivi.
+
+**Fiducia e controllo**
+
+- Trusted domains (ricorda dal banner approval), approval timeout configurabile,
+  test connessione provider dal pannello, badge con conteggio passi.
+- Template task salvati, preset Veloce/Preciso/Locale, tema auto/dark/light,
+  lingua it/en, filtro log, export log, voci collassabili.
+
+**Qualità**
+
+- 176 test, e2e smoke su Chromium reale (anche in CI), coverage in CI,
+  check-links, issue/PR template, Dependabot.
+
 ## 0.3.0 (2026-09-16) — Approval umana e minimizzazione
 
 Secondo loop da 100 migliorie (gigiloop): human-in-the-loop, content script on-demand,

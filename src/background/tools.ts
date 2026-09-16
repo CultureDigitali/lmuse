@@ -1,6 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { ToolBudget } from '../shared/budget';
+import { ToolBudget, FailureCircuit } from '../shared/budget';
 import { mapProviderError, mapTabError } from '../shared/errors';
 import { isAllowedHost, isBlockedUrl, normalizeNavigationTarget } from '../shared/urlGuard';
 import { MAX_SNAPSHOT_CHARS } from '../shared/settings';
@@ -23,11 +23,13 @@ export interface BrowserToolConfig {
   hostOnly: boolean;
   sendScreenshots: boolean;
   allowedDomains: string;
+  trustedDomains: string[];
+  snapshotMaxChars: number;
   budgetMax: number;
   policy: ApprovalPolicy;
   signal: AbortSignal;
   /** Il worker chiede al panel; true = approvato. Rifiuta su STOP. */
-  requestApproval: (tool: string, description: string) => Promise<boolean>;
+  requestApproval: (tool: string, description: string, domain?: string) => Promise<boolean>;
   onApprovalDecision?: (tool: string, approved: boolean, reason: string) => void;
 }
 
@@ -37,16 +39,55 @@ export interface SnapshotResult {
   error?: string;
   valueLength?: number;
   scrollPercent?: number;
+  selected?: string;
+  waitedMs?: number;
+  focused?: string;
+  text?: string;
+  links?: { text: string; href: string }[];
+  rect?: { x: number; y: number; w: number; h: number; dpr: number };
 }
 
 /** Ultimo screenshot catturato (PNG base64, senza prefisso data:). */
 let lastScreenshot: string | null = null;
 
+function base64Of(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+/** Ritaglia un PNG (data URL) al rettangolo CSS px dato (con DPR). */
+async function cropPng(
+  dataUrl: string,
+  rect: { x: number; y: number; w: number; h: number; dpr: number },
+): Promise<string> {
+  const blob = await (await fetch(dataUrl)).blob();
+  const bmp = await createImageBitmap(blob);
+  const sx = Math.max(0, Math.round(rect.x * rect.dpr));
+  const sy = Math.max(0, Math.round(rect.y * rect.dpr));
+  const sw = Math.min(bmp.width - sx, Math.round(rect.w * rect.dpr));
+  const sh = Math.min(bmp.height - sy, Math.round(rect.h * rect.dpr));
+  if (sw < 2 || sh < 2) throw new Error('Elemento fuori dallo schermo visibile.');
+  const canvas = new OffscreenCanvas(sw, sh);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas non disponibile.');
+  ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, sw, sh);
+  const out = await canvas.convertToBlob({ type: 'image/png' });
+  return base64Of(await out.arrayBuffer());
+}
+
 const TAB_REPLY_TIMEOUT_MS = 10_000;
 const UNREACHABLE_PREFIX = 'Content script non raggiungibile';
 
-function truncate(text: string, max = MAX_SNAPSHOT_CHARS): string {
+function truncateTo(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}\n…[troncato]` : text;
+}
+
+function truncate(text: string, max = MAX_SNAPSHOT_CHARS): string {
+  return truncateTo(text, max);
 }
 
 async function getActiveTab(): Promise<chrome.tabs.Tab> {
@@ -115,6 +156,7 @@ function waitForTabComplete(tabId: number, timeoutMs = 15_000): Promise<void> {
 export interface SnapshotOpts {
   maskPii: boolean;
   hostOnly: boolean;
+  maxChars: number;
 }
 
 /** Snapshot del tab; usato anche per "rescuare" ref scaduti. */
@@ -139,7 +181,7 @@ async function snapshotTab(
     out +=
       '\nSuggerimento: nessun elemento interattivo rilevato (pagina grafica/Canvas?). Prova browser_screenshot.';
   }
-  return truncate(out);
+  return truncateTo(out, opts.maxChars);
 }
 
 /**
@@ -167,8 +209,13 @@ const BUDGET_EXHAUSTED = 'Budget tool esaurito: chiudi il task o aumenta i passi
 
 export function createBrowserTools(cfg: BrowserToolConfig) {
   const budget = new ToolBudget(cfg.budgetMax);
+  const circuit = new FailureCircuit(5);
   const seenDomains: string[] = [];
-  const snapOpts: SnapshotOpts = { maskPii: cfg.maskPii, hostOnly: cfg.hostOnly };
+  const snapOpts: SnapshotOpts = {
+    maskPii: cfg.maskPii,
+    hostOnly: cfg.hostOnly,
+    maxChars: cfg.snapshotMaxChars,
+  };
 
   function trackDomain(url: string | undefined): void {
     const domain = url ? extractDomain(url) : null;
@@ -187,25 +234,38 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     }
   }
 
-  /** Guardia centrale: budget + mappatura errori in italiano. */
+  /** Guardia centrale: budget + circuit breaker + errori in italiano. */
   async function guarded<O>(fn: () => Promise<O>): Promise<O> {
+    if (circuit.open) {
+      throw new Error(
+        `Troppi errori consecutivi (${circuit.failures}): run interrotto. Riformula il task o cambia pagina e riprova.`,
+      );
+    }
     if (!budget.tryConsume()) throw new Error(`${BUDGET_EXHAUSTED} (${budget.max} chiamate per run).`);
     try {
-      return await fn();
+      const out = await fn();
+      circuit.recordSuccess();
+      return out;
     } catch (error) {
+      circuit.recordFailure();
       throw new Error(mapProviderError(error), { cause: error });
     }
   }
 
   /** Approval umana prima dell'azione; niente consumo budget se negata. */
-  async function approved(toolName: string, args: unknown, description: string): Promise<void> {
-    const ctx: ApprovalContext = { seenDomains: [...seenDomains] };
+  async function approved(
+    toolName: string,
+    args: unknown,
+    description: string,
+    domain?: string,
+  ): Promise<void> {
+    const ctx: ApprovalContext = { seenDomains: [...seenDomains], trustedDomains: cfg.trustedDomains };
     const { needed, reason } = shouldApprove(toolName, args, cfg.policy, ctx);
     if (!needed) return;
     const full = reason ? `${description} — ${reason}` : description;
     let ok: boolean;
     try {
-      ok = await cfg.requestApproval(toolName, full);
+      ok = await cfg.requestApproval(toolName, full, domain);
     } catch (error) {
       if (cfg.signal.aborted) throw new Error('Task fermato durante la conferma.', { cause: error });
       throw new Error(mapProviderError(error), { cause: error });
@@ -245,9 +305,10 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       description: 'Naviga il tab attivo a un URL e restituisce il nuovo snapshot della pagina.',
       inputSchema: z.object({ url: z.string().describe('URL completo, es. https://example.com') }),
       execute: async ({ url }: { url: string }) => {
-        await approved('browser_navigate', { url }, `Naviga a ${url}`);
+        const target = normalizeNavigationTarget(url);
+        const domain = target ? extractDomain(target) : null;
+        await approved('browser_navigate', { url }, `Naviga a ${url}`, domain ?? undefined);
         return guarded(async () => {
-          const target = normalizeNavigationTarget(url);
           if (!target || isBlockedUrl(target)) {
             throw new Error('URL bloccato: lmuse non naviga pagine chrome://, interne o del Web Store.');
           }
@@ -298,6 +359,37 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           await chrome.tabs.goBack(tab.id);
           await waitForTabComplete(tab.id);
           return acted(tab.id, 'Tornato indietro.');
+        });
+      },
+    }),
+
+    browser_forward: tool({
+      description: 'Va alla pagina successiva nel tab attivo e restituisce il nuovo snapshot.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        await approved('browser_forward', {}, 'Vai avanti');
+        return guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          await chrome.tabs.goForward(tab.id);
+          await waitForTabComplete(tab.id);
+          return acted(tab.id, 'Andato avanti.');
+        });
+      },
+    }),
+
+    browser_reload: tool({
+      description: 'Ricarica la pagina del tab attivo e restituisce il nuovo snapshot.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        await approved('browser_reload', {}, 'Ricarica pagina');
+        return guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          await chrome.tabs.reload(tab.id);
+          await waitForTabComplete(tab.id);
+          await new Promise((r) => setTimeout(r, 800));
+          return acted(tab.id, 'Pagina ricaricata.');
         });
       },
     }),
@@ -356,6 +448,78 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
             throw new Error(res.error ?? 'Digitazione fallita.');
           }
           return acted(tab.id, `Testo inserito in [${ref}] (${res.valueLength ?? '?'} caratteri nel campo).`);
+        });
+      },
+    }),
+
+    browser_select: tool({
+      description:
+        'Sceglie un’opzione in un menu a tendina <select> (ref dallo snapshot), per valore o testo visibile.',
+      inputSchema: z.object({
+        ref: z.number().int().describe('Ref numerico del menu dallo snapshot'),
+        value: z.string().describe('Valore o testo visibile dell’opzione'),
+      }),
+      execute: async ({ ref, value }: { ref: number; value: string }) => {
+        await approved('browser_select', { ref, value }, `Seleziona "${value}" in [${ref}]`);
+        return guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_SELECT', ref, value });
+          if (!res.ok) {
+            if (res.error?.includes('scaduto')) {
+              return refRescue(tab.id, ref, snapOpts, 'Selezione non riuscita.', sendToTab);
+            }
+            throw new Error(res.error ?? 'Selezione fallita.');
+          }
+          return acted(tab.id, `Selezionato "${res.selected ?? value}" in [${ref}].`);
+        });
+      },
+    }),
+
+    browser_wait: tool({
+      description:
+        'Attende (max 30s) che un testo appaia nella pagina o un selettore CSS esista. Per pagine dinamiche.',
+      inputSchema: z.object({
+        waitKind: z.enum(['text', 'selector']).describe('Cosa attendere'),
+        value: z.string().describe('Testo o selettore CSS'),
+        timeoutMs: z.number().int().min(500).max(30_000).optional().describe('Timeout ms (default 10000)'),
+      }),
+      execute: async ({
+        waitKind,
+        value,
+        timeoutMs,
+      }: {
+        waitKind: 'text' | 'selector';
+        value: string;
+        timeoutMs?: number;
+      }) =>
+        guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, {
+            kind: 'LMUSE_WAIT',
+            waitKind,
+            value,
+            timeoutMs: timeoutMs ?? 10_000,
+          });
+          if (!res.ok) throw new Error(res.error ?? 'Attesa fallita.');
+          return acted(tab.id, `Trovato dopo ${res.waitedMs ?? '?'}ms.`);
+        }),
+    }),
+
+    browser_press: tool({
+      description: 'Premere un tasto di navigazione (Escape, Tab, frecce, Home, End, Pag). Mai Invio.',
+      inputSchema: z.object({
+        key: z.string().describe('Tasto: Escape, Tab, ArrowUp/Down/Left/Right, Home, End, PageUp, PageDown'),
+      }),
+      execute: async ({ key }: { key: string }) => {
+        await approved('browser_press', { key }, `Tasto ${key}`);
+        return guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_PRESS', key });
+          if (!res.ok) throw new Error(res.error ?? 'Pressione tasto fallita.');
+          return acted(tab.id, `Tasto ${key} premuto (focus: ${res.focused ?? '?'}).`);
         });
       },
     }),
@@ -419,6 +583,46 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       },
     }),
 
+    browser_screenshot_element: tool({
+      description:
+        'Screenshot ritagliato su un elemento (ref dallo snapshot). Invia MENO dati del full-page: usalo per leggere dettagli.',
+      inputSchema: z.object({ ref: z.number().int().describe('Ref numerico dallo snapshot') }),
+      execute: async ({ ref }: { ref: number }) => {
+        await approved('browser_screenshot_element', { ref }, `Screenshot di [${ref}]`);
+        return guarded(async () => {
+          if (!cfg.sendScreenshots) {
+            throw new Error('Screenshot disattivato dalla privacy di lmuse (impostazioni ⚙).');
+          }
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_RECT', ref });
+          if (!res.ok || !res.rect) {
+            if (res.error?.includes('scaduto')) {
+              return refRescue(tab.id, ref, snapOpts, 'Screenshot elemento non riuscito.', sendToTab);
+            }
+            throw new Error(res.error ?? 'Misura elemento fallita.');
+          }
+          const win = await chrome.windows.getLastFocused();
+          if (win.id == null) throw new Error('Finestra non trovata.');
+          const dataUrl = (await chrome.tabs.captureVisibleTab(win.id, { format: 'png' })) as string;
+          lastScreenshot = await cropPng(dataUrl, res.rect);
+          return { captured: true };
+        });
+      },
+      toModelOutput: (options: { output: unknown }) => {
+        const output = options.output as { captured?: boolean } | null;
+        const shot = output?.captured === true ? lastScreenshot : null;
+        if (!shot) return { type: 'text', value: 'Screenshot elemento non riuscito.' };
+        return {
+          type: 'content',
+          value: [
+            { type: 'text', text: 'Ecco lo screenshot ritagliato:' },
+            { type: 'file', mediaType: 'image/png', data: { type: 'data', data: shot } },
+          ],
+        };
+      },
+    }),
+
     browser_tabs_list: tool({
       description: 'Elenca i tab aperti (id, titolo, URL) per scegliere su quale lavorare.',
       inputSchema: z.object({}),
@@ -462,6 +666,68 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           }
         });
       },
+    }),
+
+    browser_tab_duplicate: tool({
+      description: 'Duplica il tab attivo (per esplorare senza perdere la pagina) e lo porta in primo piano.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        await approved('browser_tab_duplicate', {}, 'Duplica tab');
+        return guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          let dup: chrome.tabs.Tab | undefined;
+          try {
+            dup = await chrome.tabs.duplicate(tab.id);
+          } catch (error) {
+            throw new Error(mapTabError(error), { cause: error });
+          }
+          if (dup?.id == null) throw new Error('Duplicazione fallita.');
+          await waitForTabComplete(dup.id, 5_000);
+          trackDomain(dup.url);
+          try {
+            const fresh = await snapshotTab(dup.id, snapOpts, sendToTab);
+            return { observation: `Tab duplicato (#${dup.id}).\n\nNuovo snapshot:\n${fresh}` };
+          } catch {
+            return { observation: `Tab duplicato (#${dup.id}). Content script non raggiungibile qui.` };
+          }
+        });
+      },
+    }),
+
+    browser_read_text: tool({
+      description:
+        'Legge il testo visibile della pagina (max 8000 caratteri, redatto se privacy attiva). Per pagine senza elementi interattivi.',
+      inputSchema: z.object({}),
+      execute: async () =>
+        guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, {
+            kind: 'LMUSE_TEXT',
+            maxChars: Math.min(cfg.snapshotMaxChars, 8000),
+            maskPii: cfg.maskPii,
+          });
+          if (!res.ok) throw new Error(res.error ?? 'Lettura testo fallita.');
+          return { observation: truncateTo(res.text ?? '(vuoto)', 8000) };
+        }),
+    }),
+
+    browser_links: tool({
+      description: 'Elenca i link della pagina (testo + URL, max 200, token redatti).',
+      inputSchema: z.object({}),
+      execute: async () =>
+        guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_LINKS', max: 200 });
+          if (!res.ok) throw new Error(res.error ?? 'Lettura link fallita.');
+          const lines = (res.links ?? []).map((l) => {
+            const href = maskUrlTokens(l.href);
+            return cfg.maskPii ? `- ${maskPii(l.text)} → ${href}` : `- ${l.text} → ${href}`;
+          });
+          return { observation: truncateTo(lines.join('\n') || 'Nessun link.', 6000) };
+        }),
     }),
   };
 

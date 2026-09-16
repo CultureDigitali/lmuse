@@ -2,6 +2,7 @@ node_modules/
 dist/
 release/
 coverage/
+.e2e-profile/
 reference/
 *.local
 .DS_Store

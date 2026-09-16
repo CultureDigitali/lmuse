@@ -25,6 +25,10 @@
 | `sidePanel`       | pannello laterale                                | popup (peggiore per task lunghi)               |
 | host `<all_urls>` | operare dove l'utente chiede                     | `optional_host_permissions` per-sito (roadmap) |
 
+I 9 tool aggiunti in v0.4.0 (select, wait, press, reload, forward, read_text, links,
+duplicate, screenshot_element) riusano gli stessi permessi: nessun nuovo permesso
+introdotto (audit diff manifest).
+
 ## Difese per l'agente
 
 - Blocco navigazione verso `javascript:`/`data:`/`file:`/`chrome:*`/`about:*` e Web Store;
@@ -50,6 +54,10 @@
   locali (Ollama/LM Studio) per dati sensibili; `privacyHostOnly` riduce gli URL.
 - **Service worker MV3**: su task molto lunghi Chrome può sospendere il worker; il
   run-state orfano viene rilevato e offre Riprova (vedi roadmap: offscreen document).
+- **Nuovi tool v0.4.0**: `select`/`press` agiscono sulla pagina come click/type (stesse
+  guardie + approval sensitive per select); `read_text`/`links` esfiltrano testo al
+  modello (redazione attiva di default); `test-connection` invia solo un probe "OK".
+  Nessuno aggiunge permessi o canali di rete.
 
 ## Segnalare una vulnerabilità
 

@@ -4,12 +4,14 @@ import {
   extractDomain,
   formatElapsed,
   isPlausibleKey,
+  isTrustedDomain,
   shouldApprove,
   type ApprovalContext,
 } from './approval';
 
-const EMPTY: ApprovalContext = { seenDomains: [] };
-const SEEN: ApprovalContext = { seenDomains: ['example.com'] };
+const EMPTY: ApprovalContext = { seenDomains: [], trustedDomains: [] };
+const SEEN: ApprovalContext = { seenDomains: ['example.com'], trustedDomains: [] };
+const TRUSTED: ApprovalContext = { seenDomains: [], trustedDomains: ['fidato.test'] };
 
 describe('shouldApprove', () => {
   it('policy off: niente approval tranne safety floor', () => {
@@ -39,14 +41,43 @@ describe('shouldApprove', () => {
     expect(shouldApprove('browser_click', { ref: 2 }, 'sensitive', EMPTY).needed).toBe(false);
     expect(shouldApprove('browser_snapshot', {}, 'sensitive', EMPTY).needed).toBe(false);
   });
-  it('all: tutto tranne snapshot e tabs_list', () => {
+  it('sensitive: select e reload sì, wait/press/read no', () => {
+    expect(shouldApprove('browser_select', { ref: 1, value: 'a' }, 'sensitive', EMPTY).needed).toBe(true);
+    expect(shouldApprove('browser_reload', {}, 'sensitive', EMPTY).needed).toBe(true);
+    expect(shouldApprove('browser_wait', {}, 'sensitive', EMPTY).needed).toBe(false);
+    expect(shouldApprove('browser_press', { key: 'Escape' }, 'sensitive', EMPTY).needed).toBe(false);
+    expect(shouldApprove('browser_read_text', {}, 'sensitive', EMPTY).needed).toBe(false);
+  });
+  it('all: tutto tranne snapshot, tabs_list e wait', () => {
     expect(shouldApprove('browser_click', { ref: 1 }, 'all', EMPTY).needed).toBe(true);
     expect(shouldApprove('browser_snapshot', {}, 'all', EMPTY).needed).toBe(false);
     expect(shouldApprove('browser_tabs_list', {}, 'all', EMPTY).needed).toBe(false);
+    expect(shouldApprove('browser_wait', {}, 'all', EMPTY).needed).toBe(false);
   });
   it('input malformato non crasha', () => {
     expect(shouldApprove('browser_navigate', null, 'sensitive', EMPTY).needed).toBe(false);
     expect(shouldApprove('sconosciuto', {}, 'sensitive', EMPTY).needed).toBe(false);
+  });
+  it('dominio fidato: niente domanda', () => {
+    expect(
+      shouldApprove('browser_navigate', { url: 'https://fidato.test/a' }, 'sensitive', TRUSTED).needed,
+    ).toBe(false);
+    expect(
+      shouldApprove('browser_navigate', { url: 'https://sub.fidato.test/a' }, 'sensitive', TRUSTED).needed,
+    ).toBe(false);
+    expect(
+      shouldApprove('browser_navigate', { url: 'https://altro.test/a' }, 'sensitive', TRUSTED).needed,
+    ).toBe(true);
+  });
+});
+
+describe('isTrustedDomain', () => {
+  it('esatto, sottodominio, case-insensitive; no suffix-trick', () => {
+    expect(isTrustedDomain('a.test', ['a.test'])).toBe(true);
+    expect(isTrustedDomain('sub.A.test', ['a.test'])).toBe(true);
+    expect(isTrustedDomain('a.test.evil.com', ['a.test'])).toBe(false);
+    expect(isTrustedDomain('', ['a.test'])).toBe(false);
+    expect(isTrustedDomain('a.test', [])).toBe(false);
   });
 });
 

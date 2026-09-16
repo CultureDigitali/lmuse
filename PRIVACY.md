@@ -38,6 +38,17 @@ chiave" attivo sta in `chrome.storage.local`; spento, in `chrome.storage.session
 "**Cancella tutti i dati**" (⚙, con conferma) svuota chiave, impostazioni, cronologia,
 inbox, statistiche uso e flag onboarding.
 
+## Novità privacy v0.4.0
+
+- **Trusted domains**: solo hostname, max 50, solo locali; niente navigazione autonoma
+  in più, solo meno conferme dove hai già deciso tu.
+- **Template task**: testi tuoi, max 20×300 char, solo locali.
+- **Health-check**: "Prova connessione" invia al provider solo il probe "Reply with
+  exactly: OK" (nessun dato tuo).
+- **Host tab attivo** mostrato nel pannello (solo lettura locale, mai inviato altrove).
+- **Screenshot elemento**: ritagliato in locale prima dell'invio (meno pixel al modello).
+- **Export log**: download di un file locale, nessun upload.
+
 ## Novità privacy v0.3.0
 
 - **Approval umana**: prima di navigare domini nuovi, inviare form o cambiare tab,

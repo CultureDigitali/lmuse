@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildHistoryList,
+  buildPromptList,
   DEFAULT_SETTINGS,
   mergeUsage,
   normalizeDomainsCsv,
   PanelToSwSchema,
+  PRESETS,
+  sanitizeDomainList,
   sanitizeSettings,
   sanitizeUsage,
 } from './settings';
@@ -43,6 +46,37 @@ describe('sanitizeSettings', () => {
   it('allowedDomains normalizzato', () => {
     expect(sanitizeSettings({ allowedDomains: ' B.IT ,a.com ' }).allowedDomains).toBe('b.it, a.com');
     expect(normalizeDomainsCsv('')).toBe('');
+  });
+  it('nuovi campi loop-3 con default e clamp', () => {
+    const s = sanitizeSettings({});
+    expect(s.trustedDomains).toEqual([]);
+    expect(s.savedPrompts).toEqual([]);
+    expect(s.theme).toBe('auto');
+    expect(s.locale).toBe('auto');
+    expect(s.approvalTimeoutSec).toBe(120);
+    expect(s.snapshotMaxChars).toBe(DEFAULT_SETTINGS.snapshotMaxChars);
+    expect(sanitizeSettings({ approvalTimeoutSec: 9 }).approvalTimeoutSec).toBe(30);
+    expect(sanitizeSettings({ snapshotMaxChars: 99999 }).snapshotMaxChars).toBe(20000);
+    expect(sanitizeSettings({ theme: 'neon' as never }).theme).toBe('auto');
+    expect(sanitizeSettings({ trustedDomains: [' B.it ', 'b.it', ''] }).trustedDomains).toEqual(['b.it']);
+    expect(sanitizeDomainList('nope')).toEqual([]);
+  });
+  it('preset con id unici', () => {
+    const ids = PRESETS.map((p) => p.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain('fast');
+  });
+});
+
+describe('buildPromptList', () => {
+  it('trim, truncate, dedup, cap', () => {
+    expect(buildPromptList([], '  ciao  ')).toEqual(['ciao']);
+    expect(buildPromptList(['a'], '')).toEqual(['a']);
+    const long = Array.from({ length: 25 }, (_, i) => `p${i}`);
+    const out = buildPromptList(long, 'new');
+    expect(out).toHaveLength(20);
+    expect(out[0]).toBe('new');
+    expect(buildPromptList([], 'x'.repeat(400))[0]).toHaveLength(300);
   });
 });
 

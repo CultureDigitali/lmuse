@@ -14,13 +14,13 @@ trasparenza costi, suite test estesa.
 
 ## Rubric (post-reconcile)
 
-| Criterio | Peso | Evidenza | Score |
-|---|---:|---|---:|
-| Sicurezza | 30% | approval runtime testata, on-demand, sender check, CI audit+secret-scan puliti | 9/10 |
-| Privacy | 25% | header/hostOnly/tracking-strip testati, PRIVACY aggiornata, nessun nuovo permesso | 9/10 |
-| Robustezza | 25% | auto-snapshot, run-state orfano, retry, usage, 130/130 test | 9/10 |
-| Qualità | 10% | coverage shared 93%, size-check, verify-dist, CI estesa, Dependabot | 9/10 |
-| Documentazione | 10% | GUIDA/PRIVACY/SECURITY/CHANGELOG/README/AGENTS coerenti | 9/10 |
+| Criterio       | Peso | Evidenza                                                                          | Score |
+| -------------- | ---: | --------------------------------------------------------------------------------- | ----: |
+| Sicurezza      |  30% | approval runtime testata, on-demand, sender check, CI audit+secret-scan puliti    |  9/10 |
+| Privacy        |  25% | header/hostOnly/tracking-strip testati, PRIVACY aggiornata, nessun nuovo permesso |  9/10 |
+| Robustezza     |  25% | auto-snapshot, run-state orfano, retry, usage, 130/130 test                       |  9/10 |
+| Qualità        |  10% | coverage shared 93%, size-check, verify-dist, CI estesa, Dependabot               |  9/10 |
+| Documentazione |  10% | GUIDA/PRIVACY/SECURITY/CHANGELOG/README/AGENTS coerenti                           |  9/10 |
 
 **Post-reconcile: 9.0/10.** Residui onesti: prompt injection intrinseca, `<all_urls>`
 (documentati), nessun e2e con chiave reale (richiede Chrome + chiave).

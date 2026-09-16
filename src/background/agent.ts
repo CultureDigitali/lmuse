@@ -78,7 +78,7 @@ export async function runTask(
   task: string,
   callbacks: AgentCallbacks,
   userAbort: AbortSignal,
-  requestApproval: (tool: string, description: string) => Promise<boolean>,
+  requestApproval: (tool: string, description: string, domain?: string) => Promise<boolean>,
 ): Promise<AgentRunResult> {
   if (!apiKey && !['ollama', 'lmstudio', 'custom'].includes(settings.providerId)) {
     throw new Error('Manca la chiave API: aprila nelle impostazioni di lmuse.');
@@ -99,6 +99,8 @@ export async function runTask(
     hostOnly: settings.privacyHostOnly,
     sendScreenshots: settings.sendScreenshots,
     allowedDomains: settings.allowedDomains,
+    trustedDomains: settings.trustedDomains,
+    snapshotMaxChars: settings.snapshotMaxChars,
     budgetMax: settings.maxSteps * 3,
     policy: settings.approval,
     signal,

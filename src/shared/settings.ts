@@ -168,6 +168,9 @@ export function getProvider(id: ProviderId): ProviderDef {
 export const MAX_TASK_CHARS = 4000;
 export const MAX_SNAPSHOT_CHARS = 12_000;
 
+export type Theme = 'auto' | 'dark' | 'light';
+export type Locale = 'auto' | 'it' | 'en';
+
 export interface Settings {
   providerId: ProviderId;
   model: string;
@@ -175,6 +178,8 @@ export interface Settings {
   maxSteps: number;
   maxRetries: number;
   runTimeoutMin: number;
+  approvalTimeoutSec: number;
+  snapshotMaxChars: number;
   rememberKey: boolean;
   privacyMaskPii: boolean;
   privacyHidePasswords: boolean;
@@ -183,6 +188,10 @@ export interface Settings {
   approval: ApprovalPolicy;
   sendScreenshots: boolean;
   allowedDomains: string;
+  trustedDomains: string[];
+  savedPrompts: string[];
+  theme: Theme;
+  locale: Locale;
 }
 
 export const SETTINGS_KEY = 'lmuse.settings.v1';
@@ -194,6 +203,8 @@ export const DEFAULT_SETTINGS: Settings = {
   maxSteps: 25,
   maxRetries: 2,
   runTimeoutMin: 15,
+  approvalTimeoutSec: 120,
+  snapshotMaxChars: MAX_SNAPSHOT_CHARS,
   rememberKey: true,
   privacyMaskPii: true,
   privacyHidePasswords: true,
@@ -202,6 +213,10 @@ export const DEFAULT_SETTINGS: Settings = {
   approval: 'sensitive',
   sendScreenshots: true,
   allowedDomains: '',
+  trustedDomains: [],
+  savedPrompts: [],
+  theme: 'auto',
+  locale: 'auto',
 };
 
 function clamp(value: number, min: number, max: number, fallback: number): number {
@@ -229,6 +244,8 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined): Settings {
     maxSteps: clamp(Number(base.maxSteps), 3, 100, DEFAULT_SETTINGS.maxSteps),
     maxRetries: clamp(Number(base.maxRetries), 0, 6, DEFAULT_SETTINGS.maxRetries),
     runTimeoutMin: clamp(Number(base.runTimeoutMin), 1, 120, DEFAULT_SETTINGS.runTimeoutMin),
+    approvalTimeoutSec: clamp(Number(base.approvalTimeoutSec), 30, 300, DEFAULT_SETTINGS.approvalTimeoutSec),
+    snapshotMaxChars: clamp(Number(base.snapshotMaxChars), 4000, 20000, DEFAULT_SETTINGS.snapshotMaxChars),
     rememberKey: Boolean(base.rememberKey),
     privacyMaskPii: Boolean(base.privacyMaskPii),
     privacyHidePasswords: Boolean(base.privacyHidePasswords),
@@ -237,6 +254,10 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined): Settings {
     approval,
     sendScreenshots: Boolean(base.sendScreenshots),
     allowedDomains: normalizeDomainsCsv(String(base.allowedDomains ?? '')),
+    trustedDomains: sanitizeDomainList(base.trustedDomains).slice(0, 50),
+    savedPrompts: sanitizePromptList(base.savedPrompts).slice(0, 20),
+    theme: ['auto', 'dark', 'light'].includes(base.theme) ? base.theme : 'auto',
+    locale: ['auto', 'it', 'en'].includes(base.locale) ? base.locale : 'auto',
   };
 }
 
@@ -249,6 +270,57 @@ export function normalizeDomainsCsv(csv: string): string {
     .join(', ')
     .slice(0, 500);
 }
+
+/** Lista domini fidati normalizzata (lowercase, dedup). */
+export function sanitizeDomainList(list: unknown): string[] {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set<string>();
+  for (const item of list) {
+    const d = String(item ?? '')
+      .trim()
+      .toLowerCase();
+    if (d && !seen.has(d)) seen.add(d);
+  }
+  return [...seen];
+}
+
+const PROMPT_MAX = 20;
+const PROMPT_ENTRY_MAX = 300;
+
+/** Lista pura (testata): trim + truncate + dedup + cap. */
+export function buildPromptList(list: string[], entry: string): string[] {
+  const clean = entry.trim().slice(0, PROMPT_ENTRY_MAX);
+  if (!clean) return list;
+  return [clean, ...list.filter((t) => t !== clean)].slice(0, PROMPT_MAX);
+}
+
+function sanitizePromptList(list: unknown): string[] {
+  if (!Array.isArray(list)) return [];
+  const out: string[] = [];
+  for (const item of list) {
+    const clean = String(item ?? '')
+      .trim()
+      .slice(0, PROMPT_ENTRY_MAX);
+    if (clean && !out.includes(clean)) out.push(clean);
+    if (out.length >= PROMPT_MAX) break;
+  }
+  return out;
+}
+
+export interface RunPreset {
+  id: string;
+  patch: Partial<Settings>;
+}
+
+/** Preset veloci: combinazioni sensate, mai la chiave. */
+export const PRESETS: RunPreset[] = [
+  { id: 'fast', patch: { maxSteps: 12, sendScreenshots: false } },
+  { id: 'precise', patch: { maxSteps: 40, maxRetries: 4, sendScreenshots: true } },
+  {
+    id: 'local',
+    patch: { providerId: 'ollama', model: 'qwen3:8b', baseUrl: 'http://localhost:11434/v1' },
+  },
+];
 
 export async function loadSettings(): Promise<Settings> {
   const stored = await chrome.storage.local.get(SETTINGS_KEY);
@@ -453,4 +525,4 @@ export type SwToPanelMessage =
       elapsedMs: number;
     }
   | { type: 'ERROR'; message: string }
-  | { type: 'APPROVAL'; id: string; tool: string; description: string; timeoutSec: number };
+  | { type: 'APPROVAL'; id: string; tool: string; description: string; timeoutSec: number; domain?: string };

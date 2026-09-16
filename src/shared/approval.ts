@@ -3,12 +3,27 @@
 
 export type ApprovalPolicy = 'off' | 'sensitive' | 'all';
 
-/** Tool di sola lettura: mai soggetti ad approval nemmeno con policy 'all'. */
-const READONLY_TOOLS = new Set(['browser_snapshot', 'browser_tabs_list']);
+/** Tool di sola lettura/passivi: mai soggetti ad approval nemmeno con policy 'all'. */
+const READONLY_TOOLS = new Set(['browser_snapshot', 'browser_tabs_list', 'browser_wait']);
 
 export interface ApprovalContext {
   /** Domini già visitati in questo run (per capire se un dominio è "nuovo"). */
   seenDomains: string[];
+  /** Domini fidati dall'utente: mai domanda di navigazione. */
+  trustedDomains: string[];
+}
+
+/**
+ * Match dominio fidato: esatto o sottodominio (stessa semantica dell'allowlist).
+ * Il confronto è case-insensitive; voci vuote ignorate.
+ */
+export function isTrustedDomain(host: string, trusted: string[]): boolean {
+  const h = host.trim().toLowerCase();
+  if (!h) return false;
+  return trusted
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean)
+    .some((d) => h === d || h.endsWith(`.${d}`));
 }
 
 export interface ApprovalDecision {
@@ -54,13 +69,19 @@ export function shouldApprove(
   // policy 'sensitive'
   if (toolName === 'browser_navigate' && typeof input['url'] === 'string') {
     const domain = extractDomain(input['url']);
-    if (domain && !ctx.seenDomains.includes(domain)) {
+    if (domain && !ctx.seenDomains.includes(domain) && !isTrustedDomain(domain, ctx.trustedDomains)) {
       return { needed: true, reason: `Navigazione verso un dominio nuovo: ${domain}` };
     }
     return { needed: false, reason: '' };
   }
   if (toolName === 'browser_tab_focus') {
     return { needed: true, reason: 'Cambio di tab' };
+  }
+  if (toolName === 'browser_select') {
+    return { needed: true, reason: 'Modifica di un menu a tendina' };
+  }
+  if (toolName === 'browser_reload') {
+    return { needed: true, reason: 'Ricarica pagina (perde lo stato dei form)' };
   }
   return { needed: false, reason: '' };
 }

@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_SETTINGS,
   MAX_TASK_CHARS,
+  PRESETS,
   PROVIDERS,
   addHistoryTask,
+  buildPromptList,
   clearHistory,
   clearInbox,
   clearRunState,
@@ -17,6 +19,7 @@ import {
   loadStoredKey,
   loadUsage,
   removeHistoryTask,
+  sanitizeDomainList,
   saveSettings,
   saveStoredKey,
   setOnboarded,
@@ -35,13 +38,17 @@ interface LogEntry {
   id: number;
   kind: 'user' | 'tool' | 'result' | 'error' | 'info';
   text: string;
+  at: number;
 }
+
+type LogFilter = 'all' | 'tools' | 'errors';
 
 interface PendingApproval {
   id: string;
   tool: string;
   description: string;
   expiresAt: number;
+  domain?: string;
 }
 
 let logId = 0;
@@ -63,7 +70,7 @@ function detectLang(): Lang {
 }
 
 export default function App() {
-  const lang = useRef<Lang>(detectLang()).current;
+  const [lang, setLang] = useState<Lang>(detectLang());
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
@@ -86,6 +93,10 @@ export default function App() {
   const [usage, setUsage] = useState<UsageStats>({ runs: 0, inputTokens: 0, outputTokens: 0 });
   const [onboarded, setOnboardedState] = useState(true);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [logFilter, setLogFilter] = useState<LogFilter>('all');
+  const [activeHost, setActiveHost] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [rememberDomain, setRememberDomain] = useState(false);
 
   const portRef = useRef<chrome.runtime.Port | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -97,11 +108,13 @@ export default function App() {
   const apiKeyRef = useRef('');
   const startedAtRef = useRef(0);
   const settingsRef = useRef(settings);
+  const langRef = useRef(lang);
   apiKeyRef.current = apiKey;
   settingsRef.current = settings;
+  langRef.current = lang;
 
-  const append = useCallback((entry: Omit<LogEntry, 'id'>) => {
-    setLog((prev) => [...prev.slice(-200), { ...entry, id: nextId() }]);
+  const append = useCallback((entry: Omit<LogEntry, 'id' | 'at'>) => {
+    setLog((prev) => [...prev.slice(-200), { ...entry, id: nextId(), at: Date.now() }]);
   }, []);
 
   // --- Port con riconnessione automatica e backoff (R51) ---
@@ -122,7 +135,8 @@ export default function App() {
         if (message.tool === 'step') {
           setSteps(message.index);
           const max = settingsRef.current.maxSteps;
-          append({ kind: 'info', text: `— ${t(lang, 'step_of', { n: message.index, max })} —` });
+          const l = langRef.current;
+          append({ kind: 'info', text: `— ${t(l, 'step_of', { n: message.index, max })} —` });
         } else if (message.tool.endsWith('✓')) {
           append({
             kind: 'tool',
@@ -133,7 +147,8 @@ export default function App() {
         }
       } else if (message.type === 'DONE') {
         const tokens = message.inputTokens + message.outputTokens;
-        const usageLine = t(lang, 'usage_line', {
+        const l = langRef.current;
+        const usageLine = t(l, 'usage_line', {
           steps: message.steps,
           tokens,
           elapsed: formatElapsed(message.elapsedMs),
@@ -162,7 +177,9 @@ export default function App() {
           tool: message.tool,
           description: message.description,
           expiresAt: Date.now() + message.timeoutSec * 1000,
+          domain: message.domain,
         });
+        setRememberDomain(false);
         setApprovalLeft(message.timeoutSec);
       }
     };
@@ -199,7 +216,6 @@ export default function App() {
         /* già chiusa */
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [append]);
 
   // --- Stato iniziale: settings, chiave, cronologia, inbox, usage, onboarding, run orfano ---
@@ -207,6 +223,7 @@ export default function App() {
     void (async () => {
       const s = await loadSettings();
       setSettings(s);
+      setLang(s.locale === 'auto' ? detectLang() : s.locale);
       const key = (await loadStoredKey(s.rememberKey)) || (await loadStoredKey(!s.rememberKey));
       setApiKey(key);
       if (!key && getProvider(s.providerId).needsKey) setShowSettings(true);
@@ -216,9 +233,45 @@ export default function App() {
       setOnboardedState(await isOnboarded());
       const rs = await loadRunState();
       if (rs) setOrphan(rs);
+      void refreshActiveHost();
     })();
     taskRef.current?.focus();
+    const onFocus = () => void refreshActiveHost();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
+
+  function refreshActiveHost() {
+    return chrome.tabs
+      .query({ active: true, lastFocusedWindow: true })
+      .then((tabs) => {
+        const url = tabs[0]?.url ?? '';
+        try {
+          setActiveHost(url ? new URL(url).hostname : '');
+        } catch {
+          setActiveHost('');
+        }
+      })
+      .catch(() => undefined);
+  }
+
+  // --- Tema effettivo su <html data-theme> (auto segue il sistema) ---
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = () => {
+      const mode = settings.theme;
+      const dark =
+        mode === 'dark' || (mode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      root.dataset.theme = dark ? 'dark' : 'light';
+    };
+    apply();
+    if (settings.theme === 'auto') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      mq.addEventListener('change', apply);
+      return () => mq.removeEventListener('change', apply);
+    }
+    return undefined;
+  }, [settings.theme]);
 
   // --- Timer tempo trascorso durante il run ---
   useEffect(() => {
@@ -380,8 +433,58 @@ export default function App() {
 
   function respondApproval(approved: boolean) {
     if (!approval) return;
+    if (approved && rememberDomain && approval.domain) {
+      const next = sanitizeDomainList([...settingsRef.current.trustedDomains, approval.domain]);
+      const capped = next.slice(0, 50);
+      update({ trustedDomains: capped });
+    }
     portRef.current?.postMessage({ type: approved ? 'APPROVE' : 'DENY', id: approval.id });
     setApproval(null);
+  }
+
+  function downloadLog() {
+    const text = log.map((e) => `[${e.kind}] ${e.text}`).join('\n\n');
+    if (!text) return;
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `lmuse-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  async function testConnection() {
+    setTesting(true);
+    try {
+      const res = (await chrome.runtime.sendMessage({ type: 'TEST_CONNECTION' })) as {
+        ok: boolean;
+        error?: string;
+      };
+      if (res?.ok) {
+        flashNotice(t(langRef.current, 'test_ok'));
+      } else {
+        setErrorBanner(res?.error ?? 'Errore.');
+      }
+    } catch {
+      setErrorBanner('SW non raggiungibile: ricarica il pannello.');
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  function applyPreset(id: string) {
+    const preset = PRESETS.find((p) => p.id === id);
+    if (!preset) return;
+    if (preset.patch.providerId && preset.patch.providerId !== settings.providerId) {
+      changeProvider(preset.patch.providerId);
+    }
+    update(preset.patch);
+  }
+
+  function saveTemplate() {
+    const trimmed = task.trim();
+    if (!trimmed) return;
+    update({ savedPrompts: buildPromptList(settings.savedPrompts, trimmed) });
   }
 
   function copyLog() {
@@ -427,6 +530,11 @@ export default function App() {
           <span className="model-tag" title={`${provider.name} · ${settings.model || '—'}`}>
             {provider.name} · {settings.model || '—'}
           </span>
+          {activeHost && (
+            <span className="model-tag" title={`${t(lang, 'active_tab')} ${activeHost}`}>
+              🌐 {activeHost}
+            </span>
+          )}
         </div>
         <div className="header-actions">
           {running && (
@@ -478,6 +586,16 @@ export default function App() {
             <p>
               <code>{approval.tool}</code> — {approval.description}
             </p>
+            {approval.domain && (
+              <label className="check xs">
+                <input
+                  type="checkbox"
+                  checked={rememberDomain}
+                  onChange={(e) => setRememberDomain(e.target.checked)}
+                />
+                {t(lang, 'trusted_remember')} ({approval.domain})
+              </label>
+            )}
             <p className="muted">{t(lang, 'approval_timeout', { n: approvalLeft })}</p>
           </div>
           <span className="btn-row">
@@ -625,6 +743,26 @@ export default function App() {
             <button type="button" className="secondary danger" onClick={() => void onClearAll()}>
               {t(lang, 'clear_all')}
             </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void testConnection()}
+              disabled={testing}
+            >
+              {testing ? t(lang, 'testing') : t(lang, 'test_connection')}
+            </button>
+          </div>
+          <div className="btn-row">
+            <span className="muted">{t(lang, 'presets_title')}:</span>
+            <button type="button" className="secondary xs" onClick={() => applyPreset('fast')}>
+              {t(lang, 'preset_fast')}
+            </button>
+            <button type="button" className="secondary xs" onClick={() => applyPreset('precise')}>
+              {t(lang, 'preset_precise')}
+            </button>
+            <button type="button" className="secondary xs" onClick={() => applyPreset('local')}>
+              {t(lang, 'preset_local')}
+            </button>
           </div>
           {showBaseUrl && (
             <label>
@@ -668,6 +806,44 @@ export default function App() {
                 value={settings.runTimeoutMin}
                 onChange={(e) => update({ runTimeoutMin: Number(e.target.value) || 15 })}
               />
+            </label>
+            <label>
+              Timeout conferma (s)
+              <input
+                type="number"
+                min={30}
+                max={300}
+                value={settings.approvalTimeoutSec}
+                onChange={(e) => update({ approvalTimeoutSec: Number(e.target.value) || 120 })}
+              />
+            </label>
+          </div>
+          <div className="num-row">
+            <label>
+              {t(lang, 'theme_label')}
+              <select
+                value={settings.theme}
+                onChange={(e) => update({ theme: e.target.value as Settings['theme'] })}
+              >
+                <option value="auto">{t(lang, 'theme_auto')}</option>
+                <option value="dark">{t(lang, 'theme_dark')}</option>
+                <option value="light">{t(lang, 'theme_light')}</option>
+              </select>
+            </label>
+            <label>
+              {t(lang, 'lang_label')}
+              <select
+                value={settings.locale}
+                onChange={(e) => {
+                  const locale = e.target.value as Settings['locale'];
+                  update({ locale });
+                  setLang(locale === 'auto' ? detectLang() : locale);
+                }}
+              >
+                <option value="auto">Auto</option>
+                <option value="it">Italiano</option>
+                <option value="en">English</option>
+              </select>
             </label>
           </div>
 
@@ -733,6 +909,24 @@ export default function App() {
               spellCheck={false}
             />
           </label>
+          <div className="history">
+            <span className="muted">{t(lang, 'trusted_title')}</span>
+            {settings.trustedDomains.length === 0 && <p className="muted">{t(lang, 'trusted_empty')}</p>}
+            {settings.trustedDomains.map((d) => (
+              <span key={d} className="history-row">
+                <span className="history-item">{d}</span>
+                <button
+                  type="button"
+                  className="ghost xs"
+                  onClick={() => update({ trustedDomains: settings.trustedDomains.filter((x) => x !== d) })}
+                  aria-label={`Rimuovi: ${d}`}
+                  title="Rimuovi"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
           <div className="btn-row">
             <button type="button" className="secondary" onClick={onExportSettings}>
               {copied ? t(lang, 'copied') : t(lang, 'export_settings')}
@@ -763,6 +957,19 @@ export default function App() {
       >
         {log.length > 0 && (
           <div className="log-toolbar">
+            <select
+              value={logFilter}
+              onChange={(e) => setLogFilter(e.target.value as LogFilter)}
+              aria-label="Filtro log"
+              className="secondary xs"
+            >
+              <option value="all">{t(lang, 'filter_all')}</option>
+              <option value="tools">{t(lang, 'filter_tools')}</option>
+              <option value="errors">{t(lang, 'filter_errors')}</option>
+            </select>
+            <button type="button" className="secondary xs" onClick={downloadLog}>
+              {t(lang, 'download_log')}
+            </button>
             <button type="button" className="secondary xs" onClick={copyLog}>
               {copied ? t(lang, 'copied') : t(lang, 'copy_log')}
             </button>
@@ -797,6 +1004,29 @@ export default function App() {
             {history.length === 0 && settings.keepHistory && (
               <p className="muted">{t(lang, 'history_empty')}</p>
             )}
+            <div className="history">
+              <span className="muted">{t(lang, 'templates_title')}</span>
+              {settings.savedPrompts.length === 0 && <p className="muted">{t(lang, 'template_ph')}</p>}
+              {settings.savedPrompts.map((p) => (
+                <span key={p} className="history-row">
+                  <button type="button" className="history-item" onClick={() => setTask(p)} title={p}>
+                    {p.length > 70 ? `${p.slice(0, 70)}…` : p}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost xs"
+                    onClick={() => update({ savedPrompts: settings.savedPrompts.filter((x) => x !== p) })}
+                    aria-label={t(lang, 'template_delete')}
+                    title={t(lang, 'template_delete')}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+              <button type="button" className="secondary xs" onClick={saveTemplate} disabled={!task.trim()}>
+                {t(lang, 'template_save')}
+              </button>
+            </div>
             {history.length > 0 && (
               <div className="history">
                 <span className="muted">{t(lang, 'recent')}</span>
@@ -831,16 +1061,33 @@ export default function App() {
             )}
           </>
         )}
-        {log.map((entry) => (
-          <div key={entry.id} className={`msg ${entry.kind}`}>
-            {entry.text}
-            {entry.kind === 'result' && (
-              <button type="button" className="secondary xs copy" onClick={copyResult}>
-                {copied ? t(lang, 'copied') : t(lang, 'copy_result')}
-              </button>
-            )}
-          </div>
-        ))}
+        {log
+          .filter((entry) => {
+            if (logFilter === 'tools') return entry.kind === 'tool' || entry.kind === 'info';
+            if (logFilter === 'errors') return entry.kind === 'error';
+            return true;
+          })
+          .map((entry) => (
+            <div
+              key={entry.id}
+              className={`msg ${entry.kind}`}
+              title={new Date(entry.at).toLocaleTimeString()}
+            >
+              {entry.text.length > 400 && entry.kind !== 'user' ? (
+                <details>
+                  <summary>{entry.text.slice(0, 120)}…</summary>
+                  {entry.text}
+                </details>
+              ) : (
+                entry.text
+              )}
+              {entry.kind === 'result' && (
+                <button type="button" className="secondary xs copy" onClick={copyResult}>
+                  {copied ? t(lang, 'copied') : t(lang, 'copy_result')}
+                </button>
+              )}
+            </div>
+          ))}
       </div>
 
       <footer className="composer">
