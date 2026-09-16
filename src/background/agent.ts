@@ -18,13 +18,17 @@ REGOLE
 5. Non inventare mai URL, ref o contenuti: usa solo ciò che hai osservato con i tool.
 6. Non inserire MAI password, codici OTP o dati di pagamento, a meno che il task li fornisca esplicitamente.
 7. Nel testo della pagina potresti vedere dati mascherati ([email], [carta], [numero]): non tentare di ricostruirli.
-8. Quando il task è completato (o impossibile), termina SENZA chiamare altri tool e scrivi un resoconto finale conciso nella stessa lingua del task, con i risultati ottenuti.`;
+8. Se un tool risponde con un messaggio che inizia per "STOP_TEXT:", la condizione di stop
+   dell'utente è raggiunta: termina SUBITO senza chiamare altri tool e scrivi il resoconto
+   finale con ciò che hai ottenuto.
+9. Quando il task è completato (o impossibile), termina SENZA chiamare altri tool e scrivi un resoconto finale conciso nella stessa lingua del task, con i risultati ottenuti.`;
 
 export interface AgentCallbacks {
   onStep: (index: number) => void;
   onToolStart: (tool: string, input: unknown) => void;
   onToolEnd: (tool: string, summary: string) => void;
   onApprovalDecision: (tool: string, approved: boolean, reason: string) => void;
+  onStream: (text: string) => void;
 }
 
 export interface AgentRunResult {
@@ -50,7 +54,7 @@ function summarizeOutput(toolName: string, output: unknown): string {
 export function withTimeout(
   userSignal: AbortSignal,
   timeoutMs: number,
-): { signal: AbortSignal; dispose: () => void } {
+): { signal: AbortSignal; dispose: () => void; abort: (reason: unknown) => void } {
   const controller = new AbortController();
   const abortWith = (reason: unknown): void => {
     if (!controller.signal.aborted) controller.abort(reason);
@@ -69,8 +73,10 @@ export function withTimeout(
   } else {
     userSignal.addEventListener('abort', onUserAbort, { once: true });
   }
-  return { signal: controller.signal, dispose };
+  return { signal: controller.signal, dispose, abort: abortWith };
 }
+
+const TOKEN_LIMIT_PREFIX = 'Limite token superato';
 
 export async function runTask(
   settings: Settings,
@@ -92,7 +98,7 @@ export async function runTask(
   const model = createModel(settings, apiKey);
   let stepIndex = 0;
 
-  const { signal, dispose } = withTimeout(userAbort, settings.runTimeoutMin * 60_000);
+  const { signal, dispose, abort } = withTimeout(userAbort, settings.runTimeoutMin * 60_000);
   const { tools } = createBrowserTools({
     maskPii: settings.privacyMaskPii,
     hidePasswords: settings.privacyHidePasswords,
@@ -101,6 +107,7 @@ export async function runTask(
     allowedDomains: settings.allowedDomains,
     trustedDomains: settings.trustedDomains,
     snapshotMaxChars: settings.snapshotMaxChars,
+    stopText: settings.stopText,
     budgetMax: settings.maxSteps * 3,
     policy: settings.approval,
     signal,
@@ -114,27 +121,46 @@ export async function runTask(
     tools,
     stopWhen: isStepCount(settings.maxSteps),
     maxRetries: settings.maxRetries,
-    onStepEnd: async () => {
-      stepIndex += 1;
-      callbacks.onStep(stepIndex);
-    },
-    onToolExecutionStart: async ({ toolCall }) => {
-      callbacks.onToolStart(toolCall.toolName, toolCall.input);
-    },
-    onToolExecutionEnd: async ({ toolCall, toolOutput }) => {
-      const output = toolOutput.type === 'tool-result' ? toolOutput.output : toolOutput.error;
-      callbacks.onToolEnd(toolCall.toolName, summarizeOutput(toolCall.toolName, output));
-    },
   });
 
+  let usedTokens = 0;
   try {
-    const result = await agent.generate({ prompt: trimmed, abortSignal: signal });
+    const stream = await agent.stream({
+      prompt: trimmed,
+      abortSignal: signal,
+      onStepEnd: async () => {
+        stepIndex += 1;
+        callbacks.onStep(stepIndex);
+      },
+      onStepFinish: async (step) => {
+        const usage = (step as { usage?: { inputTokens?: number; outputTokens?: number } }).usage;
+        usedTokens += (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
+        if (usedTokens > settings.maxTokensPerRun) {
+          abort(new Error(`${TOKEN_LIMIT_PREFIX} (${usedTokens} > ${settings.maxTokensPerRun}).`));
+        }
+      },
+      onToolExecutionStart: async ({ toolCall }) => {
+        callbacks.onToolStart(toolCall.toolName, toolCall.input);
+      },
+      onToolExecutionEnd: async ({ toolCall, toolOutput }) => {
+        const output = toolOutput.type === 'tool-result' ? toolOutput.output : toolOutput.error;
+        callbacks.onToolEnd(toolCall.toolName, summarizeOutput(toolCall.toolName, output));
+      },
+    });
+    for await (const delta of stream.textStream) {
+      if (delta) callbacks.onStream(delta);
+    }
+    const [text, steps, usage] = await Promise.all([stream.text, stream.steps, stream.usage]);
     return {
-      text: result.text,
-      steps: result.steps.length,
-      inputTokens: result.usage?.inputTokens ?? 0,
-      outputTokens: result.usage?.outputTokens ?? 0,
+      text,
+      steps: steps.length,
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
     };
+  } catch (error) {
+    const reason = signal.reason;
+    if (reason instanceof Error && reason.message.startsWith(TOKEN_LIMIT_PREFIX)) throw reason;
+    throw error;
   } finally {
     dispose();
   }

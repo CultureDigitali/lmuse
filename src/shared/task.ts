@@ -9,3 +9,10 @@ const CONTROL_CHARS =
 export function sanitizeTaskText(text: string): string {
   return text.replace(CONTROL_CHARS, '');
 }
+
+/** True se il testo contiene la condizione di stop (case-insensitive). */
+export function containsStop(text: string, stopText: string): boolean {
+  const needle = stopText.trim().toLowerCase();
+  if (!needle) return false;
+  return text.toLowerCase().includes(needle);
+}

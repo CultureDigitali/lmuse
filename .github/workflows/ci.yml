@@ -19,6 +19,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test:coverage
+      - run: pnpm check-chromium-age
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm build
@@ -29,6 +30,9 @@ jobs:
       - name: secret-scan
         run: |
           ! grep -rEn '(sk-[A-Za-z0-9]{20,}|xox[bap]-|ghp_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{20,})' src public sidepanel scripts || (echo 'secret-scan: possibile chiave live nel codice' && exit 1)
+      - name: no-remote-code
+        run: |
+          ! grep -rEn '(src|href)="https?://|@import +url\(https?://' src sidepanel public --include='*.ts' --include='*.tsx' --include='*.html' --include='*.css' --include='*.json' | grep -v '\.test\.' || (echo 'no-remote-code: riferimento remoto nel codice' && exit 1)
 
   e2e:
     runs-on: ubuntu-latest

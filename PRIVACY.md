@@ -3,6 +3,16 @@
 lmuse è progettata per minimizzare i dati: **nessuna telemetria, nessun server nostro,
 nessun account**. Tutto resta sul tuo PC tranne ciò che invii al provider LLM che scegli.
 
+## Novità privacy v0.5.0
+
+- **Task programmati**: task e cadenza restano locali; il run schedulato invia al
+  provider solo ciò che invierebbe un run manuale.
+- **Import/export profilo**: file JSON locale, validato (max 100KB), mai la chiave.
+- **Run history**: ultimi 10 run (task troncato 200ch), cancellabile, solo locale.
+- **Marks di find**: solo evidenziazione visiva temporanea, nessun dato raccolto.
+- **Streaming**: i delta vivono solo in memoria del pannello, mai salvati.
+- **Stop-text e token-guard**: valutati in locale, nessun dato in più al provider.
+
 ## Cosa viene inviato al provider LLM
 
 Quando avvii un task, al provider scelto (es. OpenAI, Anthropic, Ollama in locale) vengono inviati:
@@ -21,15 +31,15 @@ Con `privacyHostOnly` l'URL inviato è solo origin+path (niente query string).
 
 ## Dove finiscono i tuoi dati (solo locale)
 
-| Chiave `chrome.storage` | Dove            | Cosa contiene                                       |
-| ----------------------- | --------------- | --------------------------------------------------- |
-| `lmuse.settings.v1`     | local (PC)      | provider, modello, flag privacy, limiti, approval   |
-| `lmuse.key.v1`          | local o session | **chiave API** (vedi sotto)                         |
-| `lmuse.history.v1`      | local (PC)      | ultimi 20 task (max 200 char), cancellabile o OFF   |
-| `lmuse.inbox.v1`        | session (RAM)   | risultato dell'ultimo run (mai il task), svuotabile |
-| `lmuse.usage.v1`        | local (PC)      | solo conteggi: run e token, nessun contenuto        |
-| `lmuse.runstate.v1`     | session (RAM)   | task corrente (per rilevare restart), auto-pulito   |
-| `lmuse.onboarded.v1`    | local (PC)      | flag welcome mostrato                               |
+| Chiave `chrome.storage` | Dove            | Cosa contiene                                                                 |
+| ----------------------- | --------------- | ----------------------------------------------------------------------------- |
+| `lmuse.settings.v1`     | local (PC)      | provider, modello, limiti, approval, trusted, template, schedule, history run |
+| `lmuse.key.v1`          | local o session | **chiave API** (vedi sotto)                                                   |
+| `lmuse.history.v1`      | local (PC)      | ultimi 20 task (max 200 char), cancellabile o OFF                             |
+| `lmuse.inbox.v1`        | session (RAM)   | risultato dell'ultimo run (mai il task), svuotabile                           |
+| `lmuse.usage.v1`        | local (PC)      | solo conteggi: run e token, nessun contenuto                                  |
+| `lmuse.runstate.v1`     | session (RAM)   | task corrente (per rilevare restart), auto-pulito                             |
+| `lmuse.onboarded.v1`    | local (PC)      | flag welcome mostrato                                                         |
 
 La **chiave API non vive nelle impostazioni**: è in un record separato. Con "Ricorda la
 chiave" attivo sta in `chrome.storage.local`; spento, in `chrome.storage.session`

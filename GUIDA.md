@@ -36,11 +36,12 @@ src/shared/errors.ts        Errori provider → italiano (testato)
 src/shared/budget.ts        Budget tool-call per run (testato)
 src/shared/i18n.ts          Stringhe UI it/en
 src/background/providers.ts Crea il modello AI SDK dal provider configurato
-src/background/tools.ts     18 tool browser (snapshot, navigate, back/forward, reload,
-                             click, type, select, wait, press, scroll, screenshot×2,
-                             read_text, links, tabs×3) con approval+budget/errori/circuit
-src/background/agent.ts     ToolLoopAgent + system prompt + timeout combinato
-src/background/index.ts     Service worker: RUN/STOP, approval runtime, badge, inbox, usage
+src/background/tools.ts     21 tool browser (snapshot, navigate, back/forward, reload,
+                             click, type, select, wait, press, find, table, query,
+                             scroll, screenshot×2, read_text, links, tabs×4)
+                             con approval+budget/circuit/errori, inject on-demand
+src/background/agent.ts     ToolLoopAgent in streaming + token-guard + system prompt
+src/background/index.ts     Service worker: RUN/STOP, approval, stream, schedule, badge, inbox
 src/content/snapshot.ts     Distilla il DOM in albero [ref] compatti (redatto)
 src/content/index.ts        Esegue snapshot/click/digitazione/scroll su richiesta
 src/sidepanel/              UI React: task, impostazioni, privacy, inbox, cronologia
@@ -52,8 +53,20 @@ reference/nanobrowser/      Clone di riferimento (fuori git, opzionale):
 
 ## Flusso di un task
 
+```mermaid
+flowchart LR
+    Panel -- RUN --> SW[ServiceWorker]
+    SW -- prompt + 21 tools --> LLM
+    LLM -- tool-call --> SW
+    SW -- APPROVAL --> Panel
+    Panel -- APPROVE/DENY --> SW
+    SW -- scripting on-demand --> CS[Content script]
+    SW -- STREAM --> Panel
+    SW -- DONE + usage --> Panel
 ```
-┌─────────┐  RUN(task)   ┌──────────────┐  prompt+18 tools ┌───────────┐
+
+```
+┌─────────┐  RUN(task)   ┌──────────────┐  prompt+21 tools ┌───────────┐
 │  Panel  │ ──────────→ │ ServiceWorker │ ──────────────→ │   LLM     │
 │  React  │ ←────────── │  (RUN/STOP,   │ ←────────────── │ (provider │
 └─────────┘  STEP/DONE  │  approval,   │  tool-call      │  scelto)  │
@@ -107,6 +120,22 @@ Policy in ⚙ → Privacy (`approval`): `off` · `sensitive` (default) · `all`.
 - **Health-check**: "Prova connessione" in ⚙ fa una chiamata minima al provider e
   mostra OK o l'errore mappato in italiano.
 
+## Streaming, stop-text, token-guard (v0.5.0)
+
+- La risposta finale arriva **in streaming** nel pannello (bolla live tratteggiata,
+  mai salvata: solo il testo finale finisce in inbox/log).
+- **Stop-text** (⚙): se la pagina mostra quel testo, il run si chiude da solo con
+  successo ("Task interrotto su tua condizione").
+- **Token-guard** (⚙, default 60k): oltre soglia il run si interrompe con messaggio
+  chiaro. Il contatore passi · token · tempo è in ogni resoconto.
+
+## Task programmati (v0.5.0)
+
+Programma il task corrente ogni N minuti (60–10080, max 5) da ⚙ o dall'area template.
+`chrome.alarms` li fa partire anche a pannello chiuso: il risultato aspetta in inbox,
+il badge ✓ segnala la fine. Senza panel le approval hanno timeout 20s e default negata
+(mai auto-approve). "Cancella tutti i dati" cancella anche gli schedule.
+
 ## Cosa vede il modello
 
 Per ogni passo: testo del task, snapshot testuale della pagina (URL, titolo, elementi
@@ -158,6 +187,12 @@ quando non servono. "Cancella tutti i dati" azzera anche le statistiche.
 | savedPrompts         | []           | template task, max 20                |
 | theme                | auto         | auto / dark / light                  |
 | locale               | auto         | auto / it / en                       |
+| maxTokensPerRun      | 60000        | 1000–200000, abort oltre soglia      |
+| stopText             | ''           | chiude il run se appare nella pagina |
+| soundOnDone          | false        | beep a fine task                     |
+| compactLog           | false        | nasconde il chatter tool nel log     |
+| lastRuns             | []           | ultimi 10 run (auto)                 |
+| schedules            | []           | task programmati, max 5              |
 
 ## Comandi tastiera
 
@@ -226,8 +261,20 @@ verify-dist → size → links → audit → secret-scan) + job e2e separato
 - **Menu a tendina non selezionabile?** Usa `browser_select` (valore o testo opzione);
   se l'opzione manca, il tool elenca le disponibili.
 - **Pagina che carica in ritardo?** `browser_wait` attende testo/selettore fino a 30s.
+- **Tabella illeggibile?** `browser_table` la estrae in markdown; `browser_query`
+  trova elementi con selettori CSS quando lo snapshot non basta.
+- **Sito con shadow DOM?** Lo snapshot li attraversa da solo (bottone dentro
+  web-component incluso).
 - **Come riuso un task?** Salvalo come template (area cronologia) o copia il log intero
   dalla toolbar (filtro + download disponibili).
+- **Lo streaming si è fermato ma il run continua?** Normale: il modello ragiona tra un
+  tool e l'altro; la bolla live mostra solo il testo finale in arrivo.
+- **Uno schedule non parte?** Controlla che sia attivo (●), che Chrome sia aperto
+  (gli alarm richiedono il browser avviato) e che nessun altro run sia in corso.
+- **Import profilo fallito?** Solo JSON ≤ 100KB esportati da lmuse; la chiave non è
+  mai inclusa e va reinserita a mano.
+- **"Limite token superato"?** Alza `maxTokensPerRun` in ⚙ o semplifica il task
+  (meno passi, niente screenshot inutili, mode main per i testi).
 
 ## Roadmap
 
@@ -241,7 +288,7 @@ verify-dist → size → links → audit → secret-scan) + job e2e separato
 
 ## Stato onesto
 
-`pnpm check` verde (typecheck + 176 test + lint + build), e2e smoke verde su Chromium,
-coverage shared > 90%, Prettier verde, CI attiva con audit + secret-scan + check-size.
+`pnpm check` verde (typecheck + 199 test + lint + build), e2e smoke verde con a11y
+su Chromium, coverage shared > 90%, Prettier verde, CI attiva.
 Il giro completo con chiave reale va provato caricando `dist/` in Chrome: se un provider
 cambia formato risposta, si aggiusta in `providers.ts`.

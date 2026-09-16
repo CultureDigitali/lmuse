@@ -5,10 +5,11 @@
 ```bash
 pnpm install
 pnpm check          # typecheck + test + lint + build (gate prima di ogni commit)
-pnpm test           # vitest (176+ test)
+pnpm test           # vitest (199+ test)
 pnpm test:coverage  # coverage v8, soglie 85/85/80 su src/shared
 pnpm test:e2e        # smoke su Chromium reale (auto-scaricato in ~/.cache)
 pnpm check-links     # link relativi nei .md
+pnpm check-chromium-age  # pin Chromium e2e < 120gg
 pnpm release        # check + verify-dist + zip in release/
 ```
 

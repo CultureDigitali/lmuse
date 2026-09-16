@@ -31,6 +31,8 @@ import {
   type SwToPanelMessage,
   type UsageStats,
 } from '../shared/settings';
+import { exportProfile, validateProfile } from '../shared/profile';
+import { formatNextRun, validateSchedule } from '../shared/schedules';
 import { formatElapsed } from '../shared/approval';
 import { t, type Lang } from '../shared/i18n';
 
@@ -97,6 +99,10 @@ export default function App() {
   const [activeHost, setActiveHost] = useState('');
   const [testing, setTesting] = useState(false);
   const [rememberDomain, setRememberDomain] = useState(false);
+  const [streamText, setStreamText] = useState('');
+  const [scheduleInterval, setScheduleInterval] = useState(1440);
+  const audioRef = useRef<AudioContext | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
 
   const portRef = useRef<chrome.runtime.Port | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -157,9 +163,12 @@ export default function App() {
         setLastResult(message.text);
         setShowRetry(false);
         setApproval(null);
+        setStreamText('');
         setElapsedMs(0);
         setRunning(false);
         setSteps(0);
+        playDone();
+        taskRef.current?.focus();
         void refreshHistory();
         void loadInbox().then(setInbox);
         void loadUsage().then(setUsage);
@@ -168,9 +177,14 @@ export default function App() {
         setErrorBanner(message.message);
         setShowRetry(true);
         setApproval(null);
+        setStreamText('');
         setElapsedMs(0);
         setRunning(false);
         setSteps(0);
+        playDone();
+        taskRef.current?.focus();
+      } else if (message.type === 'STREAM') {
+        setStreamText((prev) => (prev + message.text).slice(-4000));
       } else if (message.type === 'APPROVAL') {
         setApproval({
           id: message.id,
@@ -409,6 +423,27 @@ export default function App() {
     setTask('');
   }
 
+  function playDone() {
+    if (!settingsRef.current.soundOnDone) return;
+    try {
+      const Ctx = window.AudioContext;
+      if (!Ctx) return;
+      audioRef.current ??= new Ctx();
+      const ctx = audioRef.current;
+      if (ctx.state === 'suspended') void ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 660;
+      gain.gain.value = 0.08;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch {
+      /* audio non disponibile: silenzioso */
+    }
+  }
+
   function startTask(trimmed: string) {
     setErrorBanner(null);
     setShowRetry(false);
@@ -485,6 +520,66 @@ export default function App() {
     const trimmed = task.trim();
     if (!trimmed) return;
     update({ savedPrompts: buildPromptList(settings.savedPrompts, trimmed) });
+  }
+
+  function syncAlarms() {
+    void chrome.runtime.sendMessage({ type: 'SYNC_ALARMS' }).catch(() => undefined);
+  }
+
+  function addSchedule() {
+    const trimmed = task.trim().slice(0, MAX_TASK_CHARS);
+    if (!trimmed) return;
+    const check = validateSchedule(trimmed, scheduleInterval, settings.schedules.length);
+    if (!check.ok || !check.task) {
+      setErrorBanner(check.error ?? 'Schedule non valido.');
+      return;
+    }
+    const entry = {
+      id: `s${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`,
+      task: check.task,
+      intervalMin: scheduleInterval,
+      enabled: true,
+      createdAt: Date.now(),
+    };
+    update({ schedules: [...settings.schedules, entry].slice(0, 5) });
+    setTask('');
+    syncAlarms();
+  }
+
+  function toggleSchedule(id: string) {
+    update({
+      schedules: settings.schedules.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s)),
+    });
+    syncAlarms();
+  }
+
+  function deleteSchedule(id: string) {
+    update({ schedules: settings.schedules.filter((s) => s.id !== id) });
+    syncAlarms();
+  }
+
+  function downloadProfile() {
+    const json = JSON.stringify(exportProfile(settingsRef.current), null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `lmuse-profile-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  async function importProfileFile(file: File) {
+    try {
+      if (file.size > 100_000) throw new Error('File troppo grande (max 100KB).');
+      const parsed: unknown = JSON.parse(await file.text());
+      const next = validateProfile(parsed);
+      setSettings(next);
+      await saveSettings(next);
+      setLang(next.locale === 'auto' ? detectLang() : next.locale);
+      flashNotice(t(langRef.current, 'import_ok'));
+    } catch {
+      setErrorBanner(t(langRef.current, 'import_error'));
+    }
   }
 
   function copyLog() {
@@ -900,6 +995,43 @@ export default function App() {
             {t(lang, 'keep_history')}
           </label>
           <label>
+            {t(lang, 'max_tokens_label')}
+            <input
+              type="number"
+              min={1000}
+              max={200000}
+              step={1000}
+              value={settings.maxTokensPerRun}
+              onChange={(e) => update({ maxTokensPerRun: Number(e.target.value) || 60000 })}
+            />
+          </label>
+          <label>
+            {t(lang, 'stop_text_label')}
+            <input
+              value={settings.stopText}
+              onChange={(e) => update({ stopText: e.target.value })}
+              placeholder={t(lang, 'stop_text_ph')}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.compactLog}
+              onChange={(e) => update({ compactLog: e.target.checked })}
+            />
+            {t(lang, 'compact_label')}
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.soundOnDone}
+              onChange={(e) => update({ soundOnDone: e.target.checked })}
+            />
+            {t(lang, 'sound_label')}
+          </label>
+          <label>
             {t(lang, 'allowed_domains')}
             <input
               value={settings.allowedDomains}
@@ -931,6 +1063,95 @@ export default function App() {
             <button type="button" className="secondary" onClick={onExportSettings}>
               {copied ? t(lang, 'copied') : t(lang, 'export_settings')}
             </button>
+            <button type="button" className="secondary" onClick={downloadProfile}>
+              {t(lang, 'export_profile')}
+            </button>
+            <button type="button" className="secondary" onClick={() => importRef.current?.click()}>
+              {t(lang, 'import_profile')}
+            </button>
+            <input
+              ref={importRef}
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) void importProfileFile(file);
+              }}
+            />
+          </div>
+
+          <h3>{t(lang, 'schedules_title')}</h3>
+          <div className="num-row">
+            <label>
+              {t(lang, 'schedule_interval')}
+              <input
+                type="number"
+                min={60}
+                max={10080}
+                value={scheduleInterval}
+                onChange={(e) => setScheduleInterval(Number(e.target.value) || 1440)}
+              />
+            </label>
+          </div>
+          <div className="btn-row">
+            <button type="button" className="secondary xs" onClick={addSchedule} disabled={!task.trim()}>
+              {t(lang, 'schedule_add')}
+            </button>
+          </div>
+          <div className="history">
+            {settings.schedules.length === 0 && <p className="muted">{t(lang, 'schedule_ph')}</p>}
+            {settings.schedules.map((s) => (
+              <span key={s.id} className="history-row">
+                <button
+                  type="button"
+                  className="history-item"
+                  onClick={() => setTask(s.task)}
+                  title={`${s.task}\n${t(lang, 'next_run')} ${formatNextRun(s.lastFire ?? null, s.intervalMin, Date.now())}`}
+                >
+                  {s.enabled ? '● ' : '○ '}
+                  {s.task.length > 60 ? `${s.task.slice(0, 60)}…` : s.task} ({t(lang, 'next_run')}{' '}
+                  {formatNextRun(s.lastFire ?? null, s.intervalMin, Date.now())})
+                </button>
+                <button
+                  type="button"
+                  className="ghost xs"
+                  onClick={() => toggleSchedule(s.id)}
+                  aria-label={t(lang, 'schedule_enable')}
+                  title={t(lang, 'schedule_enable')}
+                >
+                  {s.enabled ? '⏸' : '▶'}
+                </button>
+                <button
+                  type="button"
+                  className="ghost xs"
+                  onClick={() => deleteSchedule(s.id)}
+                  aria-label={t(lang, 'schedule_delete')}
+                  title={t(lang, 'schedule_delete')}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+
+          <h3>{t(lang, 'run_history_title')}</h3>
+          <div className="history">
+            {settings.lastRuns.length === 0 && <p className="muted">{t(lang, 'run_history_empty')}</p>}
+            {settings.lastRuns.slice(0, 5).map((r) => (
+              <span key={`${r.at}-${r.task}`} className="history-row">
+                <button type="button" className="history-item" onClick={() => setTask(r.task)} title={r.task}>
+                  {r.task.length > 60 ? `${r.task.slice(0, 60)}…` : r.task} · {r.steps} passi · {r.tokens}{' '}
+                  token
+                </button>
+              </span>
+            ))}
+            {settings.lastRuns.length > 0 && (
+              <button type="button" className="secondary xs" onClick={() => update({ lastRuns: [] })}>
+                {t(lang, 'run_history_clear')}
+              </button>
+            )}
           </div>
           {!provider.supportsVision && <p className="warn">{t(lang, 'vision_warn')}</p>}
           {provider.keyUrl && provider.needsKey && (
@@ -1063,6 +1284,7 @@ export default function App() {
         )}
         {log
           .filter((entry) => {
+            if (settings.compactLog && (entry.kind === 'tool' || entry.kind === 'info')) return false;
             if (logFilter === 'tools') return entry.kind === 'tool' || entry.kind === 'info';
             if (logFilter === 'errors') return entry.kind === 'error';
             return true;
@@ -1088,25 +1310,35 @@ export default function App() {
               )}
             </div>
           ))}
+        {running && streamText && (
+          <div className="msg result streaming" role="status" aria-live="polite">
+            {streamText}▍
+          </div>
+        )}
       </div>
 
       <footer className="composer">
-        <textarea
-          ref={taskRef}
-          value={task}
-          onChange={(e) => setTask(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              run();
-            }
-          }}
-          placeholder={t(lang, 'compose_ph')}
-          rows={2}
-          disabled={running}
-          maxLength={MAX_TASK_CHARS}
-          aria-label={t(lang, 'compose_ph')}
-        />
+        <div className="composer-box">
+          <textarea
+            ref={taskRef}
+            value={task}
+            onChange={(e) => setTask(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                run();
+              }
+            }}
+            placeholder={t(lang, 'compose_ph')}
+            rows={2}
+            disabled={running}
+            maxLength={MAX_TASK_CHARS}
+            aria-label={t(lang, 'compose_ph')}
+          />
+          <span className="muted counter">
+            {task.length}/{MAX_TASK_CHARS}
+          </span>
+        </div>
         {running ? (
           <button
             className="stop prominent"

@@ -7,6 +7,7 @@ import { MAX_SNAPSHOT_CHARS } from '../shared/settings';
 import { extractDomain, shouldApprove, type ApprovalContext, type ApprovalPolicy } from '../shared/approval';
 import { formatSnapshotHeader } from '../shared/header';
 import { maskPii, maskUrlTokens } from '../shared/pii';
+import { containsStop } from '../shared/task';
 
 // ---------------------------------------------------------------------------
 // Strato di accesso al browser: i tool dell'agente parlano con il content
@@ -25,6 +26,7 @@ export interface BrowserToolConfig {
   allowedDomains: string;
   trustedDomains: string[];
   snapshotMaxChars: number;
+  stopText: string;
   budgetMax: number;
   policy: ApprovalPolicy;
   signal: AbortSignal;
@@ -45,6 +47,9 @@ export interface SnapshotResult {
   text?: string;
   links?: { text: string; href: string }[];
   rect?: { x: number; y: number; w: number; h: number; dpr: number };
+  refs?: number[];
+  count?: number;
+  table?: string;
 }
 
 /** Ultimo screenshot catturato (PNG base64, senza prefisso data:). */
@@ -206,6 +211,7 @@ async function refRescue(
 }
 
 const BUDGET_EXHAUSTED = 'Budget tool esaurito: chiudi il task o aumenta i passi massimi nelle impostazioni.';
+const STOP_TEXT_PREFIX = 'STOP_TEXT:';
 
 export function createBrowserTools(cfg: BrowserToolConfig) {
   const budget = new ToolBudget(cfg.budgetMax);
@@ -282,10 +288,19 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
   async function acted(tabId: number, message: string): Promise<{ observation: string }> {
     try {
       const fresh = await snapshotTab(tabId, snapOpts, sendToTab);
-      return { observation: `${message}\n\nNuovo snapshot:\n${fresh}` };
-    } catch {
+      return { observation: checkStop(`${message}\n\nNuovo snapshot:\n${fresh}`) };
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith(STOP_TEXT_PREFIX)) throw error;
       return { observation: `${message} Fai un nuovo snapshot per vedere il risultato.` };
     }
+  }
+
+  /** Se l'osservazione contiene lo stop-text utente, termina il run con successo parziale. */
+  function checkStop(observation: string): string {
+    if (cfg.stopText && containsStop(observation, cfg.stopText)) {
+      throw new Error(`${STOP_TEXT_PREFIX}condizione "${cfg.stopText}" rilevata nella pagina.`);
+    }
+    return observation;
   }
 
   const tools = {
@@ -297,7 +312,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tab = await getActiveTab();
           if (!tab.id) throw new Error('Tab senza id.');
-          return { observation: await snapshotTab(tab.id, snapOpts, sendToTab) };
+          return { observation: checkStop(await snapshotTab(tab.id, snapOpts, sendToTab)) };
         }),
     }),
 
@@ -697,9 +712,11 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
 
     browser_read_text: tool({
       description:
-        'Legge il testo visibile della pagina (max 8000 caratteri, redatto se privacy attiva). Per pagine senza elementi interattivi.',
-      inputSchema: z.object({}),
-      execute: async () =>
+        'Legge il testo visibile della pagina (max 8000 caratteri, redatto se privacy attiva). Mode main = solo contenuto principale.',
+      inputSchema: z.object({
+        mode: z.enum(['full', 'main']).optional().describe('full = tutta la pagina, main = article/main'),
+      }),
+      execute: async ({ mode }: { mode?: 'full' | 'main' }) =>
         guarded(async () => {
           const tab = await getActiveTab();
           if (!tab.id) throw new Error('Tab senza id.');
@@ -707,9 +724,10 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
             kind: 'LMUSE_TEXT',
             maxChars: Math.min(cfg.snapshotMaxChars, 8000),
             maskPii: cfg.maskPii,
+            mode: mode ?? 'full',
           });
           if (!res.ok) throw new Error(res.error ?? 'Lettura testo fallita.');
-          return { observation: truncateTo(res.text ?? '(vuoto)', 8000) };
+          return { observation: checkStop(truncateTo(res.text ?? '(vuoto)', 8000)) };
         }),
     }),
 
@@ -726,7 +744,70 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
             const href = maskUrlTokens(l.href);
             return cfg.maskPii ? `- ${maskPii(l.text)} → ${href}` : `- ${l.text} → ${href}`;
           });
-          return { observation: truncateTo(lines.join('\n') || 'Nessun link.', 6000) };
+          return { observation: checkStop(truncateTo(lines.join('\n') || 'Nessun link.', 6000)) };
+        }),
+    }),
+
+    browser_find: tool({
+      description:
+        'Cerca un testo nella pagina, evidenzia le occorrenze (max 100) e scorre a quella indicata.',
+      inputSchema: z.object({
+        text: z.string().describe('Testo da cercare'),
+        index: z.number().int().min(0).optional().describe('Quale occorrenza mostrare (default 0)'),
+      }),
+      execute: async ({ text, index }: { text: string; index?: number }) =>
+        guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, {
+            kind: 'LMUSE_FIND',
+            text,
+            index: index ?? 0,
+          });
+          if (!res.ok) throw new Error(res.error ?? 'Ricerca fallita.');
+          return { observation: `Trovate ${res.count ?? 0} occorrenze di "${text.slice(0, 80)}".` };
+        }),
+    }),
+
+    browser_table: tool({
+      description: 'Estrae una tabella come markdown (ref di un elemento dentro la tabella).',
+      inputSchema: z.object({ ref: z.number().int().describe('Ref numerico dallo snapshot') }),
+      execute: async ({ ref }: { ref: number }) =>
+        guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_TABLE', ref });
+          if (!res.ok) {
+            if (res.error?.includes('scaduto')) {
+              return refRescue(tab.id, ref, snapOpts, 'Lettura tabella non riuscita.', sendToTab);
+            }
+            throw new Error(res.error ?? 'Lettura tabella fallita.');
+          }
+          return { observation: checkStop(truncateTo(res.table ?? '(vuota)', 6000)) };
+        }),
+    }),
+
+    browser_query: tool({
+      description:
+        'Elenca elementi con un selettore CSS e assegna ref usabili (max 100). Per casi che lo snapshot non copre.',
+      inputSchema: z.object({
+        selector: z.string().describe('Selettore CSS, es. "table.tbl td.num"'),
+        max: z.number().int().min(1).max(100).optional().describe('Max elementi (default 30)'),
+      }),
+      execute: async ({ selector, max }: { selector: string; max?: number }) =>
+        guarded(async () => {
+          if (!selector.trim()) throw new Error('Selettore vuoto.');
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, {
+            kind: 'LMUSE_QUERY',
+            selector,
+            max: max ?? 30,
+          });
+          if (!res.ok) throw new Error(res.error ?? 'Query fallita.');
+          return {
+            observation: `Trovati ${(res.refs ?? []).length} elementi (ref riusabili): ${res.text ?? ''}`,
+          };
         }),
     }),
   };

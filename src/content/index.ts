@@ -1,6 +1,7 @@
-import { buildSnapshot, getElement } from './snapshot';
+import { buildSnapshot, getElement, registerElements } from './snapshot';
 import { isPressAllowed } from './keys';
-import { describeFocused, selectOption, waitFor, bodyText } from './actions';
+import { describeFocused, selectOption, waitFor } from './actions';
+import { findInPage, tableToMarkdown } from './extract';
 import { maskPii } from '../shared/pii';
 
 // Content script (isolated world): esegue snapshot e azioni DOM su richiesta
@@ -15,9 +16,12 @@ type Incoming =
   | { kind: 'LMUSE_SELECT'; ref: number; value: string }
   | { kind: 'LMUSE_WAIT'; waitKind: 'text' | 'selector'; value: string; timeoutMs: number }
   | { kind: 'LMUSE_PRESS'; key: string }
-  | { kind: 'LMUSE_TEXT'; maxChars: number; maskPii: boolean }
+  | { kind: 'LMUSE_TEXT'; maxChars: number; maskPii: boolean; mode: 'full' | 'main' }
   | { kind: 'LMUSE_LINKS'; max: number }
-  | { kind: 'LMUSE_RECT'; ref: number };
+  | { kind: 'LMUSE_RECT'; ref: number }
+  | { kind: 'LMUSE_FIND'; text: string; index: number }
+  | { kind: 'LMUSE_TABLE'; ref: number }
+  | { kind: 'LMUSE_QUERY'; selector: string; max: number };
 
 const KINDS = new Set([
   'LMUSE_SNAPSHOT',
@@ -30,6 +34,9 @@ const KINDS = new Set([
   'LMUSE_TEXT',
   'LMUSE_LINKS',
   'LMUSE_RECT',
+  'LMUSE_FIND',
+  'LMUSE_TABLE',
+  'LMUSE_QUERY',
 ]);
 const MAX_TYPE_CHARS = 2000;
 const MAX_TEXT_CHARS = 8000;
@@ -110,6 +117,12 @@ interface ReplyPayload {
   text?: string;
   /** Link pagina (LINKS). */
   links?: { text: string; href: string }[];
+  /** Ref registrati da QUERY. */
+  refs?: number[];
+  /** Conteggi FIND/TABLE. */
+  count?: number;
+  /** Markdown tabella (TABLE). */
+  table?: string;
   /** Rettangolo elemento in CSS px + DPR (RECT). */
   rect?: { x: number; y: number; w: number; h: number; dpr: number };
 }
@@ -246,7 +259,11 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         }
         case 'LMUSE_TEXT': {
           const max = Math.min(Math.max(msg.maxChars, 500), MAX_TEXT_CHARS);
-          const raw = bodyText().slice(0, max);
+          const scope =
+            msg.mode === 'main'
+              ? (document.querySelector('article, main, [role="main"]') ?? document.body)
+              : document.body;
+          const raw = ((scope as HTMLElement).innerText ?? scope?.textContent ?? '').slice(0, max);
           reply({ ok: true, text: msg.maskPii !== false ? maskPii(raw) : raw });
           break;
         }
@@ -274,6 +291,40 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
               h: Math.round(rect.height),
               dpr: window.devicePixelRatio || 1,
             },
+          });
+          break;
+        }
+        case 'LMUSE_FIND': {
+          const text = String(msg.text ?? '').trim();
+          if (!text) throw new Error('Testo da cercare vuoto.');
+          const count = findInPage(text.slice(0, 200), Math.max(0, msg.index || 0));
+          reply({ ok: true, count });
+          break;
+        }
+        case 'LMUSE_TABLE': {
+          if (!validRef(msg.ref)) throw new Error('Ref non valido.');
+          const el = getElement(msg.ref);
+          if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
+          const table = el.closest('table') ?? (el.tagName.toLowerCase() === 'table' ? el : null);
+          if (!(table instanceof HTMLTableElement)) throw new Error('Il ref non è in una tabella.');
+          reply({ ok: true, table: tableToMarkdown(table) });
+          break;
+        }
+        case 'LMUSE_QUERY': {
+          const selector = String(msg.selector ?? '').trim();
+          if (!selector) throw new Error('Selettore vuoto.');
+          let els: Element[];
+          try {
+            els = [...document.querySelectorAll(selector)].slice(0, Math.min(Math.max(msg.max, 1), 100));
+          } catch {
+            throw new Error(`Selettore CSS non valido: "${selector}".`);
+          }
+          if (els.length === 0) throw new Error(`Nessun elemento per "${selector}".`);
+          const refs = registerElements(els);
+          reply({
+            ok: true,
+            refs,
+            text: els.map((el, i) => `[${refs[i]}] ${(el.tagName ?? '').toLowerCase()}`).join(', '),
           });
           break;
         }

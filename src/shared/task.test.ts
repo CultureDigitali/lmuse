@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeTaskText } from './task';
+import { containsStop, sanitizeTaskText } from './task';
 
 describe('sanitizeTaskText', () => {
   it('rimuove controllo e zero-width', () => {
@@ -10,5 +10,13 @@ describe('sanitizeTaskText', () => {
   it('preserva testo normale, a capo e tab', () => {
     expect(sanitizeTaskText('riga1\nriga2\tfine')).toBe('riga1\nriga2\tfine');
     expect(sanitizeTaskText('')).toBe('');
+  });
+});
+
+describe('containsStop', () => {
+  it('match case-insensitive, vuoto mai', () => {
+    expect(containsStop('Prezzo totale: 42€', 'prezzo totale')).toBe(true);
+    expect(containsStop('altro', 'prezzo')).toBe(false);
+    expect(containsStop('qualcosa', '   ')).toBe(false);
   });
 });

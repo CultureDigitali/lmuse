@@ -14,13 +14,15 @@ import {
   mergeUsage,
   saveInbox,
   saveRunState,
+  saveSettings,
   saveUsage,
   type SwToPanelMessage,
 } from '../shared/settings';
-import { canStartRun, isPlausibleKey } from '../shared/approval';
+import { canStartRun, approvalTimeoutFor, isPlausibleKey } from '../shared/approval';
 import { mapProviderError } from '../shared/errors';
 import { maskPii } from '../shared/pii';
 import { sanitizeTaskText } from '../shared/task';
+import { buildLastRuns } from '../shared/settings';
 
 // Service worker MV3: una sola esecuzione alla volta, eventi live al side
 // panel via Port. Sicurezza: verifica sender, validazione zod dei messaggi,
@@ -30,6 +32,7 @@ import { sanitizeTaskText } from '../shared/task';
 let currentAbort: AbortController | null = null;
 let running = false;
 let lastRunAt: number | null = null;
+let lastTestAt: number | null = null;
 const ports = new Set<chrome.runtime.Port>();
 
 interface PendingApproval {
@@ -79,6 +82,7 @@ chrome.runtime.onConnect.addListener((port) => {
     return;
   }
   ports.add(port);
+  void chrome.action.setBadgeText({ text: running ? 'RUN' : '' });
   port.postMessage({ type: 'STATUS', running } satisfies SwToPanelMessage);
   port.onDisconnect.addListener(() => ports.delete(port));
 
@@ -110,13 +114,55 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
     return true;
   }
   if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'TEST_CONNECTION') {
+    if (!canStartRun(lastTestAt, Date.now())) {
+      sendResponse({ ok: false, error: 'Aspetta qualche secondo prima di riprovare.' });
+      return true;
+    }
+    lastTestAt = Date.now();
     void testConnection().then(
       () => sendResponse({ ok: true }),
       (error: unknown) => sendResponse({ ok: false, error: mapProviderError(error) }),
     );
     return true;
   }
+  if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'SYNC_ALARMS') {
+    void syncAlarms().then(() => sendResponse({ ok: true }));
+    return true;
+  }
   return false;
+});
+
+/** Allinea chrome.alarms agli schedule abilitati (chiamato dal panel a ogni modifica). */
+async function syncAlarms(): Promise<void> {
+  await chrome.alarms.clearAll();
+  const settings = await loadSettings();
+  for (const s of settings.schedules.filter((x) => x.enabled).slice(0, 5)) {
+    await chrome.alarms.create(`lmuse-${s.id}`, { periodInMinutes: s.intervalMin });
+  }
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (!alarm.name.startsWith('lmuse-')) return;
+  void (async () => {
+    const settings = await loadSettings();
+    const schedule = settings.schedules.find((s) => `lmuse-${s.id}` === alarm.name && s.enabled);
+    if (!schedule) return;
+    await saveSettings({
+      ...settings,
+      schedules: settings.schedules.map((s) => (s.id === schedule.id ? { ...s, lastFire: Date.now() } : s)),
+    });
+    if (running) {
+      broadcast({
+        type: 'STEP',
+        index: -1,
+        tool: 'schedule',
+        input: null,
+        result: 'Run già attivo: schedule saltato.',
+      });
+      return;
+    }
+    await startRun(schedule.task);
+  })();
 });
 
 /** Health-check: una chiamata minima al provider (probe "OK", 20s max). */
@@ -166,19 +212,30 @@ function requestApproval(tool: string, description: string, domain?: string): Pr
   const id = `appr-${Date.now()}-${(approvalSeq += 1)}`;
   // La descrizione può contenere URL: mai token in chiaro al panel (S203).
   const safeDescription = String(maskCurrent(description));
+  const unattended = ports.size === 0;
+  const timeoutSec = approvalTimeoutFor(unattended ? 'unattended' : 'panel', approvalTimeoutSec);
+  if (unattended) {
+    broadcast({
+      type: 'STEP',
+      index: -1,
+      tool: 'approvazione',
+      input: null,
+      result: 'Panel chiuso: conferma rapida (20s), default negata. Mai auto-approve.',
+    });
+  }
   broadcast({
     type: 'APPROVAL',
     id,
     tool,
     description: safeDescription,
-    timeoutSec: approvalTimeoutSec,
+    timeoutSec,
     domain,
   });
   return new Promise<boolean>((resolve, reject) => {
     const timer = self.setTimeout(() => {
       pendingApprovals.delete(id);
       resolve(false);
-    }, approvalTimeoutSec * 1000);
+    }, timeoutSec * 1000);
     pendingApprovals.set(id, { resolve, reject, timer });
   });
 }
@@ -260,14 +317,20 @@ async function startRun(task: string): Promise<void> {
               mask(`${toolName}: ${approved ? 'approvato' : 'negato'}${reason ? ` — ${reason}` : ''}`),
             ),
           }),
+        onStream: (delta) => broadcast({ type: 'STREAM', text: delta }),
       },
       signal,
       requestApproval,
     );
     const elapsedMs = Date.now() - startedAt;
+    const tokens = inputTokens + outputTokens;
     try {
       await saveInbox({ text, steps, at: Date.now() });
       await saveUsage(mergeUsage(await loadUsage(), { inputTokens, outputTokens }));
+      await saveSettings({
+        ...settings,
+        lastRuns: buildLastRuns(settings.lastRuns, { task: trimmed, at: startedAt, steps, tokens }),
+      });
     } catch (error) {
       throw new Error('Spazio di archiviazione esaurito: impossibile salvare il risultato.', {
         cause: error,
@@ -275,13 +338,26 @@ async function startRun(task: string): Promise<void> {
     }
     await addHistoryTask(trimmed, settings.keepHistory);
     broadcast({ type: 'DONE', text, steps, inputTokens, outputTokens, elapsedMs });
+    if (ports.size === 0) void chrome.action.setBadgeText({ text: '✓' });
   } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error);
+    if (raw.startsWith('STOP_TEXT:')) {
+      const doneText = `✅ ${raw.slice('STOP_TEXT:'.length).trim()} Task interrotto su tua condizione.`;
+      try {
+        await saveInbox({ text: doneText, at: Date.now(), steps: -1 });
+      } catch {
+        /* inbox best-effort */
+      }
+      broadcast({ type: 'DONE', text: doneText, steps: -1, inputTokens: 0, outputTokens: 0, elapsedMs: 0 });
+      return;
+    }
     const settings = await loadSettings().catch(() => null);
     const message = mapProviderError(error);
     broadcast({
       type: 'ERROR',
       message: settings ? String(maskForPanel(settings, message)) : message,
     });
+    if (ports.size === 0) void chrome.action.setBadgeText({ text: '✓' });
   } finally {
     abortPendingApprovals();
     await clearRunState().catch(() => undefined);

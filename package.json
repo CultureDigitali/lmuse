@@ -1,6 +1,6 @@
 {
   "name": "lmuse",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Estensione Chrome MV3: un agente AI che usa il browser per svolgere task, con la tua chiave LLM (multi-provider).",
   "type": "module",
@@ -16,13 +16,14 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "pnpm build && node scripts/e2e-smoke.mjs",
     "check-links": "node scripts/check-links.mjs",
+    "check-chromium-age": "node scripts/check-chromium-age.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check-size": "node scripts/check-size.mjs",
     "verify-dist": "node scripts/verify-dist.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm lint && pnpm build",
-    "release": "pnpm check && pnpm verify-dist && rm -rf release && mkdir -p release && cd dist && zip -r ../release/lmuse-0.4.0.zip . && cd .. && shasum -a 256 release/lmuse-0.4.0.zip",
+    "release": "pnpm check && pnpm verify-dist && rm -rf release && mkdir -p release && cd dist && zip -r ../release/lmuse-0.5.0.zip . && cd .. && shasum -a 256 release/lmuse-0.5.0.zip",
     "release:github": "git push origin \"v$(node -p \"require('./package.json').version\")\" && gh release create \"v$(node -p \"require('./package.json').version\")\" --title \"lmuse v$(node -p \"require('./package.json').version\")\" --notes-file CHANGELOG.md release/lmuse-*.zip"
   },
   "dependencies": {
@@ -50,6 +51,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^5.0.1",
+    "axe-core": "^4.13.0",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",

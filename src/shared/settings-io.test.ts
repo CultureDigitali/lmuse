@@ -43,7 +43,10 @@ function makeArea() {
 const local = makeArea();
 const session = makeArea();
 
-vi.stubGlobal('chrome', { storage: { local, session } });
+vi.stubGlobal('chrome', {
+  storage: { local, session },
+  alarms: { clearAll: vi.fn(async () => true) },
+});
 
 beforeEach(() => {
   for (const area of [local, session]) for (const k of Object.keys(area.data)) delete area.data[k];

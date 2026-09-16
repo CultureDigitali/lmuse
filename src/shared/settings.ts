@@ -7,8 +7,29 @@
 
 import { z } from 'zod';
 import type { ApprovalPolicy } from './approval';
+import type { Schedule } from './schedules';
 
 export type { ApprovalPolicy };
+
+export interface RunSummary {
+  task: string;
+  at: number;
+  steps: number;
+  tokens: number;
+}
+
+const LAST_RUNS_MAX = 10;
+
+/** Lista pura (testata): voce troncata + cap 10. */
+export function buildLastRuns(list: RunSummary[], entry: RunSummary): RunSummary[] {
+  const clean: RunSummary = {
+    task: entry.task.slice(0, 200),
+    at: entry.at,
+    steps: entry.steps,
+    tokens: entry.tokens,
+  };
+  return [clean, ...list].slice(0, LAST_RUNS_MAX);
+}
 
 export type ProviderId =
   | 'openai'
@@ -192,6 +213,12 @@ export interface Settings {
   savedPrompts: string[];
   theme: Theme;
   locale: Locale;
+  maxTokensPerRun: number;
+  stopText: string;
+  soundOnDone: boolean;
+  compactLog: boolean;
+  lastRuns: RunSummary[];
+  schedules: Schedule[];
 }
 
 export const SETTINGS_KEY = 'lmuse.settings.v1';
@@ -217,6 +244,12 @@ export const DEFAULT_SETTINGS: Settings = {
   savedPrompts: [],
   theme: 'auto',
   locale: 'auto',
+  maxTokensPerRun: 60000,
+  stopText: '',
+  soundOnDone: false,
+  compactLog: false,
+  lastRuns: [],
+  schedules: [],
 };
 
 function clamp(value: number, min: number, max: number, fallback: number): number {
@@ -258,6 +291,14 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined): Settings {
     savedPrompts: sanitizePromptList(base.savedPrompts).slice(0, 20),
     theme: ['auto', 'dark', 'light'].includes(base.theme) ? base.theme : 'auto',
     locale: ['auto', 'it', 'en'].includes(base.locale) ? base.locale : 'auto',
+    maxTokensPerRun: clamp(Number(base.maxTokensPerRun), 1000, 200000, DEFAULT_SETTINGS.maxTokensPerRun),
+    stopText: String(base.stopText ?? '')
+      .trim()
+      .slice(0, 200),
+    soundOnDone: Boolean(base.soundOnDone),
+    compactLog: Boolean(base.compactLog),
+    lastRuns: sanitizeLastRuns(base.lastRuns),
+    schedules: sanitizeSchedules(base.schedules),
   };
 }
 
@@ -303,6 +344,44 @@ function sanitizePromptList(list: unknown): string[] {
       .slice(0, PROMPT_ENTRY_MAX);
     if (clean && !out.includes(clean)) out.push(clean);
     if (out.length >= PROMPT_MAX) break;
+  }
+  return out;
+}
+
+function sanitizeLastRuns(list: unknown): RunSummary[] {
+  if (!Array.isArray(list)) return [];
+  const out: RunSummary[] = [];
+  for (const item of list.slice(0, LAST_RUNS_MAX)) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    if (typeof r['task'] !== 'string') continue;
+    out.push({
+      task: r['task'].slice(0, 200),
+      at: typeof r['at'] === 'number' ? r['at'] : 0,
+      steps: typeof r['steps'] === 'number' ? r['steps'] : 0,
+      tokens: typeof r['tokens'] === 'number' ? r['tokens'] : 0,
+    });
+  }
+  return out;
+}
+
+function sanitizeSchedules(list: unknown): Schedule[] {
+  if (!Array.isArray(list)) return [];
+  const out: Schedule[] = [];
+  for (const item of list.slice(0, 5)) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    if (typeof r['id'] !== 'string' || typeof r['task'] !== 'string') continue;
+    const interval = Number(r['intervalMin']);
+    if (!Number.isInteger(interval) || interval < 60 || interval > 10080) continue;
+    out.push({
+      id: r['id'].slice(0, 64),
+      task: r['task'].slice(0, 4000),
+      intervalMin: interval,
+      enabled: r['enabled'] !== false,
+      createdAt: typeof r['createdAt'] === 'number' ? r['createdAt'] : 0,
+      ...(typeof r['lastFire'] === 'number' ? { lastFire: r['lastFire'] } : {}),
+    });
   }
   return out;
 }
@@ -358,11 +437,12 @@ export async function clearStoredKey(): Promise<void> {
   await chrome.storage.session.remove(KEY_STORE_KEY);
 }
 
-/** Cancella TUTTO: chiave, impostazioni, cronologia, inbox, usage, onboarding. */
+/** Cancella TUTTO: chiave, impostazioni, cronologia, inbox, usage, onboarding, alarms. */
 export async function clearAllData(): Promise<void> {
   await clearStoredKey();
   await chrome.storage.local.remove([SETTINGS_KEY, HISTORY_KEY, USAGE_KEY, ONBOARDED_KEY]);
   await chrome.storage.session.remove([INBOX_KEY, RUN_STATE_KEY]);
+  await chrome.alarms.clearAll().catch(() => undefined);
 }
 
 // --- Inbox: risultato dell'ultimo run (session, sopravvive alla chiusura del panel) ---
@@ -516,6 +596,7 @@ export type PanelToSwMessage = z.infer<typeof PanelToSwSchema>;
 export type SwToPanelMessage =
   | { type: 'STATUS'; running: boolean }
   | { type: 'STEP'; index: number; tool: string; input: unknown; result?: string }
+  | { type: 'STREAM'; text: string }
   | {
       type: 'DONE';
       text: string;

@@ -13,6 +13,7 @@ const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 // Chromium snapshot pinnato: Google Chrome branded blocca --load-extension,
 // Chromium no. Se manca: `node -e "import('@puppeteer/browsers')..."` (vedi CI).
 export const CHROMIUM_BUILD = '1698520';
+export const CHROMIUM_PIN_DATE = '2026-09-16';
 
 function cachedChromium() {
   const base = join(homedir(), '.cache', 'puppeteer', 'chromium');
@@ -101,7 +102,20 @@ try {
     check('manifest leggibile e versione coerente', manifest?.version === pkg.version, manifest?.version);
     const hasRoot = await page.evaluate(() => !!document.getElementById('root')?.childElementCount);
     check('sidepanel renderizzato', hasRoot);
+    const hasSettings = await page.evaluate(() =>
+      [...document.querySelectorAll('button')].some((b) =>
+        ['Impostazioni', 'Settings'].includes(b.getAttribute('aria-label') ?? ''),
+      ),
+    );
+    check('panel interattivo (bottone impostazioni)', hasSettings);
     check('zero errori pagina', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
+    // A11y: axe-core via CDP evaluate (esente da CSP extension_pages), zero serious/critical.
+    const axeSource = readFileSync(join(root, 'node_modules', 'axe-core', 'axe.min.js'), 'utf8');
+    const violationsJson = await page.evaluate(
+      `${axeSource}; axe.run(document, { resultTypes: ['violations'] }).then((r) => JSON.stringify(r.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id + '(' + v.nodes.length + ')')));`,
+    );
+    const violations = JSON.parse(violationsJson);
+    check('a11y: zero serious/critical', violations.length === 0, violations.slice(0, 5).join(' | '));
     await page.close();
   }
 } finally {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { t } from './i18n';
+import { I18N_STRINGS, t } from './i18n';
 
 // Parità chiavi it/en: ogni chiave usata in UI deve esistere in entrambe.
 const IT_KEYS = [
@@ -78,5 +78,14 @@ describe('i18n parity', () => {
   });
   it('variabile mancante resta placeholder', () => {
     expect(t('it', 'step_of', { n: 1 })).toContain('{max}');
+  });
+});
+
+describe('i18n full parity', () => {
+  it('it ed en hanno esattamente le stesse chiavi', () => {
+    const it = Object.keys(I18N_STRINGS.it).sort();
+    const en = Object.keys(I18N_STRINGS.en).sort();
+    expect(en).toEqual(it);
+    expect(it.length).toBeGreaterThan(60);
   });
 });

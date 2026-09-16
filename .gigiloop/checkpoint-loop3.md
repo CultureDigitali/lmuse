@@ -13,13 +13,13 @@ health-check, trusted domains, template/preset, e2e smoke, log UX.
 
 ## Rubric (post-reconcile)
 
-| Criterio | Peso | Evidenza | Score |
-|---|---:|---|---|
-| Sicurezza | 30% | allowlist/trusted/select/wait/press testati, audit grep, CI scan | 9/10 |
-| Privacy | 25% | read/links/hostOnly/probe testati e documentati, nessun nuovo permesso | 9/10 |
-| Robustezza | 25% | 176/176 test, e2e verde, circuit, badge, orphan | 9/10 |
-| Qualità | 10% | e2e+coverage+links in CI, templates GH, tag+Release | 9/10 |
-| Documentazione | 10% | GUIDA/README/PRIVACY/SECURITY/CHANGELOG/AGENTS coerenti | 9/10 |
+| Criterio       | Peso | Evidenza                                                               | Score |
+| -------------- | ---: | ---------------------------------------------------------------------- | ----- |
+| Sicurezza      |  30% | allowlist/trusted/select/wait/press testati, audit grep, CI scan       | 9/10  |
+| Privacy        |  25% | read/links/hostOnly/probe testati e documentati, nessun nuovo permesso | 9/10  |
+| Robustezza     |  25% | 176/176 test, e2e verde, circuit, badge, orphan                        | 9/10  |
+| Qualità        |  10% | e2e+coverage+links in CI, templates GH, tag+Release                    | 9/10  |
+| Documentazione |  10% | GUIDA/README/PRIVACY/SECURITY/CHANGELOG/AGENTS coerenti                | 9/10  |
 
 **Post-reconcile: 9.0/10.** Residui: prompt injection intrinseca, `<all_urls>`,
 crop element-screenshot non provato runtime (serve chiave), Chromium e2e pinnato.

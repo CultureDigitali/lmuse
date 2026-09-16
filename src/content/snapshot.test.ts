@@ -69,4 +69,18 @@ describe('buildSnapshot', () => {
     document.body.innerHTML = '<input type="text" value="ciao mondo" />';
     expect(buildSnapshot(false)).toContain('ciao mondo');
   });
+  it('attraversa shadow DOM aperti', () => {
+    document.body.innerHTML = '<div id="host"></div>';
+    const host = document.getElementById('host') as HTMLElement;
+    const shadow = host.attachShadow({ mode: 'open' });
+    shadow.innerHTML = '<button>ShadowBtn</button>';
+    const tree = buildSnapshot(false);
+    expect(tree).toContain('ShadowBtn');
+  });
+  it('5k nodi in < 2s', () => {
+    document.body.innerHTML = Array.from({ length: 5000 }, (_, i) => `<button>B${i}</button>`).join('');
+    const started = Date.now();
+    buildSnapshot(false);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
 });

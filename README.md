@@ -7,11 +7,12 @@ endpoint OpenAI-compatibile.
 
 - Nessun server nostro, nessuna telemetria: la chiave resta sul tuo PC.
 - Conferma umana per le azioni sensibili (navigazione, invio form, cambio tab).
-- 18 tool browser: snapshot, click, digitazione, select, wait, tasti, scroll,
-  screenshot (anche ritagliato), lettura testo/link, tab multipli.
-- Template task, preset Veloce/Preciso/Locale, health-check connessione integrato.
+- 21 tool browser: snapshot, click, digitazione, select, wait, press, find, table,
+  query, scroll, screenshot (anche ritagliato), lettura testo/link, tab multipli.
+- Template task, preset Veloce/Preciso/Locale, task programmati, health-check integrato.
+- Streaming live, stop-text, token-guard, import/export profilo.
 - Sicurezza & privacy verificate: leggi **[PRIVACY.md](PRIVACY.md)** e **[GUIDA.md](GUIDA.md)**.
-- Vedi **[CHANGELOG.md](CHANGELOG.md)** per le novità della 0.4.0.
+- Vedi **[CHANGELOG.md](CHANGELOG.md)** per le novità della 0.5.0.
 
 Permessi (perché servono): `storage` (impostazioni/chiave locali), `scripting`
 (iniezione on-demand solo quando il task agisce), `tabs`+`activeTab` (leggere e
@@ -25,5 +26,6 @@ pnpm build                   # poi carica dist/ in chrome://extensions
 ```
 
 Leggi **[GUIDA.md](GUIDA.md)** per architettura, setup, scorciatoie e roadmap.
-Stato CI: `pnpm check` verde (typecheck + 176 test vitest + lint + build), e2e smoke,
-coverage `src/shared` > 90%, audit + secret-scan + check-size + link-check attivi.
+Stato CI: `pnpm check` verde (typecheck + 199 test vitest + lint + build), e2e smoke
+con a11y, coverage `src/shared` > 90%, audit + secret-scan + size + links attivi.
+Contribuire: vedi **[CONTRIBUTING.md](CONTRIBUTING.md)**.

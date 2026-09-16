@@ -90,6 +90,25 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     testing: 'Prova…',
     test_ok: 'Connessione OK.',
     active_tab: 'Tab attivo:',
+    schedules_title: 'Task programmati',
+    schedule_add: 'Programma task corrente',
+    schedule_delete: 'Elimina',
+    schedule_enable: 'Attivo',
+    schedule_interval: 'Ogni (minuti, 60–10080)',
+    schedule_ph: 'Nessun task programmato.',
+    next_run: 'prossimo',
+    run_history_title: 'Ultimi run',
+    run_history_clear: 'Svuota',
+    run_history_empty: 'Nessun run registrato.',
+    export_profile: 'Esporta profilo',
+    import_profile: 'Importa profilo',
+    import_ok: 'Profilo importato.',
+    import_error: 'Profilo non valido.',
+    compact_label: 'Log compatto (nascondi tool)',
+    sound_label: 'Suono a fine task',
+    stop_text_label: 'Ferma quando vedi (testo)',
+    stop_text_ph: 'es. "prezzo totale"',
+    max_tokens_label: 'Max token per run',
   },
   en: {
     open_panel: 'Open lmuse',
@@ -177,6 +196,25 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     testing: 'Testing…',
     test_ok: 'Connection OK.',
     active_tab: 'Active tab:',
+    schedules_title: 'Scheduled tasks',
+    schedule_add: 'Schedule current task',
+    schedule_delete: 'Delete',
+    schedule_enable: 'Enabled',
+    schedule_interval: 'Every (minutes, 60–10080)',
+    schedule_ph: 'No scheduled tasks.',
+    next_run: 'next',
+    run_history_title: 'Recent runs',
+    run_history_clear: 'Clear',
+    run_history_empty: 'No runs recorded.',
+    export_profile: 'Export profile',
+    import_profile: 'Import profile',
+    import_ok: 'Profile imported.',
+    import_error: 'Invalid profile.',
+    compact_label: 'Compact log (hide tools)',
+    sound_label: 'Sound on task done',
+    stop_text_label: 'Stop when you see (text)',
+    stop_text_ph: 'e.g. "total price"',
+    max_tokens_label: 'Max tokens per run',
   },
 };
 
@@ -185,5 +223,8 @@ export function t(lang: Lang, key: string, vars?: Record<string, string | number
   if (!vars) return raw;
   return raw.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? `{${name}}`));
 }
+
+/** Export per test di parità totale it/en. */
+export const I18N_STRINGS = STRINGS;
 
 export type { Lang };

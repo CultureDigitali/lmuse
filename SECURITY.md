@@ -23,6 +23,7 @@
 | `tabs`            | leggere URL/titolo, elencare e fokusare tab      | `activeTab` solo (insufficiente per multi-tab) |
 | `activeTab`       | agire sul tab attivo senza prompt                | —                                              |
 | `sidePanel`       | pannello laterale                                | popup (peggiore per task lunghi)               |
+| `alarms`          | cadenza task programmati (solo locali)           | polling dal panel (richiede panel aperto)      |
 | host `<all_urls>` | operare dove l'utente chiede                     | `optional_host_permissions` per-sito (roadmap) |
 
 I 9 tool aggiunti in v0.4.0 (select, wait, press, reload, forward, read_text, links,
@@ -58,6 +59,11 @@ introdotto (audit diff manifest).
   guardie + approval sensitive per select); `read_text`/`links` esfiltrano testo al
   modello (redazione attiva di default); `test-connection` invia solo un probe "OK".
   Nessuno aggiunge permessi o canali di rete.
+- **Task programmati (v0.5.0)**: girano senza supervisione → approval con timeout 20s
+  e default negata, mai auto-approve; passano dagli stessi controlli di un RUN manuale
+  (chiave, cooldown, allowlist, circuit). Nuovo permesso `alarms` solo per la cadenza.
+- **Streaming/import (v0.5.0)**: i delta vanno solo al pannello (mai storage, render
+  come testo); l'import valida shape+size e scarta chiavi ignote (anti `__proto__`).
 
 ## Segnalare una vulnerabilità
 

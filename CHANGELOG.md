@@ -1,5 +1,33 @@
 # Changelog — lmuse
 
+## 0.5.0 (2026-09-16) — Live e programmati
+
+Quarto loop da 100 migliorie (gigiloop): streaming, task programmati, find/table/query,
+shadow DOM, run history, import/export profilo, e2e con a11y.
+
+**Live e controllo costi**
+
+- Streaming della risposta nel pannello (bolla live, niente persistenza).
+- Stop-text ("fermati quando vedi X") con chiusura graceful; token-guard per run.
+- Composer con contatore, focus automatico a fine run, log compatto, suono opzionale.
+
+**Nuovi tool (18 → 21)**
+
+- `browser_find` (highlight + conteggio), `browser_table` (markdown),
+  `browser_query` (selettori CSS → ref); `read_text` con mode main; snapshot che
+  attraversa gli shadow DOM; circuit breaker e badge passi.
+
+**Programmati e memoria**
+
+- Task programmati (ogni 1h–7gg, max 5) via `chrome.alarms`, con next-run label,
+  fast-deny delle approval senza panel, run history (ultimi 10).
+- Import/export profilo JSON validato (mai la chiave); template e preset invariati.
+
+**Qualità**
+
+- 199 test, e2e con axe (fix contrasto reale), check età pin Chromium,
+  no-remote-code in CI, CONTRIBUTING + STORE listing draft.
+
 ## 0.4.0 (2026-09-16) — Nuovi tool e fiducia
 
 Terzo loop da 100 migliorie (gigiloop): 18 tool browser, health-check, trusted domains,

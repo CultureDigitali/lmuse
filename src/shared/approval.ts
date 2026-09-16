@@ -87,11 +87,21 @@ export function shouldApprove(
 }
 
 const RUN_COOLDOWN_MS = 5_000;
+const UNATTENDED_APPROVAL_SEC = 20;
 
 /** Anti-doppio-click: un RUN ogni 5s (S111). */
 export function canStartRun(lastStartedAt: number | null, now: number): boolean {
   if (lastStartedAt == null) return true;
   return now - lastStartedAt >= RUN_COOLDOWN_MS;
+}
+
+/**
+ * Timeout conferma: 20s secchi quando nessuno può rispondere (panel chiuso),
+ * altrimenti il setting utente. Mai auto-approve: il timeout nega sempre.
+ */
+export function approvalTimeoutFor(audience: 'panel' | 'unattended', settingSec: number): number {
+  if (audience === 'unattended') return UNATTENDED_APPROVAL_SEC;
+  return settingSec;
 }
 
 /** Sanity check chiave: evita di avviare run con placeholder corti ("test", "abc"). */

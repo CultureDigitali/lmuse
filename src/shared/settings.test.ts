@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildHistoryList,
+  buildLastRuns,
   buildPromptList,
   DEFAULT_SETTINGS,
   mergeUsage,
@@ -86,6 +87,45 @@ describe('buildHistoryList', () => {
     const long = Array.from({ length: 25 }, (_, i) => `t${i}`);
     expect(buildHistoryList(long, 'new')).toHaveLength(20);
     expect(buildHistoryList(long, 'new')[0]).toBe('new');
+  });
+});
+
+describe('buildLastRuns', () => {
+  it('tronca task + cap 10', () => {
+    const entry = { task: 'x'.repeat(500), at: 1, steps: 3, tokens: 99 };
+    const out = buildLastRuns([], entry);
+    expect(out[0].task).toHaveLength(200);
+    expect(out[0].tokens).toBe(99);
+    const long = Array.from({ length: 12 }, (_, i) => ({ task: `t${i}`, at: i, steps: 1, tokens: 1 }));
+    expect(buildLastRuns(long, entry)).toHaveLength(10);
+  });
+});
+
+describe('nuovi campi loop-4', () => {
+  it('default e clamp', () => {
+    const s = sanitizeSettings({});
+    expect(s.maxTokensPerRun).toBe(60000);
+    expect(s.stopText).toBe('');
+    expect(s.soundOnDone).toBe(false);
+    expect(s.compactLog).toBe(false);
+    expect(s.lastRuns).toEqual([]);
+    expect(s.schedules).toEqual([]);
+    expect(sanitizeSettings({ maxTokensPerRun: 5 }).maxTokensPerRun).toBe(1000);
+    expect(sanitizeSettings({ maxTokensPerRun: 9999999 }).maxTokensPerRun).toBe(200000);
+    expect(sanitizeSettings({ stopText: '  X  ' }).stopText).toBe('X');
+  });
+  it('lastRuns/schedules malformati filtrati', () => {
+    const s = sanitizeSettings({
+      lastRuns: [{ task: 'ok', at: 1, steps: 2, tokens: 3 }, 'spazzatura', { no: 1 }] as never,
+      schedules: [
+        { id: 'a', task: 't', intervalMin: 60, enabled: true, createdAt: 0 },
+        { id: 'b', task: 't', intervalMin: 5 },
+        'spazzatura',
+      ] as never,
+    });
+    expect(s.lastRuns).toHaveLength(1);
+    expect(s.schedules).toHaveLength(1);
+    expect(s.schedules[0].id).toBe('a');
   });
 });
 

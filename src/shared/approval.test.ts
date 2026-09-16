@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  approvalTimeoutFor,
   canStartRun,
   extractDomain,
   formatElapsed,
@@ -109,5 +110,13 @@ describe('formatElapsed', () => {
     expect(formatElapsed(5000)).toBe('5s');
     expect(formatElapsed(185000)).toBe('3m 05s');
     expect(formatElapsed(3720000)).toBe('1h 02m');
+  });
+});
+
+describe('approvalTimeoutFor', () => {
+  it('unattended 20s secchi, panel da setting', () => {
+    expect(approvalTimeoutFor('unattended', 300)).toBe(20);
+    expect(approvalTimeoutFor('panel', 300)).toBe(300);
+    expect(approvalTimeoutFor('panel', 120)).toBe(120);
   });
 });

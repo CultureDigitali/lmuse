@@ -82,12 +82,35 @@ function describeExtra(el: Element): string {
   return '';
 }
 
+/**
+ * Raccoglie gli elementi interattivi attraversando anche gli shadow DOM
+ * aperti (molti siti moderni li usano; querySelectorAll da solo non li vede).
+ */
+function collectInteractive(root: Document | ShadowRoot): Element[] {
+  const found: Element[] = [...root.querySelectorAll(INTERACTIVE_SELECTOR)];
+  for (const el of root.querySelectorAll('*')) {
+    if (el.shadowRoot) found.push(...collectInteractive(el.shadowRoot));
+  }
+  return found;
+}
+
+/** Registra elementi extra (es. da browser_query) nella mappa ref corrente. */
+export function registerElements(els: Element[]): number[] {
+  const refs: number[] = [];
+  for (const el of els) {
+    const ref = refCounter++;
+    refMap.set(ref, el);
+    refs.push(ref);
+  }
+  return refs;
+}
+
 /** Costruisce lo snapshot testuale della pagina. */
 export function buildSnapshot(maskPiiEnabled = true): string {
   refCounter = 0;
   refMap = new Map();
   const lines: string[] = [];
-  const found = document.querySelectorAll(INTERACTIVE_SELECTOR);
+  const found = collectInteractive(document);
 
   for (const el of found) {
     if (lines.length >= MAX_NODES) {
