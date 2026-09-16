@@ -27,16 +27,18 @@ se esce un modello nuovo lo scrivi e funziona, senza aggiornare l'estensione.
 
 ```
 public/manifest.json        Manifest MV3 (CSP, comandi tastiera, permessi, content script)
-src/shared/settings.ts      Catalogo provider, settings, chiave/inbox/cronologia, protocollo
+src/shared/settings.ts      Catalogo provider, settings, chiave/inbox/cronologia/usage, protocollo
+src/shared/approval.ts      Policy approvazione, cooldown, plausibilità chiave (testato)
+src/shared/header.ts        Intestazione snapshot redatta (testato)
 src/shared/pii.ts           Redazione PII + token URL (testato)
 src/shared/urlGuard.ts      Blocco protocolli/host + allowlist (testato)
 src/shared/errors.ts        Errori provider → italiano (testato)
 src/shared/budget.ts        Budget tool-call per run (testato)
 src/shared/i18n.ts          Stringhe UI it/en
 src/background/providers.ts Crea il modello AI SDK dal provider configurato
-src/background/tools.ts     9 tool browser con guardia centrale (budget/errori/timeout)
+src/background/tools.ts     9 tool browser con approval+budget/errori/timeout, inject on-demand
 src/background/agent.ts     ToolLoopAgent + system prompt + timeout combinato
-src/background/index.ts     Service worker: RUN/STOP, badge, inbox, comandi tastiera
+src/background/index.ts     Service worker: RUN/STOP, approval runtime, badge, inbox, usage
 src/content/snapshot.ts     Distilla il DOM in albero [ref] compatti (redatto)
 src/content/index.ts        Esegue snapshot/click/digitazione/scroll su richiesta
 src/sidepanel/              UI React: task, impostazioni, privacy, inbox, cronologia
@@ -64,9 +66,33 @@ reference/nanobrowser/      Clone di riferimento (fuori git, opzionale):
 
 Scrivi la richiesta → il worker avvia `ToolLoopAgent` → l'agente cicla
 `snapshot → azione → osserva` (max passi default 25, budget tool = passi×3) → vedi ogni
-tool in diretta → resoconto finale. Se chiudi il pannello, il run prosegue e il risultato
-ti aspetta nell'inbox. Lo screenshot va al modello come immagine (disattivabile); se il
-modello non supporta le immagini, le impostazioni te lo segnalano.
+tool in diretta → resoconto finale con passi · token · tempo. Se chiudi il pannello, il run
+prosegue e il risultato ti aspetta nell'inbox. Lo screenshot va al modello come immagine
+(disattivabile); se il modello non supporta le immagini, le impostazioni te lo segnalano.
+
+Il content script è **iniettato on-demand**: nessuna iniezione all'apertura delle pagine,
+solo `scripting.executeScript` sul tab attivo quando il task agisce davvero (e re-inject
+automatico dopo le navigazioni). Su `chrome://`/Web Store l'inject è vietato da Chrome e
+l'agente lo segnala.
+
+## Approvazione umana (v0.3.0)
+
+Policy in ⚙ → Privacy (`approval`): `off` · `sensitive` (default) · `all`.
+
+```
+┌────────┐  tool sensibile  ┌──────┐  APPROVAL   ┌───────┐
+│ Tool   │ ───────────────→ │ SW   │ ──────────→ │ Panel │ banner + countdown 120s
+│ (STOP) │ ←── abort ────── │      │ ←────────── │       │ Approva / Nega
+└────────┘                  └──────┘  APPROVE/   └───────┘
+                             ↓ DENY (zod)
+                    deny/timeout → errore all'agente (cambia strategia)
+```
+
+- `sensitive`: conferma per navigazione verso domini nuovi nel run, invio form, cambio tab.
+- Safety floor: l'invio di un form chiede conferma **anche con policy `off`**.
+- `all`: conferma per ogni azione tranne snapshot ed elenco tab.
+- Timeout 120s → negata; STOP sblocca subito anche un'attesa di conferma.
+- Ogni decisione finisce nel log (approvato/negato + motivo).
 
 ## Cosa vede il modello
 
@@ -77,7 +103,14 @@ IBAN, carte, telefoni/numeri lunghi e token negli URL compaiono come `[email]`, 
 Il modello non vede: la tua chiave API, le tue impostazioni, le altre schede (salvo
 `tabs_list`/`tab_focus` espliciti), la cronologia dei task passati.
 
-## Sicurezza & Privacy (implementato, v0.2.0)
+## Costi e token (v0.3.0)
+
+Ogni run mostra `passi · token · tempo` nel resoconto; le statistiche cumulative (run e
+token totali, nessun contenuto) sono in ⚙ in fondo. Per azzerare i costi: usa provider
+locali (Ollama/LM Studio, gratis), modelli piccoli, `max passi` basso, screenshot OFF
+quando non servono. "Cancella tutti i dati" azzera anche le statistiche.
+
+## Sicurezza & Privacy (implementato, v0.3.0)
 
 - MV3 con CSP `script-src 'self'`, nessuna risorsa esposta al web, niente `eval`/`innerHTML`.
 - Permessi minimi (niente `debugger` → niente banner "Chrome è controllato"); Chrome ≥ 116.
@@ -85,7 +118,27 @@ Il modello non vede: la tua chiave API, le tue impostazioni, le altre schede (sa
 - Navigazione bloccata verso `javascript:/data:/file:/chrome:*`/Web Store + allowlist domini.
 - Chiave in storage separato (locale o solo-sessione), mai loggata, mai esportata.
 - Budget tool-call, timeout 10s/risposta e globale, STOP anche da tastiera.
+- v0.3.0: approval umana (default sensitive) + safety floor invio form, content script
+  on-demand, header snapshot redatto, strip tracking params, no credenziali negli URL.
 - Dettagli e audit: [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md).
+
+## Impostazioni (tutte, con default)
+
+| Chiave               | Default     | Note                                 |
+| -------------------- | ----------- | ------------------------------------ |
+| providerId / model   | openai/gpt… | catalogo in `src/shared/settings.ts` |
+| baseUrl              | ''          | Azure/custom/locali                  |
+| maxSteps             | 25 (3–100)  | budget tool = maxSteps × 3           |
+| maxRetries           | 2 (0–6)     | retry SDK su errori transienti       |
+| runTimeoutMin        | 15 (1–120)  | timeout globale run                  |
+| rememberKey          | true        | false = chiave solo in sessione      |
+| privacyMaskPii       | true        | redazione snapshot (banner se OFF)   |
+| privacyHidePasswords | true        | blocco digitazione password          |
+| privacyHostOnly      | false       | solo origin+path, niente query       |
+| keepHistory          | true        | false = nessuna persistenza task     |
+| approval             | sensitive   | off / sensitive / all                |
+| sendScreenshots      | true        | OFF = tool screenshot rifiutato      |
+| allowedDomains       | ''          | CSV, vuoto = tutti                   |
 
 ## Comandi tastiera
 
@@ -103,16 +156,18 @@ Requisiti: Node ≥ 22 (`nvm use 22`), pnpm 9.
 ```bash
 pnpm install        # installa dipendenze
 pnpm typecheck      # tsc --noEmit
-pnpm test           # vitest (47 test)
+pnpm test           # vitest (112 test)
+pnpm test:coverage  # coverage v8 (soglie 85/85/80 su src/shared)
 pnpm lint           # eslint flat
 pnpm format         # prettier
-pnpm check          # typecheck + test + build
+pnpm check          # typecheck + test + lint + build
 pnpm build          # compila in dist/
 pnpm dev            # ricompila a ogni modifica (watch)
-pnpm release        # check + zip di dist/ in release/
+pnpm release        # check + verify-dist + zip di dist/ in release/
 ```
 
-CI (GitHub Actions): install → typecheck → test → build a ogni push/PR.
+CI (GitHub Actions): install → typecheck → test → lint → format:check → build →
+verify-dist → check-size → audit → secret-scan, a ogni push/PR.
 
 **Caricare l'estensione in Chrome:**
 
@@ -134,11 +189,21 @@ CI (GitHub Actions): install → typecheck → test → build a ogni push/PR.
   risultato ti aspetta nell'inbox alla riapertura.
 - **Posso fidarmi su siti con dati sensibili?** Usa redazione attiva (default), allowlist
   domini, provider locale; resta il rischio prompt-injection (vedi SECURITY.md).
+- **L'agente chiede sempre conferma, come riduco le interruzioni?** Policy `off` (resta la
+  conferma per l'invio form) oppure naviga tu per primo sui siti del task: i domini già
+  visti nel run non richiedono conferma.
+- **"Run interrotto (estensione riavviata)"?** Chrome ha ricaricato l'estensione mid-run
+  (update/restart): premi Riprova, il task riparte da capo.
+- **Il task fallisce subito con errore chiave?** Chiavi < 8 caratteri sono rifiutate:
+  incolla la chiave completa in ⚙ (occhio agli spazi).
+- **Pagina senza elementi / "prova screenshot"?** Siti Canvas/grafica non hanno DOM
+  accessibile: usa lo screenshot e descrivi dove cliccare è impossibile — meglio un sito
+  alternativo o task diverso.
 
 ## Roadmap
 
 - [x] Cronologia task locale (max 20)
-- [ ] Approvazione umana per azioni sensibili (`toolApproval: 'user-approval'`)
+- [x] Approvazione umana per azioni sensibili
 - [ ] Streaming dei token nel pannello (oggi: eventi per tool + risposta finale)
 - [ ] `optional_host_permissions` con consenso per-sito (alternativa a `<all_urls>`)
 - [ ] Modalità senza chiave via Chrome Built-in AI (Prompt API, Gemini Nano locale)
@@ -147,6 +212,7 @@ CI (GitHub Actions): install → typecheck → test → build a ogni push/PR.
 
 ## Stato onesto
 
-`pnpm check` verde (typecheck + 47 test + build), ESLint + Prettier verdi, CI attiva.
+`pnpm check` verde (typecheck + 112 test + lint + build), coverage shared > 90%,
+Prettier verde, CI attiva con audit + secret-scan + check-size.
 Il giro completo con chiave reale va provato caricando `dist/` in Chrome: se un provider
 cambia formato risposta, si aggiusta in `providers.ts`.

@@ -6,6 +6,9 @@
 // (svuotato alla chiusura di Chrome).
 
 import { z } from 'zod';
+import type { ApprovalPolicy } from './approval';
+
+export type { ApprovalPolicy };
 
 export type ProviderId =
   | 'openai'
@@ -175,6 +178,9 @@ export interface Settings {
   rememberKey: boolean;
   privacyMaskPii: boolean;
   privacyHidePasswords: boolean;
+  privacyHostOnly: boolean;
+  keepHistory: boolean;
+  approval: ApprovalPolicy;
   sendScreenshots: boolean;
   allowedDomains: string;
 }
@@ -191,6 +197,9 @@ export const DEFAULT_SETTINGS: Settings = {
   rememberKey: true,
   privacyMaskPii: true,
   privacyHidePasswords: true,
+  privacyHostOnly: false,
+  keepHistory: true,
+  approval: 'sensitive',
   sendScreenshots: true,
   allowedDomains: '',
 };
@@ -206,6 +215,9 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined): Settings {
   const providerId = (
     PROVIDERS.some((p) => p.id === base.providerId) ? base.providerId : 'openai'
   ) as ProviderId;
+  const approval: ApprovalPolicy = ['off', 'sensitive', 'all'].includes(base.approval)
+    ? base.approval
+    : DEFAULT_SETTINGS.approval;
   return {
     providerId,
     model: String(base.model ?? '')
@@ -220,9 +232,22 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined): Settings {
     rememberKey: Boolean(base.rememberKey),
     privacyMaskPii: Boolean(base.privacyMaskPii),
     privacyHidePasswords: Boolean(base.privacyHidePasswords),
+    privacyHostOnly: Boolean(base.privacyHostOnly),
+    keepHistory: base.keepHistory !== false,
+    approval,
     sendScreenshots: Boolean(base.sendScreenshots),
-    allowedDomains: String(base.allowedDomains ?? '').slice(0, 500),
+    allowedDomains: normalizeDomainsCsv(String(base.allowedDomains ?? '')),
   };
+}
+
+/** Lowercase + spazi uniformati nella CSV domini. */
+export function normalizeDomainsCsv(csv: string): string {
+  return csv
+    .split(',')
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean)
+    .join(', ')
+    .slice(0, 500);
 }
 
 export async function loadSettings(): Promise<Settings> {
@@ -261,11 +286,11 @@ export async function clearStoredKey(): Promise<void> {
   await chrome.storage.session.remove(KEY_STORE_KEY);
 }
 
-/** Cancella TUTTO: chiave, impostazioni, cronologia, inbox. */
+/** Cancella TUTTO: chiave, impostazioni, cronologia, inbox, usage, onboarding. */
 export async function clearAllData(): Promise<void> {
   await clearStoredKey();
-  await chrome.storage.local.remove([SETTINGS_KEY, HISTORY_KEY]);
-  await chrome.storage.session.remove([INBOX_KEY]);
+  await chrome.storage.local.remove([SETTINGS_KEY, HISTORY_KEY, USAGE_KEY, ONBOARDED_KEY]);
+  await chrome.storage.session.remove([INBOX_KEY, RUN_STATE_KEY]);
 }
 
 // --- Inbox: risultato dell'ultimo run (session, sopravvive alla chiusura del panel) ---
@@ -291,10 +316,11 @@ export async function clearInbox(): Promise<void> {
   await chrome.storage.session.remove(INBOX_KEY);
 }
 
-// --- Cronologia task (local, max 20, dedup) ---
+// --- Cronologia task (local, max 20, dedup, voci troncate) ---
 
 export const HISTORY_KEY = 'lmuse.history.v1';
 const HISTORY_MAX = 20;
+const HISTORY_ENTRY_MAX = 200;
 
 export async function loadHistory(): Promise<string[]> {
   const stored = await chrome.storage.local.get(HISTORY_KEY);
@@ -302,10 +328,16 @@ export async function loadHistory(): Promise<string[]> {
   return Array.isArray(list) ? list.map(String).slice(0, HISTORY_MAX) : [];
 }
 
-export async function addHistoryTask(task: string): Promise<void> {
+export async function addHistoryTask(task: string, keep = true): Promise<void> {
+  if (!keep) return;
+  const entry = task.slice(0, HISTORY_ENTRY_MAX);
   const list = await loadHistory();
-  const next = [task, ...list.filter((t) => t !== task)].slice(0, HISTORY_MAX);
-  await chrome.storage.local.set({ [HISTORY_KEY]: next });
+  await chrome.storage.local.set({ [HISTORY_KEY]: buildHistoryList(list, entry) });
+}
+
+/** Lista pura (testata): dedup + cap 20. */
+export function buildHistoryList(list: string[], entry: string): string[] {
+  return [entry, ...list.filter((t) => t !== entry)].slice(0, HISTORY_MAX);
 }
 
 export async function removeHistoryTask(task: string): Promise<void> {
@@ -317,11 +349,94 @@ export async function clearHistory(): Promise<void> {
   await chrome.storage.local.remove(HISTORY_KEY);
 }
 
+// --- Statistiche uso locali (local, solo conteggi: nessun contenuto) ---
+
+export const USAGE_KEY = 'lmuse.usage.v1';
+
+export interface UsageStats {
+  runs: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export const EMPTY_USAGE: UsageStats = { runs: 0, inputTokens: 0, outputTokens: 0 };
+
+function nonNegInt(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
+
+/** Normalizza stats lette dallo storage (mai crash su dati corrotti). */
+export function sanitizeUsage(raw: Partial<UsageStats> | undefined): UsageStats {
+  if (!raw) return { ...EMPTY_USAGE };
+  return {
+    runs: nonNegInt(raw.runs),
+    inputTokens: nonNegInt(raw.inputTokens),
+    outputTokens: nonNegInt(raw.outputTokens),
+  };
+}
+
+/** Somma pura, testata: +1 run e token sommati. */
+export function mergeUsage(prev: UsageStats, add: { inputTokens: number; outputTokens: number }): UsageStats {
+  return {
+    runs: prev.runs + 1,
+    inputTokens: prev.inputTokens + nonNegInt(add.inputTokens),
+    outputTokens: prev.outputTokens + nonNegInt(add.outputTokens),
+  };
+}
+
+export async function loadUsage(): Promise<UsageStats> {
+  const stored = await chrome.storage.local.get(USAGE_KEY);
+  return sanitizeUsage(stored[USAGE_KEY] as Partial<UsageStats> | undefined);
+}
+
+export async function saveUsage(stats: UsageStats): Promise<void> {
+  await chrome.storage.local.set({ [USAGE_KEY]: stats });
+}
+
+// --- Onboarding first-run (local, flag) ---
+
+export const ONBOARDED_KEY = 'lmuse.onboarded.v1';
+
+export async function isOnboarded(): Promise<boolean> {
+  const stored = await chrome.storage.local.get(ONBOARDED_KEY);
+  return stored[ONBOARDED_KEY] === true;
+}
+
+export async function setOnboarded(): Promise<void> {
+  await chrome.storage.local.set({ [ONBOARDED_KEY]: true });
+}
+
+// --- Run state (session): per rilevare SW riavviato mid-run ---
+
+export const RUN_STATE_KEY = 'lmuse.runstate.v1';
+
+export interface RunState {
+  task: string;
+  at: number;
+}
+
+export async function saveRunState(state: RunState): Promise<void> {
+  await chrome.storage.session.set({ [RUN_STATE_KEY]: state });
+}
+
+export async function loadRunState(): Promise<RunState | null> {
+  const stored = await chrome.storage.session.get(RUN_STATE_KEY);
+  return (stored[RUN_STATE_KEY] as RunState | undefined) ?? null;
+}
+
+export async function clearRunState(): Promise<void> {
+  await chrome.storage.session.remove(RUN_STATE_KEY);
+}
+
 // --- Protocollo sulla Port 'lmuse' (validato con zod) ---
+
+const ApprovalId = z.string().min(1).max(64);
 
 export const PanelToSwSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('RUN'), task: z.string().min(1).max(MAX_TASK_CHARS) }),
   z.object({ type: z.literal('STOP') }),
+  z.object({ type: z.literal('APPROVE'), id: ApprovalId }),
+  z.object({ type: z.literal('DENY'), id: ApprovalId }),
 ]);
 
 export type PanelToSwMessage = z.infer<typeof PanelToSwSchema>;
@@ -329,5 +444,13 @@ export type PanelToSwMessage = z.infer<typeof PanelToSwSchema>;
 export type SwToPanelMessage =
   | { type: 'STATUS'; running: boolean }
   | { type: 'STEP'; index: number; tool: string; input: unknown; result?: string }
-  | { type: 'DONE'; text: string; steps: number }
-  | { type: 'ERROR'; message: string };
+  | {
+      type: 'DONE';
+      text: string;
+      steps: number;
+      inputTokens: number;
+      outputTokens: number;
+      elapsedMs: number;
+    }
+  | { type: 'ERROR'; message: string }
+  | { type: 'APPROVAL'; id: string; tool: string; description: string; timeoutSec: number };

@@ -70,7 +70,25 @@ function validRef(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < 10_000;
 }
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+interface ReplyPayload {
+  ok: boolean;
+  tree?: string;
+  error?: string;
+  /** Lunghezza valore campo dopo type (conferma applicazione, R150). */
+  valueLength?: number;
+  /** % scroll raggiunta dopo scroll (R151). */
+  scrollPercent?: number;
+}
+
+function currentScrollPercent(): number {
+  const max = document.body.scrollHeight - window.innerHeight;
+  if (max <= 0) return 100;
+  return Math.min(100, Math.max(0, Math.round((window.scrollY / max) * 100)));
+}
+
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
+  // Solo la nostra estensione può comandarci (S101).
+  if (sender.id !== chrome.runtime.id) return false;
   if (
     !message ||
     typeof message !== 'object' ||
@@ -82,7 +100,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   }
   const msg = message as Incoming;
   let responded = false;
-  const reply = (payload: { ok: boolean; tree?: string; error?: string }): void => {
+  const reply = (payload: ReplyPayload): void => {
     if (responded) return;
     responded = true;
     sendResponse(payload);
@@ -103,8 +121,12 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
         }
         case 'LMUSE_TYPE': {
           if (!validRef(msg.ref)) throw new Error('Ref non valido.');
-          const text = String(msg.text ?? '').slice(0, MAX_TYPE_CHARS);
-          if (!text) throw new Error('Testo vuoto.');
+          const rawText = String(msg.text ?? '');
+          // Niente troncamenti silenziosi: il worker deve sapere cosa digita (S114).
+          if (rawText.length > MAX_TYPE_CHARS) {
+            throw new Error(`Testo troppo lungo (${rawText.length} caratteri, max ${MAX_TYPE_CHARS}).`);
+          }
+          if (!rawText) throw new Error('Testo vuoto.');
           const el = getElement(msg.ref);
           if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
           if (isPasswordField(el) && msg.allowPassword !== true) {
@@ -112,12 +134,16 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
               'Campo password bloccato dalla privacy di lmuse: se serve, digita la password manualmente.',
             );
           }
-          typeIntoElement(el, text);
+          typeIntoElement(el, rawText);
           if (msg.submit) {
             await new Promise((r) => setTimeout(r, 300));
             submitFrom(el);
           }
-          reply({ ok: true });
+          const valueLength =
+            el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement
+              ? el.value.length
+              : rawText.length;
+          reply({ ok: true, valueLength });
           break;
         }
         case 'LMUSE_SCROLL': {
@@ -142,7 +168,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
           } else {
             window.scrollTo({ top: document.body.scrollHeight });
           }
-          reply({ ok: true });
+          reply({ ok: true, scrollPercent: currentScrollPercent() });
           break;
         }
       }

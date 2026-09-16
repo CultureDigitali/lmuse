@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mapProviderError } from './errors';
+import { mapProviderError, mapTabError } from './errors';
 
 describe('mapProviderError', () => {
   it('abort e timeout dedicati', () => {
@@ -26,5 +26,20 @@ describe('mapProviderError', () => {
   });
   it('non-Error convertiti in stringa', () => {
     expect(mapProviderError('boom')).toBe('boom');
+  });
+});
+
+describe('mapTabError', () => {
+  it('tab chiuso', () => {
+    expect(mapTabError(new Error('No tab with id 42'))).toMatch(/non esiste più/);
+  });
+  it('tab in aggiornamento', () => {
+    expect(mapTabError(new Error('Tabs cannot be edited right now'))).toMatch(/riprova/);
+  });
+  it('finestra chiusa', () => {
+    expect(mapTabError(new Error('No window with id 1'))).toMatch(/finestra/);
+  });
+  it('altro → fallback provider', () => {
+    expect(mapTabError(new Error('401 nope'))).toMatch(/Chiave API/);
   });
 });

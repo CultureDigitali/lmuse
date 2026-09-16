@@ -3,22 +3,41 @@ import {
   PanelToSwSchema,
   addHistoryTask,
   clearAllData,
+  clearRunState,
+  getProvider,
   loadInbox,
   loadSettings,
   loadStoredKey,
+  loadUsage,
+  mergeUsage,
   saveInbox,
+  saveRunState,
+  saveUsage,
   type SwToPanelMessage,
 } from '../shared/settings';
+import { canStartRun, isPlausibleKey } from '../shared/approval';
 import { mapProviderError } from '../shared/errors';
 import { maskPii } from '../shared/pii';
 
 // Service worker MV3: una sola esecuzione alla volta, eventi live al side
 // panel via Port. Sicurezza: verifica sender, validazione zod dei messaggi,
-// chiave mai loggata, STOP via comando tastiera. (S03, S04, S15, S16, S17)
+// chiave mai loggata, STOP via comando tastiera, approval umana per le
+// azioni sensibili. (S03, S04, S15, S16, S17, S106-S108)
 
 let currentAbort: AbortController | null = null;
 let running = false;
+let lastRunAt: number | null = null;
 const ports = new Set<chrome.runtime.Port>();
+
+interface PendingApproval {
+  resolve: (approved: boolean) => void;
+  reject: (error: Error) => void;
+  timer: number;
+}
+const pendingApprovals = new Map<string, PendingApproval>();
+let approvalSeq = 0;
+
+const APPROVAL_TIMEOUT_SEC = 120;
 
 function broadcast(message: SwToPanelMessage): void {
   for (const port of ports) {
@@ -62,6 +81,10 @@ chrome.runtime.onConnect.addListener((port) => {
       void startRun(message.task);
     } else if (message.type === 'STOP') {
       currentAbort?.abort();
+    } else if (message.type === 'APPROVE') {
+      settleApproval(message.id, true);
+    } else if (message.type === 'DENY') {
+      settleApproval(message.id, false);
     }
   });
 });
@@ -79,6 +102,39 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
   }
   return false;
 });
+
+function settleApproval(id: string, approved: boolean): void {
+  const pending = pendingApprovals.get(id);
+  if (!pending) return;
+  pendingApprovals.delete(id);
+  clearTimeout(pending.timer);
+  pending.resolve(approved);
+}
+
+/** STOP sblocca subito anche i tool in attesa di conferma (S124). */
+function abortPendingApprovals(): void {
+  for (const [id, pending] of pendingApprovals) {
+    pendingApprovals.delete(id);
+    clearTimeout(pending.timer);
+    pending.reject(new DOMException('Task fermato durante la conferma.', 'AbortError'));
+  }
+}
+
+/**
+ * Chiede conferma al panel; timeout 120s → negata. Rifiuta su STOP.
+ * La descrizione contiene già tool + motivo in chiaro (S122).
+ */
+function requestApproval(tool: string, description: string): Promise<boolean> {
+  const id = `appr-${Date.now()}-${(approvalSeq += 1)}`;
+  broadcast({ type: 'APPROVAL', id, tool, description, timeoutSec: APPROVAL_TIMEOUT_SEC });
+  return new Promise<boolean>((resolve, reject) => {
+    const timer = self.setTimeout(() => {
+      pendingApprovals.delete(id);
+      resolve(false);
+    }, APPROVAL_TIMEOUT_SEC * 1000);
+    pendingApprovals.set(id, { resolve, reject, timer });
+  });
+}
 
 function maskForPanel(settings: { privacyMaskPii: boolean }, value: unknown): unknown {
   if (!settings.privacyMaskPii) return value;
@@ -98,6 +154,10 @@ async function startRun(task: string): Promise<void> {
     broadcast({ type: 'ERROR', message: 'Un task è già in esecuzione. Fermalo prima di avviarne un altro.' });
     return;
   }
+  if (!canStartRun(lastRunAt, Date.now())) {
+    broadcast({ type: 'ERROR', message: 'Aspetta qualche secondo prima di avviare un altro task.' });
+    return;
+  }
   const trimmed = task.trim();
   if (!trimmed) {
     broadcast({ type: 'ERROR', message: 'Scrivi un task da svolgere.' });
@@ -105,8 +165,10 @@ async function startRun(task: string): Promise<void> {
   }
 
   running = true;
+  lastRunAt = Date.now();
   currentAbort = new AbortController();
   const signal = currentAbort.signal;
+  const startedAt = Date.now();
   broadcast({ type: 'STATUS', running: true });
   void chrome.action.setBadgeText({ text: 'RUN' });
   void chrome.action.setBadgeBackgroundColor({ color: '#7c8cf8' });
@@ -114,8 +176,12 @@ async function startRun(task: string): Promise<void> {
   try {
     const settings = await loadSettings();
     const apiKey = await loadStoredKey(settings.rememberKey);
+    if (getProvider(settings.providerId).needsKey && !isPlausibleKey(apiKey)) {
+      throw new Error('Chiave API mancante o non valida: controllala nelle impostazioni ⚙.');
+    }
+    await saveRunState({ task: trimmed, at: startedAt });
     const mask = (value: unknown): unknown => maskForPanel(settings, value);
-    const { text, steps } = await runTask(
+    const { text, steps, inputTokens, outputTokens } = await runTask(
       settings,
       apiKey,
       trimmed,
@@ -131,15 +197,36 @@ async function startRun(task: string): Promise<void> {
             input: null,
             result: String(mask(summary)),
           }),
+        onApprovalDecision: (toolName, approved, reason) =>
+          broadcast({
+            type: 'STEP',
+            index: -1,
+            tool: approved ? 'approvazione ✓' : 'approvazione ✕',
+            input: null,
+            result: String(
+              mask(`${toolName}: ${approved ? 'approvato' : 'negato'}${reason ? ` — ${reason}` : ''}`),
+            ),
+          }),
       },
       signal,
+      requestApproval,
     );
-    await saveInbox({ text, steps, at: Date.now() });
-    await addHistoryTask(trimmed);
-    broadcast({ type: 'DONE', text, steps });
+    const elapsedMs = Date.now() - startedAt;
+    try {
+      await saveInbox({ text, steps, at: Date.now() });
+      await saveUsage(mergeUsage(await loadUsage(), { inputTokens, outputTokens }));
+    } catch (error) {
+      throw new Error('Spazio di archiviazione esaurito: impossibile salvare il risultato.', {
+        cause: error,
+      });
+    }
+    await addHistoryTask(trimmed, settings.keepHistory);
+    broadcast({ type: 'DONE', text, steps, inputTokens, outputTokens, elapsedMs });
   } catch (error) {
     broadcast({ type: 'ERROR', message: mapProviderError(error) });
   } finally {
+    abortPendingApprovals();
+    await clearRunState().catch(() => undefined);
     running = false;
     currentAbort = null;
     void chrome.action.setBadgeText({ text: '' });

@@ -24,11 +24,14 @@ export interface AgentCallbacks {
   onStep: (index: number) => void;
   onToolStart: (tool: string, input: unknown) => void;
   onToolEnd: (tool: string, summary: string) => void;
+  onApprovalDecision: (tool: string, approved: boolean, reason: string) => void;
 }
 
 export interface AgentRunResult {
   text: string;
   steps: number;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 function summarizeOutput(toolName: string, output: unknown): string {
@@ -44,7 +47,10 @@ function summarizeOutput(toolName: string, output: unknown): string {
 }
 
 /** Combina l'abort utente con un timeout di run senza dipendere da AbortSignal.any. (S14, S15) */
-function withTimeout(userSignal: AbortSignal, timeoutMs: number): { signal: AbortSignal; dispose: () => void } {
+export function withTimeout(
+  userSignal: AbortSignal,
+  timeoutMs: number,
+): { signal: AbortSignal; dispose: () => void } {
   const controller = new AbortController();
   const abortWith = (reason: unknown): void => {
     if (!controller.signal.aborted) controller.abort(reason);
@@ -72,6 +78,7 @@ export async function runTask(
   task: string,
   callbacks: AgentCallbacks,
   userAbort: AbortSignal,
+  requestApproval: (tool: string, description: string) => Promise<boolean>,
 ): Promise<AgentRunResult> {
   if (!apiKey && !['ollama', 'lmstudio', 'custom'].includes(settings.providerId)) {
     throw new Error('Manca la chiave API: aprila nelle impostazioni di lmuse.');
@@ -85,12 +92,18 @@ export async function runTask(
   const model = createModel(settings, apiKey);
   let stepIndex = 0;
 
+  const { signal, dispose } = withTimeout(userAbort, settings.runTimeoutMin * 60_000);
   const { tools } = createBrowserTools({
     maskPii: settings.privacyMaskPii,
     hidePasswords: settings.privacyHidePasswords,
+    hostOnly: settings.privacyHostOnly,
     sendScreenshots: settings.sendScreenshots,
     allowedDomains: settings.allowedDomains,
     budgetMax: settings.maxSteps * 3,
+    policy: settings.approval,
+    signal,
+    requestApproval,
+    onApprovalDecision: callbacks.onApprovalDecision,
   });
 
   const agent = new ToolLoopAgent({
@@ -112,10 +125,14 @@ export async function runTask(
     },
   });
 
-  const { signal, dispose } = withTimeout(userAbort, settings.runTimeoutMin * 60_000);
   try {
     const result = await agent.generate({ prompt: trimmed, abortSignal: signal });
-    return { text: result.text, steps: result.steps.length };
+    return {
+      text: result.text,
+      steps: result.steps.length,
+      inputTokens: result.usage?.inputTokens ?? 0,
+      outputTokens: result.usage?.outputTokens ?? 0,
+    };
   } finally {
     dispose();
   }

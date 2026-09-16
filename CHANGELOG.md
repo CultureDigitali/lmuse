@@ -1,5 +1,36 @@
 # Changelog — lmuse
 
+## 0.3.0 (2026-09-16) — Approval umana e minimizzazione
+
+Secondo loop da 100 migliorie (gigiloop): human-in-the-loop, content script on-demand,
+resilienza run, trasparenza costi, suite a 112 test.
+
+**Sicurezza**
+
+- Approval umana per azioni sensibili: policy off/sensitive (default)/all, safety floor
+  per l'invio form, timeout 120s → negata, STOP sblocca le attese, decisioni nel log.
+- Content script iniettato on-demand (via `content_scripts` statico) + sender check.
+- Navigate rifiuta URL con credenziali; tracking params strippati; cooldown 5s tra RUN;
+  chiavi < 8 char rifiutate; CI con audit high + secret-scan.
+
+**Privacy**
+
+- Header snapshot redatto (token URL sempre, titolo con mask), opzione host-only
+  (solo origin+path), `tabs_list` redatta, cronologia troncata + flag keepHistory,
+  usage stats solo-conteggi, banner se redazione OFF.
+- Nessun nuovo permesso (audit diff manifest).
+
+**Robustezza / UX**
+
+- Auto-snapshot dopo ogni azione, redirect segnalati, conferma caratteri digitati,
+  % scroll, hint pagina vuota, run-state orfano con Riprova, DONE con token+tempo,
+  banner approval con countdown, onboarding, toolbar log, statistiche in ⚙.
+
+**Qualità**
+
+- 112 test (jsdom per snapshot, fake-timers per timeout, storage mockati),
+  coverage shared > 90%, check-size + verify-dist in CI/release, Dependabot, AGENTS.md.
+
 ## 0.2.0 (2026-09-15) — Hardening sicurezza & privacy
 
 100 migliorie (loop gigiloop) su sicurezza, privacy, robustezza, qualità e docs.

@@ -15,13 +15,13 @@ sul tema sicurezza e privacy, verificando ogni batch con typecheck/test/build.
 
 ## Rubric
 
-| Criterio | Peso | Evidenza | Score |
-|---|---:|---|---:|
-| Sicurezza | 30% | typecheck+test urlGuard/budget+audit grep chiave/CSP/sender | 9/10 |
-| Privacy | 25% | 47 test (pii incl. fix telefoni) + PRIVACY.md + audit telemetria | 9/10 |
-| Correttezza/robustezza | 25% | check+lint verdi, reconnect, timeout+dispose, ref-rescue | 8/10 |
-| Qualità progetto | 10% | vitest+CI+eslint+prettier+release zip verificato | 9/10 |
-| Documentazione | 10% | GUIDA/PRIVACY/SECURITY/CHANGELOG/LICENSE coerenti | 9/10 |
+| Criterio               | Peso | Evidenza                                                         | Score |
+| ---------------------- | ---: | ---------------------------------------------------------------- | ----: |
+| Sicurezza              |  30% | typecheck+test urlGuard/budget+audit grep chiave/CSP/sender      |  9/10 |
+| Privacy                |  25% | 47 test (pii incl. fix telefoni) + PRIVACY.md + audit telemetria |  9/10 |
+| Correttezza/robustezza |  25% | check+lint verdi, reconnect, timeout+dispose, ref-rescue         |  8/10 |
+| Qualità progetto       |  10% | vitest+CI+eslint+prettier+release zip verificato                 |  9/10 |
+| Documentazione         |  10% | GUIDA/PRIVACY/SECURITY/CHANGELOG/LICENSE coerenti                |  9/10 |
 
 **Post-reconcile: 8.8/10.** Residui onesti: prompt-injection intrinseca (documentata),
 `host_permissions: <all_urls>` (documentata, alternativa in roadmap), nessun test e2e

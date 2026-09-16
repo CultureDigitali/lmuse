@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAllowedHost, isBlockedUrl, normalizeNavigationTarget } from './urlGuard';
+import { isAllowedHost, isBlockedUrl, normalizeNavigationTarget, stripTrackingParams } from './urlGuard';
 
 describe('isBlockedUrl', () => {
   it.each([
@@ -58,5 +58,22 @@ describe('normalizeNavigationTarget', () => {
   });
   it('rifiuta input vuoto o invalido', () => {
     expect(normalizeNavigationTarget('   ')).toBeNull();
+  });
+  it('rifiuta URL con credenziali user:pass@', () => {
+    expect(normalizeNavigationTarget('https://user:pass@example.com/')).toBeNull();
+  });
+  it('normalizza rimuovendo tracking params', () => {
+    expect(normalizeNavigationTarget('https://example.com/a?utm_source=x&q=1')).toBe(
+      'https://example.com/a?q=1',
+    );
+  });
+});
+
+describe('stripTrackingParams', () => {
+  it('toglie utm/gclid/fbclid e tiene il resto', () => {
+    expect(stripTrackingParams('https://e.test/?gclid=1&fbclid=2&q=ciao')).toBe('https://e.test/?q=ciao');
+  });
+  it('lascia intatti URL senza tracking', () => {
+    expect(stripTrackingParams('https://e.test/?q=1')).toBe('https://e.test/?q=1');
   });
 });

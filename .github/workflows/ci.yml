@@ -19,4 +19,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm lint
+      - run: pnpm format:check
       - run: pnpm build
+      - run: pnpm verify-dist
+      - run: pnpm check-size
+      - run: pnpm audit --audit-level=high
+      - name: secret-scan
+        run: |
+          ! grep -rEn '(sk-[A-Za-z0-9]{20,}|xox[bap]-|ghp_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{20,})' src public sidepanel scripts || (echo 'secret-scan: possibile chiave live nel codice' && exit 1)

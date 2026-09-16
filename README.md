@@ -6,13 +6,21 @@ Groq, Cerebras, Mistral, Azure, OpenRouter, Ollama, LM Studio e qualsiasi
 endpoint OpenAI-compatibile.
 
 - Nessun server nostro, nessuna telemetria: la chiave resta sul tuo PC.
+- Conferma umana per le azioni sensibili (navigazione, invio form, cambio tab).
 - Sicurezza & privacy verificate: leggi **[PRIVACY.md](PRIVACY.md)** e **[GUIDA.md](GUIDA.md)**.
-- Vedi **[CHANGELOG.md](CHANGELOG.md)** per le novità della 0.2.0.
+- Vedi **[CHANGELOG.md](CHANGELOG.md)** per le novità della 0.3.0.
+
+Permessi (perché servono): `storage` (impostazioni/chiave locali), `scripting`
+(iniezione on-demand solo quando il task agisce), `tabs`+`activeTab` (leggere e
+comandare il tab), `sidePanel` (il pannello), host su tutti i siti (lavorare dove
+gli chiedi — restringibile con allowlist). Niente `debugger`, niente cookie, niente rete
+oltre al provider LLM che scegli.
 
 ```bash
-pnpm install && pnpm check   # typecheck + test + build
+pnpm install && pnpm check   # typecheck + test + lint + build
 pnpm build                   # poi carica dist/ in chrome://extensions
 ```
 
 Leggi **[GUIDA.md](GUIDA.md)** per architettura, setup, scorciatoie e roadmap.
-Stato CI: `pnpm check` verde (typecheck + 47 test vitest + build), ESLint + Prettier.
+Stato CI: `pnpm check` verde (typecheck + 112 test vitest + lint + build),
+coverage `src/shared` > 90%, audit + secret-scan + check-size attivi.

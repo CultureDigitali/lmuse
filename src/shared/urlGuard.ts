@@ -67,8 +67,46 @@ export function normalizeNavigationTarget(input: string): string | null {
   try {
     const url = new URL(target);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-    return url.toString();
+    // Niente credenziali nell'URL: vettore di phishing, mai necessario all'agente.
+    if (url.username || url.password) return null;
+    return stripTrackingParams(url.toString());
   } catch {
     return null;
+  }
+}
+
+const TRACKING_PARAMS = [
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'utm_id',
+  'gclid',
+  'gbraid',
+  'wbraid',
+  'fbclid',
+  'msclkid',
+  'ttclid',
+  'dclid',
+  'mc_cid',
+  'mc_eid',
+  '_ga',
+];
+
+/** Rimuove i parametri di tracking noti da un URL (privacy). */
+export function stripTrackingParams(url: string): string {
+  try {
+    const parsed = new URL(url);
+    let changed = false;
+    for (const param of TRACKING_PARAMS) {
+      if (parsed.searchParams.has(param)) {
+        parsed.searchParams.delete(param);
+        changed = true;
+      }
+    }
+    return changed ? parsed.toString() : url;
+  } catch {
+    return url;
   }
 }

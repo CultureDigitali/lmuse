@@ -6,26 +6,42 @@ import {
   addHistoryTask,
   clearHistory,
   clearInbox,
+  clearRunState,
   clearStoredKey,
   getProvider,
+  isOnboarded,
   loadHistory,
   loadInbox,
+  loadRunState,
   loadSettings,
   loadStoredKey,
+  loadUsage,
   removeHistoryTask,
   saveSettings,
   saveStoredKey,
+  setOnboarded,
+  type ApprovalPolicy,
   type InboxEntry,
   type ProviderId,
+  type RunState,
   type Settings,
   type SwToPanelMessage,
+  type UsageStats,
 } from '../shared/settings';
+import { formatElapsed } from '../shared/approval';
 import { t, type Lang } from '../shared/i18n';
 
 interface LogEntry {
   id: number;
   kind: 'user' | 'tool' | 'result' | 'error' | 'info';
   text: string;
+}
+
+interface PendingApproval {
+  id: string;
+  tool: string;
+  description: string;
+  expiresAt: number;
 }
 
 let logId = 0;
@@ -60,16 +76,29 @@ export default function App() {
   const [inbox, setInbox] = useState<InboxEntry | null>(null);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState('');
+  const [lastTask, setLastTask] = useState('');
+  const [showRetry, setShowRetry] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [approval, setApproval] = useState<PendingApproval | null>(null);
+  const [approvalLeft, setApprovalLeft] = useState(0);
+  const [orphan, setOrphan] = useState<RunState | null>(null);
+  const [usage, setUsage] = useState<UsageStats>({ runs: 0, inputTokens: 0, outputTokens: 0 });
+  const [onboarded, setOnboardedState] = useState(true);
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   const portRef = useRef<chrome.runtime.Port | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const taskRef = useRef<HTMLTextAreaElement>(null);
+  const approvalRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const retryRef = useRef(0);
   const intentionalCloseRef = useRef(false);
   const apiKeyRef = useRef('');
+  const startedAtRef = useRef(0);
+  const settingsRef = useRef(settings);
   apiKeyRef.current = apiKey;
+  settingsRef.current = settings;
 
   const append = useCallback((entry: Omit<LogEntry, 'id'>) => {
     setLog((prev) => [...prev.slice(-200), { ...entry, id: nextId() }]);
@@ -83,10 +112,17 @@ export default function App() {
     const handleMessage = (message: SwToPanelMessage) => {
       if (message.type === 'STATUS') {
         setRunning(message.running);
+        if (message.running) {
+          setOrphan(null);
+        } else {
+          setApproval(null);
+          setElapsedMs(0);
+        }
       } else if (message.type === 'STEP') {
         if (message.tool === 'step') {
           setSteps(message.index);
-          append({ kind: 'info', text: `— ${t(lang, 'step_of', { n: message.index, max: '…' })} —` });
+          const max = settingsRef.current.maxSteps;
+          append({ kind: 'info', text: `— ${t(lang, 'step_of', { n: message.index, max })} —` });
         } else if (message.tool.endsWith('✓')) {
           append({
             kind: 'tool',
@@ -96,17 +132,38 @@ export default function App() {
           append({ kind: 'tool', text: `→ ${message.tool} ${formatInput(message.input)}` });
         }
       } else if (message.type === 'DONE') {
-        append({ kind: 'result', text: message.text });
+        const tokens = message.inputTokens + message.outputTokens;
+        const usageLine = t(lang, 'usage_line', {
+          steps: message.steps,
+          tokens,
+          elapsed: formatElapsed(message.elapsedMs),
+        });
+        append({ kind: 'result', text: `${message.text}\n\n_${usageLine}_` });
         setLastResult(message.text);
+        setShowRetry(false);
+        setApproval(null);
+        setElapsedMs(0);
         setRunning(false);
         setSteps(0);
         void refreshHistory();
         void loadInbox().then(setInbox);
+        void loadUsage().then(setUsage);
       } else if (message.type === 'ERROR') {
         append({ kind: 'error', text: message.message });
         setErrorBanner(message.message);
+        setShowRetry(true);
+        setApproval(null);
+        setElapsedMs(0);
         setRunning(false);
         setSteps(0);
+      } else if (message.type === 'APPROVAL') {
+        setApproval({
+          id: message.id,
+          tool: message.tool,
+          description: message.description,
+          expiresAt: Date.now() + message.timeoutSec * 1000,
+        });
+        setApprovalLeft(message.timeoutSec);
       }
     };
 
@@ -145,7 +202,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [append]);
 
-  // --- Stato iniziale: settings, chiave, cronologia, inbox ---
+  // --- Stato iniziale: settings, chiave, cronologia, inbox, usage, onboarding, run orfano ---
   useEffect(() => {
     void (async () => {
       const s = await loadSettings();
@@ -155,9 +212,35 @@ export default function App() {
       if (!key && getProvider(s.providerId).needsKey) setShowSettings(true);
       setHistory(await loadHistory());
       setInbox(await loadInbox());
+      setUsage(await loadUsage());
+      setOnboardedState(await isOnboarded());
+      const rs = await loadRunState();
+      if (rs) setOrphan(rs);
     })();
     taskRef.current?.focus();
   }, []);
+
+  // --- Timer tempo trascorso durante il run ---
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => setElapsedMs(Date.now() - startedAtRef.current), 1000);
+    return () => window.clearInterval(timer);
+  }, [running]);
+
+  // --- Countdown approval + focus automatico sul banner (U200) ---
+  useEffect(() => {
+    if (!approval) return;
+    approvalRef.current?.focus();
+    const timer = window.setInterval(() => {
+      const left = Math.max(0, Math.ceil((approval.expiresAt - Date.now()) / 1000));
+      setApprovalLeft(left);
+      if (left <= 0) {
+        window.clearInterval(timer);
+        setApproval(null);
+      }
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [approval]);
 
   // --- Ctrl/Cmd+K: focus sul task (R69) ---
   useEffect(() => {
@@ -237,11 +320,14 @@ export default function App() {
     }
     await clearHistory();
     await clearInbox();
+    await clearRunState();
     setSettings(DEFAULT_SETTINGS);
     await saveSettings(DEFAULT_SETTINGS);
     setApiKey('');
     setHistory([]);
     setInbox(null);
+    setUsage({ runs: 0, inputTokens: 0, outputTokens: 0 });
+    setOrphan(null);
     setLog([]);
     setShowSettings(true);
   }
@@ -266,11 +352,59 @@ export default function App() {
   function run() {
     const trimmed = task.trim().slice(0, MAX_TASK_CHARS);
     if (!trimmed || running) return;
+    startTask(trimmed);
+    setTask('');
+  }
+
+  function startTask(trimmed: string) {
     setErrorBanner(null);
+    setShowRetry(false);
+    setApproval(null);
+    setLastTask(trimmed);
+    startedAtRef.current = Date.now();
+    setElapsedMs(0);
     append({ kind: 'user', text: trimmed });
     portRef.current?.postMessage({ type: 'RUN', task: trimmed });
-    setTask('');
-    void addHistoryTask(trimmed).then(refreshHistory);
+    void addHistoryTask(trimmed, settingsRef.current.keepHistory).then(refreshHistory);
+  }
+
+  function retry() {
+    if (running || !lastTask) return;
+    startTask(lastTask);
+  }
+
+  function stop() {
+    setApproval(null);
+    portRef.current?.postMessage({ type: 'STOP' });
+  }
+
+  function respondApproval(approved: boolean) {
+    if (!approval) return;
+    portRef.current?.postMessage({ type: approved ? 'APPROVE' : 'DENY', id: approval.id });
+    setApproval(null);
+  }
+
+  function copyLog() {
+    const text = log.map((e) => `[${e.kind}] ${e.text}`).join('\n\n');
+    if (!text) return;
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  function clearLog() {
+    setLog([]);
+  }
+
+  function flashNotice(text: string) {
+    setNotice(text);
+    window.setTimeout(() => setNotice(null), 2500);
+  }
+
+  async function dismissOnboarding() {
+    await setOnboarded();
+    setOnboardedState(true);
   }
 
   function copyResult() {
@@ -299,6 +433,7 @@ export default function App() {
             <span className="running-badge" title={t(lang, 'running')}>
               <span className="spinner" aria-hidden="true" />{' '}
               {t(lang, 'step_of', { n: steps, max: settings.maxSteps })}
+              {elapsedMs > 0 && ` · ${formatElapsed(elapsedMs)}`}
             </span>
           )}
           <button
@@ -316,9 +451,90 @@ export default function App() {
       {errorBanner && (
         <div className="banner error" role="alert">
           <span>{errorBanner}</span>
-          <button className="ghost" onClick={() => setErrorBanner(null)} aria-label="Chiudi avviso">
-            ✕
-          </button>
+          <span className="btn-row">
+            {showRetry && lastTask && (
+              <button type="button" className="secondary xs" onClick={retry}>
+                {t(lang, 'retry')}
+              </button>
+            )}
+            <button className="ghost" onClick={() => setErrorBanner(null)} aria-label="Chiudi avviso">
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
+
+      {approval && (
+        <div
+          className="banner approval"
+          role="alertdialog"
+          aria-label={t(lang, 'approval_title')}
+          aria-modal="false"
+          tabIndex={-1}
+          ref={approvalRef}
+        >
+          <div>
+            <strong>{t(lang, 'approval_title')}</strong>
+            <p>
+              <code>{approval.tool}</code> — {approval.description}
+            </p>
+            <p className="muted">{t(lang, 'approval_timeout', { n: approvalLeft })}</p>
+          </div>
+          <span className="btn-row">
+            <button type="button" className="run xs" onClick={() => respondApproval(true)}>
+              {t(lang, 'approve')}
+            </button>
+            <button type="button" className="stop xs" onClick={() => respondApproval(false)}>
+              {t(lang, 'deny')}
+            </button>
+          </span>
+        </div>
+      )}
+
+      {orphan && !running && (
+        <div className="banner inbox" role="status">
+          <div>
+            <strong>{t(lang, 'orphan_title')}</strong>
+            <p>
+              {t(lang, 'last_run')} {orphan.task.slice(0, 140)}
+            </p>
+          </div>
+          <span className="btn-row">
+            <button
+              type="button"
+              className="secondary xs"
+              onClick={() => {
+                const taskText = orphan.task;
+                setOrphan(null);
+                void clearRunState().then(() => startTask(taskText));
+              }}
+            >
+              {t(lang, 'orphan_retry')}
+            </button>
+            <button
+              type="button"
+              className="ghost xs"
+              onClick={() => {
+                setOrphan(null);
+                void clearRunState();
+              }}
+              aria-label="Chiudi avviso"
+            >
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
+
+      {!settings.privacyMaskPii && (
+        <div className="banner warn-banner" role="status">
+          <span>{t(lang, 'privacy_off_warn')}</span>
+        </div>
+      )}
+
+      {notice && (
+        <div className="banner notice" role="status">
+          <span>{notice}</span>
         </div>
       )}
 
@@ -456,6 +672,17 @@ export default function App() {
           </div>
 
           <h3>{t(lang, 'privacy_section')}</h3>
+          <label>
+            {t(lang, 'approval_label')}
+            <select
+              value={settings.approval}
+              onChange={(e) => update({ approval: e.target.value as ApprovalPolicy })}
+            >
+              <option value="off">{t(lang, 'approval_off')}</option>
+              <option value="sensitive">{t(lang, 'approval_sensitive')}</option>
+              <option value="all">{t(lang, 'approval_all')}</option>
+            </select>
+          </label>
           <label className="check">
             <input
               type="checkbox"
@@ -480,6 +707,22 @@ export default function App() {
             />
             {t(lang, 'send_screenshots')}
           </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.privacyHostOnly}
+              onChange={(e) => update({ privacyHostOnly: e.target.checked })}
+            />
+            {t(lang, 'host_only')}
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.keepHistory}
+              onChange={(e) => update({ keepHistory: e.target.checked })}
+            />
+            {t(lang, 'keep_history')}
+          </label>
           <label>
             {t(lang, 'allowed_domains')}
             <input
@@ -497,10 +740,16 @@ export default function App() {
           </div>
           {!provider.supportsVision && <p className="warn">{t(lang, 'vision_warn')}</p>}
           {provider.keyUrl && provider.needsKey && (
-            <a href={provider.keyUrl} target="_blank" rel="noreferrer">
+            <a href={provider.keyUrl} target="_blank" rel="noreferrer noopener">
               {t(lang, 'get_key', { provider: provider.name })}
             </a>
           )}
+          <p className="muted">
+            {t(lang, 'run_stats', {
+              runs: usage.runs,
+              tokens: usage.inputTokens + usage.outputTokens,
+            })}
+          </p>
         </section>
       )}
 
@@ -512,8 +761,29 @@ export default function App() {
         aria-live="polite"
         aria-label="Attività agente"
       >
+        {log.length > 0 && (
+          <div className="log-toolbar">
+            <button type="button" className="secondary xs" onClick={copyLog}>
+              {copied ? t(lang, 'copied') : t(lang, 'copy_log')}
+            </button>
+            <button type="button" className="secondary xs" onClick={clearLog}>
+              {t(lang, 'clear_log')}
+            </button>
+          </div>
+        )}
         {log.length === 0 && (
           <>
+            {!onboarded && (
+              <div className="banner inbox" role="status">
+                <div>
+                  <strong>{t(lang, 'onboarding_title')}</strong>
+                  <p>{t(lang, 'onboarding_body')}</p>
+                </div>
+                <button type="button" className="secondary xs" onClick={() => void dismissOnboarding()}>
+                  {t(lang, 'onboarding_done')}
+                </button>
+              </div>
+            )}
             <p className="hint">{configured ? t(lang, 'hint_ok') : t(lang, 'hint_no_key')}</p>
             {configured && (
               <div className="chips">
@@ -523,6 +793,9 @@ export default function App() {
                   </button>
                 ))}
               </div>
+            )}
+            {history.length === 0 && settings.keepHistory && (
+              <p className="muted">{t(lang, 'history_empty')}</p>
             )}
             {history.length > 0 && (
               <div className="history">
@@ -546,7 +819,11 @@ export default function App() {
                 <button
                   type="button"
                   className="secondary xs"
-                  onClick={() => void clearHistory().then(refreshHistory)}
+                  onClick={() =>
+                    void clearHistory().then(() => {
+                      void refreshHistory().then(() => flashNotice(t(lang, 'history_cleared')));
+                    })
+                  }
                 >
                   Svuota cronologia
                 </button>
@@ -586,7 +863,7 @@ export default function App() {
         {running ? (
           <button
             className="stop prominent"
-            onClick={() => portRef.current?.postMessage({ type: 'STOP' })}
+            onClick={stop}
             title={t(lang, 'keyboard_stop')}
             aria-label={t(lang, 'stop')}
           >

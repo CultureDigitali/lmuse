@@ -161,6 +161,46 @@ body {
   border-left: 3px solid var(--accent);
 }
 
+.banner.approval {
+  background: var(--panel);
+  border-left: 3px solid #f0b429;
+}
+
+.banner.approval code {
+  font-size: 11px;
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.banner.warn-banner {
+  background: #3a2f14;
+  color: #f5cf6b;
+}
+
+@media (prefers-color-scheme: light) {
+  .banner.warn-banner {
+    background: #fdf3d7;
+    color: #7a5a00;
+  }
+}
+
+.banner.notice {
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.log-toolbar {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+button.xs {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
 .banner p {
   margin: 4px 0 0;
   white-space: pre-wrap;

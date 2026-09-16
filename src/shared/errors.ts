@@ -45,3 +45,19 @@ export function mapProviderError(error: unknown): string {
   }
   return error instanceof Error ? error.message : String(error);
 }
+
+/** Errori chrome.tabs API → messaggi chiari (tab chiuso, permessi transitori). */
+export function mapTabError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const msg = raw.toLowerCase();
+  if (msg.includes('no tab with id') || msg.includes('cannot access a closed tab')) {
+    return 'Il tab non esiste più (chiuso?). Seleziona un altro tab e riprova.';
+  }
+  if (msg.includes('tabs cannot be edited right now') || msg.includes('tabs cannot be accessed')) {
+    return 'Chrome sta aggiornando i tab: riprova tra un attimo.';
+  }
+  if (msg.includes('no window with id')) {
+    return 'La finestra non esiste più. Apri lmuse in una finestra valida e riprova.';
+  }
+  return mapProviderError(error);
+}
