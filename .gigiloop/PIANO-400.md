@@ -92,7 +92,7 @@ run history, import/export profilo. [x] = applicata e verificata.
 - [x] Q376 [code] Mermaid architettura in GUIDA
 - [x] Q377 [code] `pnpm outdated` valutato, minor sicure aggiornate
 - [x] Q378 [code] Versione 0.5.0 coerente
-- [ ] Q379 [code] Tag v0.5.0 + GitHub Release
+- [x] Q379 [code] Tag v0.5.0 + GitHub Release
 - [x] Q380 [code] AGENTS.md aggiornata
 
 ## Documentazione IV (D381–D390)
