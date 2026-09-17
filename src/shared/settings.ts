@@ -42,13 +42,29 @@ export type ProviderId =
   | 'cerebras'
   | 'mistral'
   | 'openrouter'
+  | 'nvidia'
+  | 'opencode'
+  | 'cohere'
+  | 'deepinfra'
+  | 'fireworks'
+  | 'perplexity'
+  | 'togetherai'
+  | 'huggingface'
+  | 'github'
+  | 'gateway'
+  | 'baseten'
+  | 'sambanova'
   | 'ollama'
   | 'lmstudio'
   | 'custom';
 
+/** Gruppo UI nella select: cloud diretto, gateway/aggregatore, locale. */
+export type ProviderGroup = 'cloud' | 'gateway' | 'local';
+
 export interface ProviderDef {
   id: ProviderId;
   name: string;
+  group: ProviderGroup;
   /** Se false, la chiave è opzionale (es. Ollama in locale). */
   needsKey: boolean;
   defaultModel: string;
@@ -57,12 +73,16 @@ export interface ProviderDef {
   keyUrl?: string;
   /** L'agente invia screenshot al modello: serve un modello con input immagini. */
   supportsVision: boolean;
+  /** Id della credenziale nell'auth.json di opencode (per l'import via bridge). */
+  opencodeId?: string;
 }
 
 export const PROVIDERS: ProviderDef[] = [
   {
     id: 'openai',
     name: 'OpenAI',
+    group: 'cloud',
+    opencodeId: 'openai',
     needsKey: true,
     defaultModel: 'gpt-5.6',
     models: ['gpt-5.6', 'gpt-5.5', 'gpt-5-mini', 'gpt-4.1-mini'],
@@ -72,6 +92,8 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'anthropic',
     name: 'Anthropic',
+    group: 'cloud',
+    opencodeId: 'anthropic',
     needsKey: true,
     defaultModel: 'claude-sonnet-5',
     models: ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-4-6'],
@@ -81,6 +103,8 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'google',
     name: 'Google Gemini',
+    group: 'cloud',
+    opencodeId: 'google',
     needsKey: true,
     defaultModel: 'gemini-3.8-flash',
     models: ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-2.5-flash'],
@@ -90,6 +114,8 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'xai',
     name: 'xAI Grok',
+    group: 'cloud',
+    opencodeId: 'xai',
     needsKey: true,
     defaultModel: 'grok-4.6',
     models: ['grok-4.6', 'grok-4-fast-reasoning'],
@@ -99,6 +125,8 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'deepseek',
     name: 'DeepSeek',
+    group: 'cloud',
+    opencodeId: 'deepseek',
     needsKey: true,
     defaultModel: 'deepseek-v4-flash',
     models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
@@ -108,6 +136,8 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'groq',
     name: 'Groq',
+    group: 'cloud',
+    opencodeId: 'groq',
     needsKey: true,
     defaultModel: 'meta-llama/llama-4-scout-17b-16e-instruct',
     models: ['meta-llama/llama-4-scout-17b-16e-instruct', 'llama-3.3-70b-versatile', 'openai/gpt-oss-120b'],
@@ -117,6 +147,8 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'cerebras',
     name: 'Cerebras',
+    group: 'cloud',
+    opencodeId: 'cerebras',
     needsKey: true,
     defaultModel: 'gemma-4-31b',
     models: ['gemma-4-31b', 'gpt-oss-120b'],
@@ -126,6 +158,8 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'mistral',
     name: 'Mistral AI',
+    group: 'cloud',
+    opencodeId: 'mistral',
     needsKey: true,
     defaultModel: 'pixtral-large-latest',
     models: ['pixtral-large-latest', 'mistral-large-latest'],
@@ -135,6 +169,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'azure',
     name: 'Azure OpenAI',
+    group: 'cloud',
     needsKey: true,
     defaultModel: '',
     models: [],
@@ -145,6 +180,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'openrouter',
     name: 'OpenRouter',
+    group: 'gateway',
     needsKey: true,
     defaultModel: 'anthropic/claude-sonnet-5',
     models: ['anthropic/claude-sonnet-5', 'openai/gpt-5.6', 'google/gemini-3.8-flash'],
@@ -155,6 +191,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'ollama',
     name: 'Ollama (locale)',
+    group: 'local',
     needsKey: false,
     defaultModel: 'qwen3:8b',
     models: ['qwen3:8b', 'mistral-small:24b', 'qwen2.5-coder:14b'],
@@ -164,6 +201,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'lmstudio',
     name: 'LM Studio (locale)',
+    group: 'local',
     needsKey: false,
     defaultModel: '',
     models: [],
@@ -173,10 +211,143 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'custom',
     name: 'OpenAI-compatibile',
+    group: 'local',
     needsKey: false,
     defaultModel: '',
     models: [],
     supportsVision: true,
+  },
+  {
+    id: 'nvidia',
+    name: 'NVIDIA NIM',
+    group: 'cloud',
+    opencodeId: 'nvidia',
+    needsKey: true,
+    defaultModel: 'meta/llama-3.3-70b-instruct',
+    models: ['meta/llama-3.3-70b-instruct', 'deepseek-ai/deepseek-r1', 'nvidia/llama-3.1-nemotron-70b-instruct'],
+    defaultBaseUrl: 'https://integrate.api.nvidia.com/v1',
+    keyUrl: 'https://build.nvidia.com/',
+    supportsVision: false,
+  },
+  {
+    id: 'opencode',
+    name: 'OpenCode Zen',
+    group: 'gateway',
+    opencodeId: 'opencode',
+    needsKey: true,
+    defaultModel: 'claude-sonnet-5',
+    models: ['claude-sonnet-5', 'claude-haiku-4-5', 'gemini-3.8-flash', 'gpt-5.5'],
+    defaultBaseUrl: 'https://opencode.ai/zen/v1',
+    keyUrl: 'https://opencode.ai/auth',
+    supportsVision: true,
+  },
+  {
+    id: 'cohere',
+    name: 'Cohere',
+    group: 'cloud',
+    opencodeId: 'cohere',
+    needsKey: true,
+    defaultModel: 'command-a-03-2025',
+    models: ['command-a-03-2025', 'command-r-plus-08-2024'],
+    keyUrl: 'https://dashboard.cohere.com/api-keys',
+    supportsVision: false,
+  },
+  {
+    id: 'deepinfra',
+    name: 'DeepInfra',
+    group: 'cloud',
+    opencodeId: 'deepinfra',
+    needsKey: true,
+    defaultModel: 'meta-llama/Llama-3.3-70B-Instruct',
+    models: ['meta-llama/Llama-3.3-70B-Instruct', 'Qwen/Qwen2.5-72B-Instruct'],
+    keyUrl: 'https://deepinfra.com/dash/api_keys',
+    supportsVision: false,
+  },
+  {
+    id: 'fireworks',
+    name: 'Fireworks AI',
+    group: 'cloud',
+    opencodeId: 'fireworks-ai',
+    needsKey: true,
+    defaultModel: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
+    models: ['accounts/fireworks/models/llama-v3p3-70b-instruct', 'accounts/fireworks/models/qwen3-235b-a22b'],
+    keyUrl: 'https://fireworks.ai/account/api-keys',
+    supportsVision: false,
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity',
+    group: 'cloud',
+    needsKey: true,
+    defaultModel: 'sonar-pro',
+    models: ['sonar-pro', 'sonar'],
+    keyUrl: 'https://www.perplexity.ai/account/api/group',
+    supportsVision: false,
+  },
+  {
+    id: 'togetherai',
+    name: 'Together AI',
+    group: 'cloud',
+    opencodeId: 'togetherai',
+    needsKey: true,
+    defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    models: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'deepseek-ai/DeepSeek-V3'],
+    keyUrl: 'https://api.together.ai/settings/api-keys',
+    supportsVision: false,
+  },
+  {
+    id: 'huggingface',
+    name: 'Hugging Face',
+    group: 'cloud',
+    opencodeId: 'huggingface',
+    needsKey: true,
+    defaultModel: 'meta-llama/Llama-3.3-70B-Instruct',
+    models: ['meta-llama/Llama-3.3-70B-Instruct', 'Qwen/Qwen2.5-72B-Instruct'],
+    keyUrl: 'https://huggingface.co/settings/tokens',
+    supportsVision: false,
+  },
+  {
+    id: 'github',
+    name: 'GitHub Models',
+    group: 'gateway',
+    needsKey: true,
+    defaultModel: 'openai/gpt-4.1',
+    models: ['openai/gpt-4.1', 'openai/gpt-4o', 'meta/Llama-3.3-70B-Instruct'],
+    defaultBaseUrl: 'https://models.github.ai/inference',
+    keyUrl: 'https://github.com/settings/tokens',
+    supportsVision: true,
+  },
+  {
+    id: 'gateway',
+    name: 'Vercel AI Gateway',
+    group: 'gateway',
+    needsKey: true,
+    defaultModel: 'anthropic/claude-sonnet-4.5',
+    models: ['anthropic/claude-sonnet-4.5', 'openai/gpt-4.1', 'google/gemini-2.5-flash'],
+    keyUrl: 'https://vercel.com/ai-gateway',
+    supportsVision: true,
+  },
+  {
+    id: 'baseten',
+    name: 'Baseten',
+    group: 'cloud',
+    needsKey: true,
+    defaultModel: '',
+    models: [],
+    defaultBaseUrl: 'https://inference.baseten.co/v1',
+    keyUrl: 'https://app.baseten.co/settings/api_keys',
+    supportsVision: false,
+  },
+  {
+    id: 'sambanova',
+    name: 'SambaNova',
+    group: 'cloud',
+    needsKey: true,
+    defaultModel: 'Meta-Llama-3.3-70B-Instruct',
+    models: ['Meta-Llama-3.3-70B-Instruct', 'DeepSeek-R1'],
+    defaultBaseUrl: 'https://api.sambanova.ai/v1',
+    keyUrl: 'https://cloud.sambanova.ai/apis',
+    supportsVision: false,
   },
 ];
 
@@ -413,6 +584,56 @@ export async function saveSettings(settings: Settings): Promise<void> {
 // --- Chiave API (record separato, local o session) ---
 
 export const KEY_STORE_KEY = 'lmuse.key.v1';
+export const KEY_STORE_V2 = 'lmuse.keys.v2';
+
+type KeyMap = Record<string, string>;
+
+async function loadKeyMap(rememberKey: boolean): Promise<KeyMap> {
+  const store = rememberKey ? chrome.storage.local : chrome.storage.session;
+  const raw = await store.get(KEY_STORE_V2);
+  const map = raw[KEY_STORE_V2];
+  return map && typeof map === 'object' && !Array.isArray(map) ? (map as KeyMap) : {};
+}
+
+/** Chiave del provider: prima la mappa v2, poi migrazione lazy da v1. */
+export async function loadApiKey(providerId: ProviderId, rememberKey: boolean): Promise<string> {
+  const map = await loadKeyMap(rememberKey);
+  const own = map[providerId];
+  if (typeof own === 'string' && own) return own;
+  // Migrazione lazy dalla chiave singola v1: vale per il provider corrente.
+  const legacy = await loadStoredKey(rememberKey);
+  if (legacy) {
+    await saveApiKey(providerId, legacy, rememberKey);
+    await clearStoredKey();
+    return legacy;
+  }
+  return '';
+}
+
+export async function saveApiKey(providerId: ProviderId, key: string, rememberKey: boolean): Promise<void> {
+  const map = await loadKeyMap(rememberKey);
+  if (key.trim()) map[providerId] = key.trim();
+  else delete map[providerId];
+  const store = rememberKey ? chrome.storage.local : chrome.storage.session;
+  await store.set({ [KEY_STORE_V2]: map });
+}
+
+/** Rimuove la chiave di un provider da entrambi gli storage. */
+export async function clearApiKey(providerId: ProviderId): Promise<void> {
+  for (const rememberKey of [true, false]) {
+    const map = await loadKeyMap(rememberKey);
+    if (providerId in map) {
+      delete map[providerId];
+      const store = rememberKey ? chrome.storage.local : chrome.storage.session;
+      await store.set({ [KEY_STORE_V2]: map });
+    }
+  }
+}
+
+/** Quante chiavi salvate (per la card opencode / diagnostica, senza valori). */
+export async function countApiKeys(rememberKey: boolean): Promise<number> {
+  return Object.values(await loadKeyMap(rememberKey)).filter(Boolean).length;
+}
 
 export async function loadStoredKey(rememberKey: boolean): Promise<string> {
   if (rememberKey) {
@@ -440,6 +661,8 @@ export async function clearStoredKey(): Promise<void> {
 /** Cancella TUTTO: chiave, impostazioni, cronologia, inbox, usage, onboarding, alarms. */
 export async function clearAllData(): Promise<void> {
   await clearStoredKey();
+  await chrome.storage.local.remove(KEY_STORE_V2);
+  await chrome.storage.session.remove(KEY_STORE_V2);
   await chrome.storage.local.remove([SETTINGS_KEY, HISTORY_KEY, USAGE_KEY, ONBOARDED_KEY]);
   await chrome.storage.session.remove([INBOX_KEY, RUN_STATE_KEY]);
   await chrome.alarms.clearAll().catch(() => undefined);

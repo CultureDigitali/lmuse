@@ -34,19 +34,31 @@ Con `privacyHostOnly` l'URL inviato è solo origin+path (niente query string).
 | Chiave `chrome.storage` | Dove            | Cosa contiene                                                                 |
 | ----------------------- | --------------- | ----------------------------------------------------------------------------- |
 | `lmuse.settings.v1`     | local (PC)      | provider, modello, limiti, approval, trusted, template, schedule, history run |
-| `lmuse.key.v1`          | local o session | **chiave API** (vedi sotto)                                                   |
+| `lmuse.key.v1`          | local o session | chiave API legacy (v→0.5.x, migrata in v2)                                    |
+| `lmuse.keys.v2`         | local o session | **chiavi API per provider** (mappa providerId → chiave)                       |
 | `lmuse.history.v1`      | local (PC)      | ultimi 20 task (max 200 char), cancellabile o OFF                             |
 | `lmuse.inbox.v1`        | session (RAM)   | risultato dell'ultimo run (mai il task), svuotabile                           |
 | `lmuse.usage.v1`        | local (PC)      | solo conteggi: run e token, nessun contenuto                                  |
 | `lmuse.runstate.v1`     | session (RAM)   | task corrente (per rilevare restart), auto-pulito                             |
 | `lmuse.onboarded.v1`    | local (PC)      | flag welcome mostrato                                                         |
 
-La **chiave API non vive nelle impostazioni**: è in un record separato. Con "Ricorda la
-chiave" attivo sta in `chrome.storage.local`; spento, in `chrome.storage.session`
-(cancellata alla chiusura di Chrome). Nel pannello è mascherata con reveal su richiesta
-(mai nel DOM in chiaro altrimenti).
-"**Cancella tutti i dati**" (⚙, con conferma) svuota chiave, impostazioni, cronologia,
+La **chiave API non vive nelle impostazioni**: è in `lmuse.keys.v2`, una mappa
+provider→chiave (ogni provider la sua). Con "Ricorda la chiave" attivo sta in
+`chrome.storage.local`; spento, in `chrome.storage.session` (cancellata alla chiusura
+di Chrome). Nel pannello è mascherata con reveal su richiesta (mai nel DOM in chiaro
+altrimenti). La vecchia chiave singola `lmuse.key.v1` viene migrata automaticamente
+nel record del provider in uso alla prima lettura.
+"**Cancella tutti i dati**" (⚙, con conferma) svuota chiavi, impostazioni, cronologia,
 inbox, statistiche uso e flag onboarding.
+
+## Bridge opencode (opt-in, solo se installato da te)
+
+Se esegui `pnpm setup:opencode`, l'estensione può chiedere al native host
+`native/lmuse-opencode-bridge.mjs` (solo stdio, **nessuna rete**) di leggere
+`~/.local/share/opencode/auth.json` e restituire: (a) l'elenco dei provider
+configurati (nomi, mai chiavi) e (b) — solo su click "*Importa chiavi*" — le chiavi
+dei provider che lmuse supporta. Nulla viene inviato a terzi; permesso richiesto:
+`nativeMessaging`. Disinstalla con `pnpm setup:opencode --uninstall`.
 
 ## Novità privacy v0.4.0
 

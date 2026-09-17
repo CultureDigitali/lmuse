@@ -9,19 +9,18 @@ import {
   clearHistory,
   clearInbox,
   clearRunState,
-  clearStoredKey,
   getProvider,
   isOnboarded,
+  loadApiKey,
   loadHistory,
   loadInbox,
   loadRunState,
   loadSettings,
-  loadStoredKey,
   loadUsage,
   removeHistoryTask,
   sanitizeDomainList,
+  saveApiKey,
   saveSettings,
-  saveStoredKey,
   setOnboarded,
   type ApprovalPolicy,
   type InboxEntry,
@@ -35,6 +34,7 @@ import { exportProfile, validateProfile } from '../shared/profile';
 import { formatNextRun, validateSchedule } from '../shared/schedules';
 import { formatElapsed } from '../shared/approval';
 import { t, type Lang } from '../shared/i18n';
+import { mapBridgeCredentials, matchBridgeProviders } from '../shared/opencode';
 
 interface LogEntry {
   id: number;
@@ -55,6 +55,9 @@ interface PendingApproval {
 
 let logId = 0;
 const nextId = () => ++logId;
+
+/** Versione letta dal manifest (una sola fonte di verità). */
+const APP_VERSION = chrome.runtime.getManifest().version;
 
 const SUGGESTIONS = [
   'Riassumi questa pagina in 5 punti.',
@@ -238,7 +241,7 @@ export default function App() {
       const s = await loadSettings();
       setSettings(s);
       setLang(s.locale === 'auto' ? detectLang() : s.locale);
-      const key = (await loadStoredKey(s.rememberKey)) || (await loadStoredKey(!s.rememberKey));
+      const key = (await loadApiKey(s.providerId, s.rememberKey)) || (await loadApiKey(s.providerId, !s.rememberKey));
       setApiKey(key);
       if (!key && getProvider(s.providerId).needsKey) setShowSettings(true);
       setHistory(await loadHistory());
@@ -361,25 +364,25 @@ export default function App() {
 
   function onKeyChange(value: string) {
     setApiKey(value);
-    void saveStoredKey(value, settings.rememberKey);
+    void saveApiKey(settings.providerId, value, settings.rememberKey);
   }
 
   async function onToggleRemember(remember: boolean) {
     update({ rememberKey: remember });
     // Sposta la chiave esistente nello store corrispondente.
     const current = apiKeyRef.current;
-    await saveStoredKey('', !remember);
-    if (current) await saveStoredKey(current, remember);
+    await saveApiKey(settings.providerId, '', !remember);
+    if (current) await saveApiKey(settings.providerId, current, remember);
   }
 
   async function onClearKey() {
-    await clearStoredKey();
+    await saveApiKey(settings.providerId, '', settings.rememberKey);
+    await saveApiKey(settings.providerId, '', !settings.rememberKey);
     setApiKey('');
   }
 
   async function onClearAll() {
     if (!window.confirm(t(lang, 'confirm_clear_all'))) return;
-    await clearStoredKey();
     try {
       await chrome.runtime.sendMessage({ type: 'CLEAR_ALL' });
     } catch {
@@ -414,6 +417,62 @@ export default function App() {
       model: def.defaultModel || '',
       baseUrl: def.defaultBaseUrl?.includes('<') ? '' : (def.defaultBaseUrl ?? ''),
     });
+    // Chiave per-provider: mostra subito quella salvata per il nuovo provider.
+    void loadApiKey(id, settings.rememberKey).then((k) => setApiKey(k));
+  }
+
+  // --- Bridge opencode: rileva credenziali configurate e le importa ---
+  const [opencodeStatus, setOpencodeStatus] = useState<string>('');
+  const [opencodeFound, setOpencodeFound] = useState(false);
+
+  async function bridgeCall(cmd: 'ping' | 'list' | 'export'): Promise<unknown> {
+    const res = (await chrome.runtime.sendMessage({ type: 'OPENCODE_BRIDGE', cmd })) as {
+      ok: boolean;
+      payload?: unknown;
+      error?: string;
+    };
+    if (!res.ok) throw new Error(res.error ?? 'bridge error');
+    return res.payload;
+  }
+
+  async function detectOpencode() {
+    setOpencodeStatus('…');
+    try {
+      await bridgeCall('ping');
+      const payload = (await bridgeCall('list')) as { providers?: { id: string }[] };
+      const ids = (payload.providers ?? []).map((p) => p.id);
+      const found = matchBridgeProviders(ids);
+      setOpencodeStatus(
+        found.length > 0 ? t(lang, 'opencode_found', { n: found.length }) : t(lang, 'opencode_not_found'),
+      );
+      setOpencodeFound(found.length > 0);
+    } catch (e) {
+      setOpencodeStatus(String((e as Error).message));
+      setOpencodeFound(false);
+    }
+  }
+
+  async function importFromOpencode() {
+    setOpencodeStatus('…');
+    try {
+      const payload = (await bridgeCall('export')) as {
+        credentials?: { id: string; key: string }[];
+      };
+      const mapped = mapBridgeCredentials(payload.credentials ?? []);
+      let imported = 0;
+      for (const [pid, key] of Object.entries(mapped)) {
+        await saveApiKey(pid as ProviderId, key as string, settings.rememberKey);
+        imported++;
+      }
+      if (imported === 0) {
+        setOpencodeStatus(t(lang, 'opencode_import_none'));
+        return;
+      }
+      if (mapped[settings.providerId]) setApiKey(mapped[settings.providerId] as string);
+      setOpencodeStatus(t(lang, 'opencode_imported', { n: imported }));
+    } catch (e) {
+      setOpencodeStatus(String((e as Error).message));
+    }
   }
 
   function run() {
@@ -614,7 +673,7 @@ export default function App() {
   }
 
   const provider = getProvider(settings.providerId);
-  const showBaseUrl = ['azure', 'ollama', 'lmstudio', 'custom', 'openrouter'].includes(settings.providerId);
+  const showBaseUrl = ['azure', 'custom'].includes(settings.providerId) || !!provider.defaultBaseUrl;
   const configured = !provider.needsKey || apiKey.trim().length > 0;
 
   return (
@@ -622,6 +681,7 @@ export default function App() {
       <header className="header">
         <div className="brand">
           <span className="logo">lmuse</span>
+          <span className="version-tag" title="lmuse versione installata">v{APP_VERSION}</span>
           <span className="model-tag" title={`${provider.name} · ${settings.model || '—'}`}>
             {provider.name} · {settings.model || '—'}
           </span>
@@ -778,10 +838,14 @@ export default function App() {
               value={settings.providerId}
               onChange={(e) => changeProvider(e.target.value as ProviderId)}
             >
-              {PROVIDERS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
+              {(['cloud', 'gateway', 'local'] as const).map((g) => (
+                <optgroup key={g} label={t(lang, `group_${g}`)}>
+                  {PROVIDERS.filter((p) => p.group === g).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>
@@ -871,6 +935,24 @@ export default function App() {
               />
             </label>
           )}
+          <fieldset className="opencode-card">
+            <legend>{t(lang, 'opencode_title')}</legend>
+            <p className="muted">{t(lang, 'opencode_desc')}</p>
+            <div className="btn-row">
+              <button type="button" className="secondary xs" onClick={() => void detectOpencode()}>
+                {t(lang, 'opencode_detect')}
+              </button>
+              <button
+                type="button"
+                className="secondary xs"
+                onClick={() => void importFromOpencode()}
+                disabled={!opencodeFound}
+              >
+                {t(lang, 'opencode_import')}
+              </button>
+            </div>
+            {opencodeStatus && <p className="muted">{opencodeStatus}</p>}
+          </fieldset>
           <div className="num-row">
             <label>
               {t(lang, 'max_steps')}

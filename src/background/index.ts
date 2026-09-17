@@ -7,9 +7,9 @@ import {
   clearAllData,
   clearRunState,
   getProvider,
+  loadApiKey,
   loadInbox,
   loadSettings,
-  loadStoredKey,
   loadUsage,
   mergeUsage,
   saveInbox,
@@ -23,6 +23,10 @@ import { mapProviderError } from '../shared/errors';
 import { maskPii } from '../shared/pii';
 import { sanitizeTaskText } from '../shared/task';
 import { buildLastRuns } from '../shared/settings';
+import { BridgePayloadSchema } from '../shared/opencode';
+
+/** Nome del native host registrato da `pnpm setup:opencode`. */
+export const OPENCODE_HOST = 'it.lmuse.opencode_bridge';
 
 // Service worker MV3: una sola esecuzione alla volta, eventi live al side
 // panel via Port. Sicurezza: verifica sender, validazione zod dei messaggi,
@@ -55,14 +59,19 @@ function broadcast(message: SwToPanelMessage): void {
   }
 }
 
+const APP_VERSION = chrome.runtime.getManifest().version;
+
 chrome.runtime.onInstalled.addListener(() => {
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
   void chrome.action.setBadgeText({ text: '' });
+  // Titolo toolbar con versione: "lmuse v0.6.0 — Apri" (S215).
+  void chrome.action.setTitle({ title: `lmuse v${APP_VERSION}` });
 });
 
 chrome.runtime.onStartup.addListener(() => {
   // Restart browser: nessun run vivo, badge stale pulito (R256).
   void chrome.action.setBadgeText({ text: '' });
+  void chrome.action.setTitle({ title: `lmuse v${APP_VERSION}` });
 });
 
 chrome.action.onClicked.addListener(async (tab) => {
@@ -129,8 +138,57 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
     void syncAlarms().then(() => sendResponse({ ok: true }));
     return true;
   }
+  if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'OPENCODE_BRIDGE') {
+    const cmd = (raw as { cmd?: string }).cmd === 'export' ? 'export' : ((raw as { cmd?: string }).cmd ?? 'ping');
+    if (cmd !== 'ping' && cmd !== 'list' && cmd !== 'export') {
+      sendResponse({ ok: false, error: 'Comando non valido.' });
+      return true;
+    }
+    void sendNative(OPENCODE_HOST, { cmd }).then(
+      (payload) => sendResponse({ ok: true, payload }),
+      (error: unknown) =>
+        sendResponse({ ok: false, error: mapOpencodeError(error) }),
+    );
+    return true;
+  }
   return false;
 });
+
+/** Invia un comando al native host opencode; valida la risposta (mai fidarsi). */
+async function sendNative(host: string, message: { cmd: string }): Promise<unknown> {
+  const raw = await chrome.runtime.sendNativeMessage(host, message);
+  const parsed = BridgePayloadSchema.safeParse(raw);
+  if (!parsed.success) throw new OpencodeBridgeError('invalid-response');
+  if (!parsed.data.ok) throw new OpencodeBridgeError(parsed.data.error);
+  return parsed.data;
+}
+
+export class OpencodeBridgeError extends Error {
+  code: string;
+  constructor(code: string) {
+    super(`opencode bridge: ${code}`);
+    this.code = code;
+  }
+}
+
+/** Errore bridge → messaggio italiano (mai stack o chiavi). */
+function mapOpencodeError(error: unknown): string {
+  if (error instanceof OpencodeBridgeError) {
+    if (error.code === 'auth-json-missing')
+      return 'File auth.json di opencode non trovato: fai prima `opencode auth login`.';
+    if (error.code === 'auth-json-invalid' || error.code === 'invalid-auth-json')
+      return 'File auth.json di opencode non leggibile: riesegui `opencode auth login`.';
+    if (error.code === 'invalid-response')
+      return 'Risposta non valida dal bridge opencode. Reinstalla con `pnpm setup:opencode`.';
+    return 'Errore del bridge opencode. Riprova o reinstalla con `pnpm setup:opencode`.';
+  }
+  const msg = String((error as Error)?.message ?? '');
+  if (/not found|Specified native messaging host/i.test(msg))
+    return "Bridge opencode non installato: esegui `pnpm setup:opencode` poi ricarica l'estensione.";
+  if (/Access/i.test(msg))
+    return "Il bridge opencode non è autorizzato per questo ID estensione: reinstalla con `pnpm setup:opencode --extension-id=<id>`.";
+  return 'Bridge opencode non raggiungibile. Riprova più tardi.';
+}
 
 /** Allinea chrome.alarms agli schedule abilitati (chiamato dal panel a ogni modifica). */
 async function syncAlarms(): Promise<void> {
@@ -168,7 +226,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 /** Health-check: una chiamata minima al provider (probe "OK", 20s max). */
 async function testConnection(): Promise<void> {
   const settings = await loadSettings();
-  const apiKey = await loadStoredKey(settings.rememberKey);
+  const apiKey = await loadApiKey(settings.providerId, settings.rememberKey);
   if (getProvider(settings.providerId).needsKey && !isPlausibleKey(apiKey)) {
     throw new Error('Chiave API mancante o non valida: controllala nelle impostazioni ⚙.');
   }
@@ -279,7 +337,7 @@ async function startRun(task: string): Promise<void> {
 
   try {
     const settings = await loadSettings();
-    const apiKey = await loadStoredKey(settings.rememberKey);
+    const apiKey = await loadApiKey(settings.providerId, settings.rememberKey);
     if (getProvider(settings.providerId).needsKey && !isPlausibleKey(apiKey)) {
       throw new Error('Chiave API mancante o non valida: controllala nelle impostazioni ⚙.');
     }

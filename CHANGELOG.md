@@ -1,5 +1,31 @@
 # Changelog — lmuse
 
+## 0.6.0 (2026-09-16) — Provider planet + opencode
+
+Quinto loop da 100 migliorie (gigiloop): 25 provider LLM, keystore per-provider,
+integrazione opencode via native bridge.
+
+**Provider (13 → 25)**
+
+- Nuovi: NVIDIA NIM, OpenCode Zen, Cohere, DeepInfra, Fireworks, Perplexity,
+  Together AI, Hugging Face, GitHub Models, Vercel AI Gateway, Baseten, SambaNova.
+- Catalogo con gruppi (Cloud / Gateway / Locali) e `<optgroup>` nella select.
+- Keystore per-provider (`lmuse.keys.v2`): ogni provider ha la sua chiave,
+  migrazione lazy automatica dalla chiave singola v1.
+
+**Integrazione opencode**
+
+- Provider "OpenCode Zen" (gateway opencode.ai/zen, OpenAI-compatibile).
+- Native bridge `pnpm setup:opencode` (+ `--uninstall`): legge
+  `~/.local/share/opencode/auth.json`, mai rete, mai log di segreti.
+- Card opencode nel pannello: Rileva / Importa chiavi (mappa opencode → lmuse).
+- Errori in italiano per bridge mancante, auth.json assente/invalido.
+
+**Qualità**
+
+- 232 test (+33), coverage shared > 93% linee, e2e Chromium 7/7.
+- Manifest: permesso `nativeMessaging` (solo per il bridge opencode, opt-in).
+
 ## 0.5.0 (2026-09-16) — Live e programmati
 
 Quarto loop da 100 migliorie (gigiloop): streaming, task programmati, find/table/query,

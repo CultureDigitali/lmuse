@@ -24,7 +24,18 @@
 | `activeTab`       | agire sul tab attivo senza prompt                | —                                              |
 | `sidePanel`       | pannello laterale                                | popup (peggiore per task lunghi)               |
 | `alarms`          | cadenza task programmati (solo locali)           | polling dal panel (richiede panel aperto)      |
+| `nativeMessaging` | bridge opencode (host registrato dall'utente)    | nessuna; senza bridge il canale è chiuso        |
 | host `<all_urls>` | operare dove l'utente chiede                     | `optional_host_permissions` per-sito (roadmap) |
+
+### Bridge opencode — superficie d'attacco
+
+Il native host `it.lmuse.opencode_bridge` è registrato solo da te
+(`pnpm setup:opencode`) e risponde solo all'estensione con ID autorizzato in
+`allowed_origins`. Il protocollo: messaggi JSON < 1 MiB con framing uint32LE,
+comandi ammessi `ping`/`list`/`export` solo (ogni altro → rifiutato). La risposta
+è validata con zod nel worker prima dell'uso. Le chiavi esportate non toccano
+mai i log né la UI in chiaro (maschera con reveal). Non c'è scrittura su disco
+dal bridge: solo lettura di `~/.local/share/opencode/auth.json`.
 
 I 9 tool aggiunti in v0.4.0 (select, wait, press, reload, forward, read_text, links,
 duplicate, screenshot_element) riusano gli stessi permessi: nessun nuovo permesso

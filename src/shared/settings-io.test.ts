@@ -21,6 +21,10 @@ import {
   saveStoredKey,
   saveUsage,
   setOnboarded,
+  clearApiKey,
+  countApiKeys,
+  loadApiKey,
+  saveApiKey,
 } from './settings';
 
 function makeArea() {
@@ -122,6 +126,53 @@ describe('onboarding e runstate', () => {
     expect(await loadRunState()).toEqual({ task: 't', at: 9 });
     await clearRunState();
     expect(await loadRunState()).toBeNull();
+  });
+});
+
+describe('chiavi per-provider (v2)', () => {
+  it('save/load roundtrip per due provider indipendenti', async () => {
+    await saveApiKey('openai', 'sk-openai-xxx', true);
+    await saveApiKey('nvidia', 'nvapi-yyy', true);
+    expect(await loadApiKey('openai', true)).toBe('sk-openai-xxx');
+    expect(await loadApiKey('nvidia', true)).toBe('nvapi-yyy');
+    expect(await loadApiKey('anthropic', true)).toBe('');
+    expect(await countApiKeys(true)).toBe(2);
+  });
+  it('session separata da local', async () => {
+    await saveApiKey('openai', 'loc-key', true);
+    await saveApiKey('openai', 'ses-key', false);
+    expect(await loadApiKey('openai', true)).toBe('loc-key');
+    expect(await loadApiKey('openai', false)).toBe('ses-key');
+  });
+  it('clearApiKey rimuove solo quel provider', async () => {
+    await saveApiKey('openai', 'a', true);
+    await saveApiKey('nvidia', 'b', true);
+    await clearApiKey('openai');
+    expect(await loadApiKey('openai', true)).toBe('');
+    expect(await loadApiKey('nvidia', true)).toBe('b');
+  });
+  it('saveApiKey con stringa vuota rimuove la voce', async () => {
+    await saveApiKey('openai', 'x', true);
+    await saveApiKey('openai', '', true);
+    expect(await loadApiKey('openai', true)).toBe('');
+    expect(await countApiKeys(true)).toBe(0);
+  });
+  it('migrazione lazy da v1 → v2 sul provider corrente', async () => {
+    await saveStoredKey('legacy-key-123', true);
+    expect(await loadApiKey('deepseek', true)).toBe('legacy-key-123');
+    // v1 consumata, v2 popolata:
+    expect(await loadStoredKey(true)).toBe('');
+    expect(local.data['lmuse.keys.v2']).toEqual({ deepseek: 'legacy-key-123' });
+  });
+  it('mappa v2 corrotta (array) → vuota', async () => {
+    local.data['lmuse.keys.v2'] = ['spazzatura'];
+    expect(await loadApiKey('openai', true)).toBe('');
+  });
+  it('clearAllData cancella anche la mappa v2', async () => {
+    await saveApiKey('openai', 'z', true);
+    await clearAllData();
+    expect(await countApiKeys(true)).toBe(0);
+    expect(local.data['lmuse.keys.v2']).toBeUndefined();
   });
 });
 

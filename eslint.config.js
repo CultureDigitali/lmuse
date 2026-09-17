@@ -6,7 +6,7 @@ import globals from 'globals';
 // Flat config ESLint 9. Regole consigliate senza type-checking
 // (il type-checking resta in `pnpm typecheck` con tsc).
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'reference/**', 'release/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'reference/**', 'release/**', '.test-profile/**', '.e2e-profile/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   reactHooks.configs.flat['recommended-latest'],
@@ -18,7 +18,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'native/**/*.mjs'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
     rules: { 'no-console': 'off' },
   },

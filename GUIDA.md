@@ -10,24 +10,38 @@ BrowserOS è un fork di Chromium con licenza AGPL (non riutilizzabile per un pro
 Stagehand/Skyvern richiedono un backend. Quindi scaffold nuovo, con `reference/nanobrowser`
 tenuto solo come riferimento per le idee (es. distillazione DOM).
 
-## Provider supportati (13)
+## Provider supportati (25)
 
-| Provider                                                                      | Note                                                       |
-| ----------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| OpenAI, Anthropic, Google Gemini, xAI Grok, DeepSeek, Groq, Cerebras, Mistral | Package ufficiali AI SDK                                   |
-| Azure OpenAI                                                                  | Richiede base URL risorsa + nome deployment come "modello" |
-| OpenRouter                                                                    | Via OpenAI-compatibile, base URL precompilato              |
-| Ollama, LM Studio                                                             | Locali, chiave opzionale, base URL precompilati            |
-| Custom OpenAI-compatibile                                                     | Qualsiasi endpoint `/v1` (vLLM, Together, ecc.)            |
+| Gruppo      | Provider                                                                                              |
+| ----------- | ----------------------------------------------------------------------------------------------------- |
+| **Cloud**   | OpenAI, Anthropic, Google Gemini, xAI, Azure, DeepSeek, Groq, Cerebras, Mistral, Cohere, DeepInfra, Fireworks, Perplexity, Together AI, Hugging Face, NVIDIA NIM, Baseten, SambaNova |
+| **Gateway** | OpenRouter, OpenCode Zen (`opencode.ai/zen`), GitHub Models, Vercel AI Gateway                          |
+| **Locali**  | Ollama, LM Studio, Custom OpenAI-compatibile                                                           |
 
 I nomi modello di default sono quelli correnti (set 2026), ma il campo modello è libero:
 se esce un modello nuovo lo scrivi e funziona, senza aggiornare l'estensione.
+La chiave è per-provider (ogni provider la sua) e migra automaticamente dalla 0.5.x.
+
+### Integrazione opencode (se installato)
+
+```bash
+pnpm setup:opencode            # registra il native bridge in Chrome/Chromium/Edge
+pnpm setup:opencode --uninstall  # rimuove il bridge
+```
+
+Il bridge (`native/lmuse-opencode-bridge.mjs`) legge `~/.local/share/opencode/auth.json`
+e restituisce all'estensione solo i provider compatibili (NVIDIA, OpenAI, Anthropic,
+Google, xAI, DeepSeek, Groq, Mistral, Cerebras, Together, Hugging Face, Cohere,
+DeepInfra, opencode stesso, …). Nel pannello: ⚙ → sezione **opencode** → *Rileva* →
+*Importa chiavi*. Le chiavi non escono mai dal PC e non finiscono nei log.
 
 ## Struttura
 
 ```
 public/manifest.json        Manifest MV3 (CSP, comandi tastiera, permessi, content script)
-src/shared/settings.ts      Catalogo provider, settings, chiave/inbox/cronologia/usage, protocollo
+src/shared/settings.ts      Catalogo 25 provider, settings, keystore v2 per-provider,
+                            chiave/inbox/cronologia/usage, protocollo
+src/shared/opencode.ts      Schema zod payload bridge + mapping opencode→lmuse (testato)
 src/shared/approval.ts      Policy approvazione, cooldown, plausibilità chiave (testato)
 src/shared/header.ts        Intestazione snapshot redatta (testato)
 src/shared/pii.ts           Redazione PII + token URL (testato)
@@ -46,6 +60,8 @@ src/content/snapshot.ts     Distilla il DOM in albero [ref] compatti (redatto)
 src/content/index.ts        Esegue snapshot/click/digitazione/scroll su richiesta
 src/sidepanel/              UI React: task, impostazioni, privacy, inbox, cronologia
 sidepanel/index.html        Entry HTML (referrer no-referrer)
+native/lmuse-opencode-bridge.mjs  Native host: legge auth.json di opencode (opt-in)
+scripts/setup-opencode-bridge.mjs Installer del native host (Chrome/Chromium/Edge)
 PRIVACY.md / SECURITY.md    Privacy e sicurezza documentate + audit
 reference/nanobrowser/      Clone di riferimento (fuori git, opzionale):
                             `git clone https://github.com/nanobrowser/nanobrowser.git reference/nanobrowser`

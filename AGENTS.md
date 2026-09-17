@@ -10,7 +10,8 @@ pnpm test:coverage  # coverage v8, soglie 85/85/80 su src/shared
 pnpm test:e2e        # smoke su Chromium reale (auto-scaricato in ~/.cache)
 pnpm check-links     # link relativi nei .md
 pnpm check-chromium-age  # pin Chromium e2e < 120gg
-pnpm release        # check + verify-dist + zip in release/
+pnpm setup:opencode       # registra/rimuove il native bridge opencode (--uninstall)
+pnpm release        # check + verify-dist + zip in release/ (nome dinamico da package.json)
 ```
 
 Node via nvm: `export PATH="$HOME/.nvm/versions/node/v22.23.2/bin:$PATH"` se pnpm non è nel PATH.
@@ -19,7 +20,10 @@ Node via nvm: `export PATH="$HOME/.nvm/versions/node/v22.23.2/bin:$PATH"` se pnp
 
 - TypeScript strict, ESLint 9 flat (+ react-hooks), Prettier (single quote, width 110).
 - Mai `eval`/`innerHTML`/`new Function`; niente `console.log` in `src/` (solo warn/error se serve).
-- La chiave API non vive mai in `Settings`: parametro dedicato + storage separato, mai nei log.
+- La chiave API non vive mai in `Settings`: keystore per-provider `lmuse.keys.v2`
+  (`saveApiKey`/`loadApiKey` in settings.ts), mai nei log.
+- Bridge opencode: `native/lmuse-opencode-bridge.mjs` (Node, stdio, mai rete);
+  i payload sono validati con zod in `src/shared/opencode.ts` prima dell'uso.
 - Test: funzioni pure in `src/shared/*.test.ts`; DOM in `src/content/*.test.ts` (jsdom);
   per `chrome.*` usare `vi.stubGlobal('chrome', …)` come in `settings-io.test.ts`.
 - Messaggi panel↔worker: estendere gli schemi zod in `src/shared/settings.ts` + test.
