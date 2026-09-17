@@ -14,6 +14,9 @@ import {
   loadApiKey,
   loadHistory,
   loadInbox,
+  loadKeySavedAt,
+  loadModelsCache,
+  keyRotationDue,
   loadRunState,
   loadSettings,
   loadUsage,
@@ -31,6 +34,7 @@ import {
   type UsageStats,
 } from '../shared/settings';
 import { exportProfile, validateProfile } from '../shared/profile';
+import { buildLogMarkdown } from '../shared/log-export';
 import { formatNextRun, validateSchedule } from '../shared/schedules';
 import { formatElapsed } from '../shared/approval';
 import { t, type Lang } from '../shared/i18n';
@@ -117,6 +121,8 @@ export default function App() {
   const apiKeyRef = useRef('');
   const startedAtRef = useRef(0);
   const settingsRef = useRef(settings);
+  const showSettingsRef = useRef(showSettings);
+  showSettingsRef.current = showSettings;
   const langRef = useRef(lang);
   apiKeyRef.current = apiKey;
   settingsRef.current = settings;
@@ -246,6 +252,7 @@ export default function App() {
       if (!key && getProvider(s.providerId).needsKey) setShowSettings(true);
       setHistory(await loadHistory());
       setInbox(await loadInbox());
+      setModelCache(await loadModelsCache(s.providerId));
       setUsage(await loadUsage());
       setOnboardedState(await isOnboarded());
       const rs = await loadRunState();
@@ -318,6 +325,9 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         taskRef.current?.focus();
+      }
+      if (e.key === 'Escape') {
+        if (showSettingsRef.current) setShowSettings(false);
       }
     };
     document.addEventListener('keydown', onKey);
@@ -419,6 +429,45 @@ export default function App() {
     });
     // Chiave per-provider: mostra subito quella salvata per il nuovo provider.
     void loadApiKey(id, settings.rememberKey).then((k) => setApiKey(k));
+    // Cache modelli del nuovo provider.
+    void loadModelsCache(id).then((m) => setModelCache(m));
+    setModelsNotice(null);
+  }
+
+  // --- Età chiave (hint rotazione) + bridge opencode (dot header) ---
+  const [keySavedAt, setKeySavedAt] = useState(0);
+  const [bridgeOk, setBridgeOk] = useState(false);
+
+  useEffect(() => {
+    const pid = settingsRef.current.providerId;
+    void loadKeySavedAt(pid).then(setKeySavedAt);
+    chrome.runtime
+      .sendMessage({ type: 'OPENCODE_BRIDGE', cmd: 'ping' })
+      .then((res) => setBridgeOk((res as { ok?: boolean })?.ok === true))
+      .catch(() => setBridgeOk(false));
+  }, []);
+
+  const rotationDue = keyRotationDue(keySavedAt);
+
+  // --- Model discovery: GET {baseUrl}/models → cache locale + datalist ---
+  const [modelCache, setModelCache] = useState<string[]>([]);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [modelsNotice, setModelsNotice] = useState<string | null>(null);
+
+  function fetchModelsList() {
+    setFetchingModels(true);
+    setModelsNotice(null);
+    chrome.runtime
+      .sendMessage({ type: 'FETCH_MODELS' })
+      .then((res) => {
+        const r = res as { ok: boolean; models?: string[]; error?: string } | undefined;
+        if (!r) throw new Error('Service worker non raggiungibile.');
+        if (!r.ok) throw new Error(r.error ?? 'Errore modelli.');
+        setModelCache(r.models ?? []);
+        setModelsNotice(t(lang, 'models_updated', { n: (r.models ?? []).length }));
+      })
+      .catch((e: unknown) => setModelsNotice(String((e as Error).message)))
+      .finally(() => setFetchingModels(false));
   }
 
   // --- Bridge opencode: rileva credenziali configurate e le importa ---
@@ -477,7 +526,14 @@ export default function App() {
 
   function run() {
     const trimmed = task.trim().slice(0, MAX_TASK_CHARS);
-    if (!trimmed || running) return;
+    if (!trimmed) return;
+    if (running) {
+      // Task in esecuzione: metti in coda (con conferma esplicita nel banner).
+      portRef.current?.postMessage({ type: 'QUEUE', task: trimmed });
+      append({ kind: 'info', text: '⏳ Task messo in coda.' });
+      setTask('');
+      return;
+    }
     startTask(trimmed);
     setTask('');
   }
@@ -537,9 +593,12 @@ export default function App() {
   }
 
   function downloadLog() {
-    const text = log.map((e) => `[${e.kind}] ${e.text}`).join('\n\n');
-    if (!text) return;
-    const blob = new Blob([text], { type: 'text/markdown' });
+    if (!log.length) return;
+    const md = buildLogMarkdown(log, {
+      provider: getProvider(settingsRef.current.providerId).name,
+      model: settingsRef.current.model,
+    });
+    const blob = new Blob([md], { type: 'text/markdown' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `lmuse-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.md`;
@@ -681,7 +740,10 @@ export default function App() {
       <header className="header">
         <div className="brand">
           <span className="logo">lmuse</span>
-          <span className="version-tag" title="lmuse versione installata">v{APP_VERSION}</span>
+          <span className="version-tag" title={`lmuse v${APP_VERSION}${bridgeOk ? ' · opencode attivo' : ''}`}>
+            v{APP_VERSION}
+            {bridgeOk ? ' ⟳' : ''}
+          </span>
           <span className="model-tag" title={`${provider.name} · ${settings.model || '—'}`}>
             {provider.name} · {settings.model || '—'}
           </span>
@@ -851,17 +913,30 @@ export default function App() {
           </label>
           <label>
             {t(lang, 'model')}
-            <input
-              list="lmuse-models"
-              value={settings.model}
-              onChange={(e) => update({ model: e.target.value })}
-              placeholder={provider.defaultModel || 'nome-modello'}
-            />
+            <span className="key-row">
+              <input
+                list="lmuse-models"
+                value={settings.model}
+                onChange={(e) => update({ model: e.target.value })}
+                placeholder={provider.defaultModel || 'nome-modello'}
+              />
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => void fetchModelsList()}
+                disabled={fetchingModels}
+                title={t(lang, 'update_models')}
+                aria-label={t(lang, 'update_models')}
+              >
+                {fetchingModels ? '⏳' : '⟳'}
+              </button>
+            </span>
             <datalist id="lmuse-models">
-              {provider.models.map((m) => (
+              {[...new Set([...modelCache, ...provider.models])].map((m) => (
                 <option key={m} value={m} />
               ))}
             </datalist>
+            {modelsNotice && <span className="muted">{modelsNotice}</span>}
           </label>
           {provider.needsKey && (
             <label>
@@ -885,6 +960,7 @@ export default function App() {
                   {showKey ? '🙈' : '👁'}
                 </button>
               </span>
+              {rotationDue && <span className="warn">{t(lang, 'key_age_warn')}</span>}
             </label>
           )}
           <label className="check">
@@ -1413,7 +1489,6 @@ export default function App() {
             }}
             placeholder={t(lang, 'compose_ph')}
             rows={2}
-            disabled={running}
             maxLength={MAX_TASK_CHARS}
             aria-label={t(lang, 'compose_ph')}
           />
@@ -1422,14 +1497,25 @@ export default function App() {
           </span>
         </div>
         {running ? (
-          <button
-            className="stop prominent"
-            onClick={stop}
-            title={t(lang, 'keyboard_stop')}
-            aria-label={t(lang, 'stop')}
-          >
-            ⏹ {t(lang, 'stop')}
-          </button>
+          <>
+            <button
+              className="run secondary"
+              onClick={run}
+              disabled={!task.trim()}
+              aria-label={t(lang, 'queue_add')}
+              title={t(lang, 'queue_add')}
+            >
+              ⏳ {t(lang, 'queue_add')}
+            </button>
+            <button
+              className="stop prominent"
+              onClick={stop}
+              title={t(lang, 'keyboard_stop')}
+              aria-label={t(lang, 'stop')}
+            >
+              ⏹ {t(lang, 'stop')}
+            </button>
+          </>
         ) : (
           <button
             className="run"

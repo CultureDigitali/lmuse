@@ -63,3 +63,21 @@ export function waitFor(waitKind: 'text' | 'selector', value: string, timeoutMs:
     check();
   });
 }
+
+/** Hover sintetico: pointermove + mouseover/mouseenter (menu, tooltip). */
+export function hoverElement(el: Element): void {
+  if (el instanceof HTMLElement) {
+    el.scrollIntoView?.({ block: 'center', behavior: 'instant' as ScrollBehavior });
+  }
+  const rect = el.getBoundingClientRect();
+  const opts: MouseEventInit & { clientX: number; clientY: number } = {
+    bubbles: true,
+    cancelable: true,
+    clientX: Math.round(rect.left + rect.width / 2),
+    clientY: Math.round(rect.top + rect.height / 2),
+  };
+  el.dispatchEvent(new PointerEvent('pointermove', opts));
+  el.dispatchEvent(new MouseEvent('mousemove', opts));
+  el.dispatchEvent(new MouseEvent('mouseover', opts));
+  el.dispatchEvent(new MouseEvent('mouseenter', { ...opts, bubbles: false }));
+}

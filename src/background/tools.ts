@@ -467,6 +467,55 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       },
     }),
 
+    browser_hover: tool({
+      description:
+        'Passa il mouse su un elemento (ref dallo snapshot): apre menu, tooltip, hover-state.',
+      inputSchema: z.object({ ref: z.number().int().describe('Ref numerico dallo snapshot') }),
+      execute: async ({ ref }: { ref: number }) => {
+        await approved('browser_hover', { ref }, `Hover su [${ref}]`);
+        return guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_HOVER', ref });
+          if (!res.ok) throw new Error(res.error ?? 'Hover fallito.');
+          return acted(
+            tab.id,
+            'Hover eseguito. Se è apparso un menu, fai uno snapshot per vedere le nuove voci.',
+          );
+        });
+      },
+    }),
+
+    browser_clipboard_write: tool({
+      description: 'Scrive testo negli appunti della pagina (come se l’utente lo copiasse).',
+      inputSchema: z.object({ text: z.string().describe('Testo da copiare (max 2000 caratteri)') }),
+      execute: async ({ text }: { text: string }) => {
+        await approved('browser_clipboard_write', { text: `${text.slice(0, 80)}…` }, 'Scrive negli appunti');
+        return guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_CLIPBOARD_WRITE', text });
+          if (!res.ok) throw new Error(res.error ?? 'Scrittura appunti fallita (permesso?).');
+          return acted(tab.id, 'Testo copiato negli appunti della pagina.');
+        });
+      },
+    }),
+
+    browser_clipboard_read: tool({
+      description: 'Legge il testo negli appunti della pagina (richiede conferma: dato sensibile).',
+      inputSchema: z.object({}),
+      execute: async () => {
+        await approved('browser_clipboard_read', {}, 'Legge gli appunti (dato sensibile)');
+        return guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_CLIPBOARD_READ' });
+          if (!res.ok) throw new Error(res.error ?? 'Lettura appunti fallita (permesso?).');
+          return acted(tab.id, `Appunti: "${String(res.text ?? '').slice(0, 120)}"`);
+        });
+      },
+    }),
+
     browser_select: tool({
       description:
         'Sceglie un’opzione in un menu a tendina <select> (ref dallo snapshot), per valore o testo visibile.',

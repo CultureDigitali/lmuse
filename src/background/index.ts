@@ -4,7 +4,10 @@ import { generateText } from 'ai';
 import {
   PanelToSwSchema,
   addHistoryTask,
+  addToQueue,
+  buildModelsCache,
   clearAllData,
+  clearQueue,
   clearRunState,
   getProvider,
   loadApiKey,
@@ -12,7 +15,9 @@ import {
   loadSettings,
   loadUsage,
   mergeUsage,
+  popQueue,
   saveInbox,
+  saveModelsCache,
   saveRunState,
   saveSettings,
   saveUsage,
@@ -37,6 +42,7 @@ let currentAbort: AbortController | null = null;
 let running = false;
 let lastRunAt: number | null = null;
 let lastTestAt: number | null = null;
+let stopRequested = false;
 const ports = new Set<chrome.runtime.Port>();
 
 interface PendingApproval {
@@ -81,7 +87,10 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 chrome.commands.onCommand.addListener((command) => {
-  if (command === 'stop-task') currentAbort?.abort();
+  if (command === 'stop-task') {
+    stopRequested = true;
+    currentAbort?.abort();
+  }
 });
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -100,9 +109,22 @@ chrome.runtime.onConnect.addListener((port) => {
     if (!parsed.success) return;
     const message = parsed.data;
     if (message.type === 'RUN') {
+      stopRequested = false;
       void startRun(message.task);
     } else if (message.type === 'STOP') {
+      stopRequested = true;
       currentAbort?.abort();
+    } else if (message.type === 'QUEUE') {
+      void (async () => {
+        if (running) {
+          const queue = await addToQueue(message.task).catch(() => null);
+          if (queue) broadcast({ type: 'QUEUE_ADDED', position: queue.length, size: queue.length });
+          else broadcast({ type: 'ERROR', message: 'Impossibile mettere in coda il task.' });
+        } else {
+          stopRequested = false;
+          void startRun(message.task);
+        }
+      })();
     } else if (message.type === 'APPROVE') {
       settleApproval(message.id, true);
     } else if (message.type === 'DENY') {
@@ -136,6 +158,17 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
   }
   if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'SYNC_ALARMS') {
     void syncAlarms().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'CLEAR_QUEUE') {
+    void clearQueue().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'FETCH_MODELS') {
+    void fetchModels().then(
+      (models) => sendResponse({ ok: true, models }),
+      (error: unknown) => sendResponse({ ok: false, error: mapProviderError(error) }),
+    );
     return true;
   }
   if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'OPENCODE_BRIDGE') {
@@ -190,8 +223,49 @@ function mapOpencodeError(error: unknown): string {
   return 'Bridge opencode non raggiungibile. Riprova più tardi.';
 }
 
-/** Allinea chrome.alarms agli schedule abilitati (chiamato dal panel a ogni modifica). */
-async function syncAlarms(): Promise<void> {
+/**
+ * Model discovery: GET {baseUrl}/models per i provider OpenAI-compatibili.
+ * Restituisce solo id validi (dedup, sort, max 500); mai la chiave.
+ */
+async function fetchModels(): Promise<string[]> {
+  const settings = await loadSettings();
+  const def = getProvider(settings.providerId);
+  if (!def.defaultBaseUrl && !settings.baseUrl) {
+    throw new Error('Questo provider non espone una lista modelli: scrivi il nome a mano.');
+  }
+  const apiKey = await loadApiKey(settings.providerId, settings.rememberKey);
+  if (def.needsKey && !isPlausibleKey(apiKey)) {
+    throw new Error('Chiave API mancante o non valida: controllala nelle impostazioni ⚙.');
+  }
+  const base = (settings.baseUrl || def.defaultBaseUrl || '').replace(/\/+$/, '');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new DOMException('Timeout modelli', 'TimeoutError')), 10_000);
+  try {
+    const res = await fetch(`${base}/models`, {
+      headers: def.needsKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+      signal: controller.signal,
+    });
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('Chiave non accettata dal provider: controllala nelle impostazioni ⚙.');
+    }
+    if (!res.ok) {
+      throw new Error(`Il provider ha risposto ${res.status}: riprova più tardi.`);
+    }
+    const data = (await res.json()) as { data?: unknown; models?: unknown };
+    const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
+    const ids = list
+      .map((m) => (typeof m === 'string' ? m : ((m as { id?: unknown })?.id ?? '')))
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    const clean = buildModelsCache([], ids);
+    if (!clean.length) throw new Error('Lista modelli non valida dal provider.');
+    await saveModelsCache(settings.providerId, clean);
+    return clean;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Allinea chrome.alarms agli schedule abilitati (chiamato dal panel a ogni modifica). */async function syncAlarms(): Promise<void> {
   await chrome.alarms.clearAll();
   const settings = await loadSettings();
   for (const s of settings.schedules.filter((x) => x.enabled).slice(0, 5)) {
@@ -230,7 +304,7 @@ async function testConnection(): Promise<void> {
   if (getProvider(settings.providerId).needsKey && !isPlausibleKey(apiKey)) {
     throw new Error('Chiave API mancante o non valida: controllala nelle impostazioni ⚙.');
   }
-  const model = createModel(settings, apiKey);
+  const model = await createModel(settings, apiKey);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new DOMException('Timeout prova', 'TimeoutError')), 20_000);
   try {
@@ -423,7 +497,31 @@ async function startRun(task: string): Promise<void> {
     currentAbort = null;
     void chrome.action.setBadgeText({ text: '' });
     broadcast({ type: 'STATUS', running: false });
+    // Coda task: se c'è un task in attesa, avvialo (mai dopo STOP esplicito).
+    await drainQueue();
   }
+}
+
+/** Coda: avvia il prossimo task in attesa, se presente. */
+async function drainQueue(): Promise<void> {
+  if (stopRequested) return; // STOP esplicito: la coda resta per il prossimo avvio
+  const next = await popQueue().catch(() => null);
+  if (!next) return;
+  const elapsed = canStartRun(lastRunAt, Date.now());
+  if (!elapsed) {
+    // Cooldown non scaduto: ritenta quando resta poco (il task resta in coda).
+    const remaining = Math.max(500, 5000 - (Date.now() - (lastRunAt ?? 0)));
+    setTimeout(() => void drainQueue(), remaining);
+    return;
+  }
+  broadcast({
+    type: 'STEP',
+    index: -1,
+    tool: 'coda',
+    input: null,
+    result: 'Avvio task in coda.',
+  });
+  void startRun(next.task);
 }
 
 export {};

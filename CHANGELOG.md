@@ -1,5 +1,29 @@
 # Changelog — lmuse
 
+## 0.7.0 (2026-09-17) — Leggero, con coda e discovery
+
+Sesto loop da 100 migliorie (gigiloop): service worker −71%, model discovery,
+coda task, nuovi tool, export log markdown, hint rotazione chiave.
+
+**Performance**
+
+- Ogni package provider è importato dinamicamente: il service worker carica
+  SOLO il chunk del provider configurato. **background.js: 1094 KB → 321 KB**.
+
+**Nuovo**
+
+- **Model discovery**: bottone ⟳ nel campo modello → lista modelli live dal
+  provider (OpenAI-compatibili), cache locale con cap 500.
+- **Coda task**: quando un task è in esecuzione, "Metti in coda" aggiunge il
+  prossimo (max 5); parte in sequenza a fine run, mai dopo STOP esplicito.
+- **Nuovi tool (21 → 24)**: `browser_hover` (menu/tooltip),
+  `browser_clipboard_write`, `browser_clipboard_read` (conferma sensitive).
+  Drag sintetico saltato: inaffidabile con framework (decisione documentata).
+- **Export log markdown**: header con data/provider/modello (mai la chiave).
+- **Hint rotazione chiave**: se la chiave è stata salvata > 90gg, suggerimento
+  locale (nessun dato inviato).
+- Esc chiude le impostazioni; badge versione con indicatore bridge opencode.
+
 ## 0.6.0 (2026-09-16) — Provider planet + opencode
 
 Quinto loop da 100 migliorie (gigiloop): 25 provider LLM, keystore per-provider,

@@ -24,7 +24,17 @@ import {
   clearApiKey,
   countApiKeys,
   loadApiKey,
+  loadModelsCache,
+  addToQueue,
+  loadQueue,
+  popQueue,
+  clearQueue,
   saveApiKey,
+  saveModelsCache,
+  buildModelsCache,
+  loadKeySavedAt,
+  keyAgeDays,
+  keyRotationDue,
 } from './settings';
 
 function makeArea() {
@@ -173,6 +183,85 @@ describe('chiavi per-provider (v2)', () => {
     await clearAllData();
     expect(await countApiKeys(true)).toBe(0);
     expect(local.data['lmuse.keys.v2']).toBeUndefined();
+  });
+});
+
+describe('cache modelli (v1)', () => {
+  it('save/load roundtrip per provider', async () => {
+    await saveModelsCache('ollama', ['qwen3:8b', 'llama3:8b', 'qwen3:8b']);
+    expect(await loadModelsCache('ollama')).toEqual(['qwen3:8b', 'llama3:8b']);
+    expect(await loadModelsCache('nvidia')).toEqual([]);
+  });
+  it('dedup + cap 500 + id troncati', async () => {
+    const many = Array.from({ length: 600 }, (_, i) => `m${i}`);
+    await saveModelsCache('openai', many);
+    const list = await loadModelsCache('openai');
+    expect(list).toHaveLength(500);
+    await saveModelsCache('openai', ['x'.repeat(500)]);
+    expect((await loadModelsCache('openai'))[0].length).toBe(200);
+  });
+  it('fetch vuota mantiene la cache precedente', async () => {
+    await saveModelsCache('opencode', ['a', 'b']);
+    await saveModelsCache('opencode', []);
+    expect(await loadModelsCache('opencode')).toEqual(['a', 'b']);
+  });
+  it('mappa corrotta → vuota', async () => {
+    local.data['lmuse.models.v1'] = 'spazzatura';
+    expect(await loadModelsCache('openai')).toEqual([]);
+  });
+  it('buildModelsCache pura', () => {
+    expect(buildModelsCache([], ['b', 'b', 'a'])).toEqual(['b', 'a']);
+    expect(buildModelsCache(['vecchia'], [])).toEqual(['vecchia']);
+  });
+});
+
+describe('coda task (session)', () => {
+  it('addToQueue/popQueue FIFO, cap 5', async () => {
+    expect(await loadQueue()).toEqual([]);
+    for (let i = 1; i <= 7; i++) await addToQueue(`task ${i}`);
+    expect(await loadQueue()).toHaveLength(5);
+    const first = await popQueue();
+    expect(first?.task).toBe('task 1');
+    expect(await loadQueue()).toHaveLength(4);
+  });
+  it('clearQueue svuota', async () => {
+    await addToQueue('x');
+    await clearQueue();
+    expect(await loadQueue()).toEqual([]);
+  });
+  it('task malformati filtrati in load', async () => {
+    await addToQueue('valido');
+    const q = await loadQueue();
+    expect(q).toHaveLength(1);
+  });
+  it('clearAllData cancella anche la coda', async () => {
+    await addToQueue('x');
+    await clearAllData();
+    expect(await loadQueue()).toEqual([]);
+  });
+});
+
+describe('età chiave (rotazione)', () => {
+  it('saveApiKey registra il timestamp', async () => {
+    expect(await loadKeySavedAt('openai')).toBe(0);
+    await saveApiKey('openai', 'k-12345678', true);
+    expect(await loadKeySavedAt('openai')).toBeGreaterThan(0);
+  });
+  it('keyAgeDays: 0 se mai salvata, calcolo giorni', () => {
+    expect(keyAgeDays(0)).toBe(0);
+    const now = Date.now();
+    expect(keyAgeDays(now - 86_400_000 * 100, now)).toBe(100);
+    expect(keyAgeDays(now + 10_000, now)).toBe(0); // futuro → 0
+  });
+  it('keyRotationDue: true solo oltre 90 giorni', () => {
+    const now = Date.now();
+    expect(keyRotationDue(now - 86_400_000 * 89, now)).toBe(false);
+    expect(keyRotationDue(now - 86_400_000 * 91, now)).toBe(true);
+  });
+  it('l hint non contiene la chiave', async () => {
+    await saveApiKey('openai', 'sk-SUPER-SEGRETO-123', true);
+    const age = keyAgeDays(await loadKeySavedAt('openai'));
+    expect(String(age)).not.toContain('sk-');
   });
 });
 

@@ -95,7 +95,7 @@ export async function runTask(
     throw new Error(`Task troppo lungo (max ${MAX_TASK_CHARS} caratteri).`);
   }
 
-  const model = createModel(settings, apiKey);
+  const model = await createModel(settings, apiKey);
   let stepIndex = 0;
 
   const { signal, dispose, abort } = withTimeout(userAbort, settings.runTimeoutMin * 60_000);

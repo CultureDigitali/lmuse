@@ -6,44 +6,53 @@ function settingsFor(providerId: string, extra: Record<string, unknown> = {}) {
   return sanitizeSettings({ providerId, model: 'test-model', ...extra } as never);
 }
 
-describe('createModel', () => {
-  it('crea un modello per OGNI provider del catalogo (cloud/gateway)', () => {
+describe('createModel (lazy, async)', () => {
+  it('crea un modello per OGNI provider del catalogo', async () => {
     for (const p of PROVIDERS) {
       if (p.id === 'azure' || p.id === 'custom') continue; // richiedono baseUrl
-      const model = createModel(settingsFor(p.id, { model: p.defaultModel || 'test-model' }), 'dummy-key');
+      const model = await createModel(
+        settingsFor(p.id, { model: p.defaultModel || 'test-model' }),
+        'dummy-key',
+      );
       expect(model).toBeDefined();
       expect(typeof (model as { provider?: string }).provider).toBe('string');
     }
   });
 
-  it('azure senza baseUrl → errore in italiano', () => {
-    expect(() => createModel(settingsFor('azure'), 'k')).toThrow(/base URL/);
+  it('azure senza baseUrl → errore in italiano', async () => {
+    await expect(createModel(settingsFor('azure'), 'k')).rejects.toThrow(/base URL/);
   });
 
-  it('custom senza baseUrl → errore in italiano', () => {
-    expect(() => createModel(settingsFor('custom'), 'k')).toThrow(/base URL/);
+  it('custom senza baseUrl → errore in italiano', async () => {
+    await expect(createModel(settingsFor('custom'), 'k')).rejects.toThrow(/base URL/);
   });
 
-  it('custom con baseUrl → ok', () => {
-    const m = createModel(settingsFor('custom', { baseUrl: 'https://api.esempio.it/v1' }), 'k');
+  it('custom con baseUrl → ok', async () => {
+    const m = await createModel(settingsFor('custom', { baseUrl: 'https://api.esempio.it/v1' }), 'k');
     expect(String((m as { provider?: string }).provider)).toContain('custom');
   });
 
-  it('ollama senza chiave usa placeholder', () => {
-    const m = createModel(settingsFor('ollama'), '');
+  it('ollama senza chiave usa placeholder', async () => {
+    const m = await createModel(settingsFor('ollama'), '');
     expect(m).toBeDefined();
   });
 
-  it('modello vuoto → errore', () => {
-    expect(() => createModel(settingsFor('openai', { model: '' }), 'k')).toThrow(/modello/);
+  it('modello vuoto → errore', async () => {
+    await expect(createModel(settingsFor('openai', { model: '' }), 'k')).rejects.toThrow(/modello/);
   });
 
-  it('provider con baseURL override rispetta il baseUrl utente', () => {
-    const m = createModel(settingsFor('nvidia', { baseUrl: 'https://nim.lan/v1' }), 'k');
+  it('baseURL override rispettato (nvidia con baseUrl lan)', async () => {
+    const m = await createModel(settingsFor('nvidia', { baseUrl: 'https://nim.lan/v1' }), 'k');
     expect(m).toBeDefined();
   });
 
-  it('sanitizer accetta tutti i nuovi providerId', () => {
+  it('provider ignoto → errore', async () => {
+    // bypassa il sanitizer (che converterebbe in 'openai')
+    const raw = { ...DEFAULT_SETTINGS, providerId: 'fantasma' as never, model: 'test-model' };
+    await expect(createModel(raw as never, 'k')).rejects.toThrow(/Provider non supportato/);
+  });
+
+  it('sanitizer accetta tutti i 25 providerId', () => {
     const ids = PROVIDERS.map((p) => p.id);
     expect(ids).toHaveLength(25);
     for (const id of ids) {

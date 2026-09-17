@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_WAIT_MS, describeFocused, selectOption, waitFor } from './actions';
+import { MAX_WAIT_MS, describeFocused, hoverElement, selectOption, waitFor } from './actions';
 
 describe('selectOption', () => {
   it('seleziona per valore e conferma selectedIndex + change', () => {
@@ -58,5 +58,27 @@ describe('describeFocused', () => {
     expect(describeFocused()).toBe('nessuno (body)');
     (document.querySelector('button') as HTMLButtonElement).focus();
     expect(describeFocused()).toBe('button "Vai"');
+  });
+});
+
+describe('hoverElement', () => {
+  it('dispatcha mouseover/pointermove con coordinate centrali', () => {
+    document.body.innerHTML = '<button id="h">menu</button>';
+    const el = document.getElementById('h') as HTMLElement;
+    const over = vi.fn();
+    const move = vi.fn();
+    el.addEventListener('mouseover', over);
+    el.addEventListener('pointermove', move);
+    hoverElement(el);
+    expect(over).toHaveBeenCalledTimes(1);
+    expect(move).toHaveBeenCalledTimes(1);
+    expect(over.mock.calls[0][0].clientX).toBeTypeOf('number');
+  });
+  it('bubbles: il listener su document riceve mouseover', () => {
+    document.body.innerHTML = '<div id="wrap"><span id="inner">x</span></div>';
+    const onDoc = vi.fn();
+    document.addEventListener('mouseover', onDoc);
+    hoverElement(document.getElementById('inner') as HTMLElement);
+    expect(onDoc).toHaveBeenCalledTimes(1);
   });
 });

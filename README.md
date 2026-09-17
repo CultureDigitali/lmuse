@@ -12,10 +12,12 @@ qualsiasi endpoint OpenAI-compatibile.
 - **Integrazione opencode**: rileva le credenziali già configurate in opencode
   (auth.json) e le importa con un click, via native bridge (`pnpm setup:opencode`).
 - Conferma umana per le azioni sensibili (navigazione, invio form, cambio tab).
-- 21 tool browser: snapshot, click, digitazione, select, wait, press, find, table,
-  query, scroll, screenshot (anche ritagliato), lettura testo/link, tab multipli.
-- Template task, preset Veloce/Preciso/Locale, task programmati, health-check integrato.
-- Streaming live, stop-text, token-guard, import/export profilo.
+- **24 tool browser**: snapshot, click, digitazione, select, wait, press, find, table,
+  query, hover, clipboard, scroll, screenshot (anche ritagliato), lettura testo/link, tab multipli.
+- Template task, preset Veloce/Preciso/Locale, task programmati, coda task,
+  model discovery live, health-check integrato.
+- Streaming live, stop-text, token-guard, import/export profilo, export log markdown.
+- Service worker −71% (import dinamico per provider: solo il chunk che usi).
 - Sicurezza & privacy verificate: leggi **[PRIVACY.md](PRIVACY.md)** e **[GUIDA.md](GUIDA.md)**.
 - Vedi **[CHANGELOG.md](CHANGELOG.md)** per le novità della 0.6.0.
 
@@ -32,6 +34,6 @@ pnpm setup:opencode          # opzionale: bridge per importare chiavi da opencod
 ```
 
 Leggi **[GUIDA.md](GUIDA.md)** per architettura, setup, scorciatoie e roadmap.
-Stato CI: `pnpm check` verde (typecheck + 232 test vitest + lint + build), e2e smoke
+Stato CI: `pnpm check` verde (typecheck + 251 test vitest + lint + build), e2e smoke
 con a11y, coverage `src/shared` > 90%, audit + secret-scan + size + links attivi.
 Contribuire: vedi **[CONTRIBUTING.md](CONTRIBUTING.md)**.

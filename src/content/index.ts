@@ -1,6 +1,6 @@
 import { buildSnapshot, getElement, registerElements } from './snapshot';
 import { isPressAllowed } from './keys';
-import { describeFocused, selectOption, waitFor } from './actions';
+import { describeFocused, selectOption, waitFor, hoverElement } from './actions';
 import { findInPage, tableToMarkdown } from './extract';
 import { maskPii } from '../shared/pii';
 
@@ -16,6 +16,9 @@ type Incoming =
   | { kind: 'LMUSE_SELECT'; ref: number; value: string }
   | { kind: 'LMUSE_WAIT'; waitKind: 'text' | 'selector'; value: string; timeoutMs: number }
   | { kind: 'LMUSE_PRESS'; key: string }
+  | { kind: 'LMUSE_HOVER'; ref: number }
+  | { kind: 'LMUSE_CLIPBOARD_WRITE'; text: string }
+  | { kind: 'LMUSE_CLIPBOARD_READ' }
   | { kind: 'LMUSE_TEXT'; maxChars: number; maskPii: boolean; mode: 'full' | 'main' }
   | { kind: 'LMUSE_LINKS'; max: number }
   | { kind: 'LMUSE_RECT'; ref: number }
@@ -31,6 +34,9 @@ const KINDS = new Set([
   'LMUSE_SELECT',
   'LMUSE_WAIT',
   'LMUSE_PRESS',
+  'LMUSE_HOVER',
+  'LMUSE_CLIPBOARD_WRITE',
+  'LMUSE_CLIPBOARD_READ',
   'LMUSE_TEXT',
   'LMUSE_LINKS',
   'LMUSE_RECT',
@@ -51,6 +57,8 @@ function clickElement(el: Element): void {
   el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
   (el as HTMLElement).click?.();
 }
+
+/** Hover sintetico (in actions.ts, testato): menu, tooltip, hover-state. */
 
 function isPasswordField(el: Element): boolean {
   return el instanceof HTMLInputElement && el.type === 'password';
@@ -255,6 +263,29 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
           target.dispatchEvent(new KeyboardEvent('keydown', { key: msg.key, bubbles: true }));
           target.dispatchEvent(new KeyboardEvent('keyup', { key: msg.key, bubbles: true }));
           reply({ ok: true, focused: describeFocused() });
+          break;
+        }
+        case 'LMUSE_HOVER': {
+          if (!validRef(msg.ref)) throw new Error('Ref non valido.');
+          const el = getElement(msg.ref);
+          if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
+          hoverElement(el);
+          reply({ ok: true });
+          break;
+        }
+        case 'LMUSE_CLIPBOARD_WRITE': {
+          const text = String(msg.text ?? '');
+          if (!text) throw new Error('Testo vuoto.');
+          if (text.length > MAX_TYPE_CHARS) {
+            throw new Error(`Testo troppo lungo (${text.length} caratteri, max ${MAX_TYPE_CHARS}).`);
+          }
+          await navigator.clipboard.writeText(text);
+          reply({ ok: true });
+          break;
+        }
+        case 'LMUSE_CLIPBOARD_READ': {
+          const text = await navigator.clipboard.readText();
+          reply({ ok: true, text: text.slice(0, MAX_TYPE_CHARS) });
           break;
         }
         case 'LMUSE_TEXT': {

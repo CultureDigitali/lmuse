@@ -49,11 +49,13 @@ src/shared/urlGuard.ts      Blocco protocolli/host + allowlist (testato)
 src/shared/errors.ts        Errori provider → italiano (testato)
 src/shared/budget.ts        Budget tool-call per run (testato)
 src/shared/i18n.ts          Stringhe UI it/en
-src/background/providers.ts Crea il modello AI SDK dal provider configurato
-src/background/tools.ts     21 tool browser (snapshot, navigate, back/forward, reload,
+src/background/providers.ts Crea il modello AI SDK (import dinamico per provider:
+                            solo il chunk configurato, SW −71%)
+src/background/tools.ts     24 tool browser (snapshot, navigate, back/forward, reload,
                              click, type, select, wait, press, find, table, query,
-                             scroll, screenshot×2, read_text, links, tabs×4)
-                             con approval+budget/circuit/errori, inject on-demand
+                             hover, clipboard×2, scroll, screenshot×2, read_text,
+                             links, tabs×4)
+                            con approval+budget/circuit/errori, inject on-demand
 src/background/agent.ts     ToolLoopAgent in streaming + token-guard + system prompt
 src/background/index.ts     Service worker: RUN/STOP, approval, stream, schedule, badge, inbox
 src/content/snapshot.ts     Distilla il DOM in albero [ref] compatti (redatto)
@@ -151,6 +153,18 @@ Programma il task corrente ogni N minuti (60–10080, max 5) da ⚙ o dall'area 
 `chrome.alarms` li fa partire anche a pannello chiuso: il risultato aspetta in inbox,
 il badge ✓ segnala la fine. Senza panel le approval hanno timeout 20s e default negata
 (mai auto-approve). "Cancella tutti i dati" cancella anche gli schedule.
+
+## Performance, coda e discovery (v0.7.0)
+
+- **Service worker leggero**: ogni package provider è un chunk dinamico — carica
+  solo il provider che usi (background.js: 1094 KB → 321 KB).
+- **Model discovery**: bottone ⟳ nel campo modello → lista modelli live dal
+  provider (`GET /models`), cache locale (`lmuse.models.v1`, cap 500).
+- **Coda task**: a task attivo il pulsante diventa "Metti in coda" (max 5);
+  partono in sequenza a fine run, mai dopo STOP esplicito.
+- **Export log**: "Scarica log" produce un markdown con header data/provider/modello
+  (mai la chiave), resta sul tuo PC.
+- **Hint rotazione chiave**: se salvata > 90 giorni, suggerimento in ⚙ (solo locale).
 
 ## Cosa vede il modello
 

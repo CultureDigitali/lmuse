@@ -4,7 +4,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = join(import.meta.dirname, '..');
-const limitsKb = { 'background.js': 1300, 'content.js': 50 };
+const limitsKb = { 'background.js': 500, 'content.js': 50 };
 let failed = false;
 
 function readdirDist(dir) {

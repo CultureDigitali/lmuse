@@ -616,6 +616,36 @@ export async function saveApiKey(providerId: ProviderId, key: string, rememberKe
   else delete map[providerId];
   const store = rememberKey ? chrome.storage.local : chrome.storage.session;
   await store.set({ [KEY_STORE_V2]: map });
+  // Meta: quando la chiave è stata salvata (per l'hint rotazione, solo locale).
+  if (key.trim()) {
+    const metaRaw = await chrome.storage.local.get(KEYS_META_KEY);
+    const meta = metaRaw[KEYS_META_KEY] && typeof metaRaw[KEYS_META_KEY] === 'object' ? (metaRaw[KEYS_META_KEY] as Record<string, unknown>) : {};
+    meta[providerId] = Date.now();
+    await chrome.storage.local.set({ [KEYS_META_KEY]: meta });
+  }
+}
+
+export const KEYS_META_KEY = 'lmuse.keysmeta.v1';
+export const KEY_AGE_WARN_DAYS = 90;
+
+/** Quando la chiave del provider è stata salvata (0 = mai/ignoto). */
+export async function loadKeySavedAt(providerId: ProviderId): Promise<number> {
+  const metaRaw = await chrome.storage.local.get(KEYS_META_KEY);
+  const meta = metaRaw[KEYS_META_KEY];
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return 0;
+  const at = (meta as Record<string, unknown>)[providerId];
+  return typeof at === 'number' && Number.isFinite(at) && at > 0 ? at : 0;
+}
+
+/** Età chiave in giorni (0 = mai salvata). */
+export function keyAgeDays(savedAt: number, now = Date.now()): number {
+  if (!savedAt) return 0;
+  return Math.max(0, Math.floor((now - savedAt) / 86_400_000));
+}
+
+/** Hint rotazione: true se la chiave è vecchia (> 90gg). Pura, testata. */
+export function keyRotationDue(savedAt: number, now = Date.now()): boolean {
+  return keyAgeDays(savedAt, now) > KEY_AGE_WARN_DAYS;
 }
 
 /** Rimuove la chiave di un provider da entrambi gli storage. */
@@ -663,8 +693,8 @@ export async function clearAllData(): Promise<void> {
   await clearStoredKey();
   await chrome.storage.local.remove(KEY_STORE_V2);
   await chrome.storage.session.remove(KEY_STORE_V2);
-  await chrome.storage.local.remove([SETTINGS_KEY, HISTORY_KEY, USAGE_KEY, ONBOARDED_KEY]);
-  await chrome.storage.session.remove([INBOX_KEY, RUN_STATE_KEY]);
+  await chrome.storage.local.remove([SETTINGS_KEY, HISTORY_KEY, USAGE_KEY, ONBOARDED_KEY, MODELS_CACHE_KEY]);
+  await chrome.storage.session.remove([INBOX_KEY, RUN_STATE_KEY, QUEUE_KEY]);
   await chrome.alarms.clearAll().catch(() => undefined);
 }
 
@@ -803,6 +833,110 @@ export async function clearRunState(): Promise<void> {
   await chrome.storage.session.remove(RUN_STATE_KEY);
 }
 
+// --- Cache modelli live (local): lista id letta dal provider ---
+
+export const MODELS_CACHE_KEY = 'lmuse.models.v1';
+const MODELS_CACHE_MAX = 500;
+
+function sanitizeModelList(list: unknown): string[] {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set<string>();
+  for (const item of list.slice(0, MODELS_CACHE_MAX)) {
+    const id = String(item ?? '')
+      .trim()
+      .slice(0, 200);
+    if (id && !seen.has(id)) seen.add(id);
+  }
+  return [...seen].slice(0, MODELS_CACHE_MAX);
+}
+
+/** Lista id modelli cache pure (testata): dedup + cap 500. */
+export function buildModelsCache(prev: string[], fetched: string[]): string[] {
+  const clean = sanitizeModelList(fetched);
+  if (!clean.length) return sanitizeModelList(prev);
+  return clean;
+}
+
+export async function loadModelsCache(providerId: ProviderId): Promise<string[]> {
+  const raw = await chrome.storage.local.get(MODELS_CACHE_KEY);
+  const map = raw[MODELS_CACHE_KEY];
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return [];
+  const list = (map as Record<string, unknown>)[providerId];
+  return sanitizeModelList(list);
+}
+
+export async function saveModelsCache(providerId: ProviderId, models: string[]): Promise<void> {
+  const raw = await chrome.storage.local.get(MODELS_CACHE_KEY);
+  const map =
+    raw[MODELS_CACHE_KEY] && typeof raw[MODELS_CACHE_KEY] === 'object'
+      ? (raw[MODELS_CACHE_KEY] as Record<string, unknown>)
+      : {};
+  map[providerId] = buildModelsCache(loadList(map[providerId]), models);
+  await chrome.storage.local.set({ [MODELS_CACHE_KEY]: map });
+}
+
+function loadList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+// --- Coda task (session): max 5, avvio sequenziale a fine run ---
+
+export const QUEUE_KEY = 'lmuse.queue.v1';
+const QUEUE_MAX = 5;
+
+export interface QueueEntry {
+  id: string;
+  task: string;
+  addedAt: number;
+}
+
+/** Coda pura (testata): trim + truncate + cap 5. */
+export function buildQueue(list: QueueEntry[], task: string): QueueEntry[] {
+  const clean: QueueEntry = {
+    id: `q-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+    task: task.trim().slice(0, MAX_TASK_CHARS),
+    addedAt: Date.now(),
+  };
+  return [...list, clean].slice(0, QUEUE_MAX);
+}
+
+export async function addToQueue(task: string): Promise<QueueEntry[]> {
+  const list = await loadQueue();
+  const next = buildQueue(list, task);
+  await chrome.storage.session.set({ [QUEUE_KEY]: next });
+  return next;
+}
+
+export async function popQueue(): Promise<QueueEntry | null> {
+  const list = await loadQueue();
+  const [first, ...rest] = list;
+  if (!first) return null;
+  await chrome.storage.session.set({ [QUEUE_KEY]: rest });
+  return first;
+}
+
+export async function loadQueue(): Promise<QueueEntry[]> {
+  const stored = await chrome.storage.session.get(QUEUE_KEY);
+  const list = stored[QUEUE_KEY];
+  if (!Array.isArray(list)) return [];
+  const out: QueueEntry[] = [];
+  for (const item of list.slice(0, QUEUE_MAX)) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    if (typeof r['task'] !== 'string' || !r['task'].trim()) continue;
+    out.push({
+      id: typeof r['id'] === 'string' ? r['id'].slice(0, 64) : 'q-x',
+      task: r['task'].trim().slice(0, MAX_TASK_CHARS),
+      addedAt: typeof r['addedAt'] === 'number' ? r['addedAt'] : 0,
+    });
+  }
+  return out;
+}
+
+export async function clearQueue(): Promise<void> {
+  await chrome.storage.session.remove(QUEUE_KEY);
+}
+
 // --- Protocollo sulla Port 'lmuse' (validato con zod) ---
 
 const ApprovalId = z.string().min(1).max(64);
@@ -810,6 +944,7 @@ const ApprovalId = z.string().min(1).max(64);
 export const PanelToSwSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('RUN'), task: z.string().min(1).max(MAX_TASK_CHARS) }),
   z.object({ type: z.literal('STOP') }),
+  z.object({ type: z.literal('QUEUE'), task: z.string().min(1).max(MAX_TASK_CHARS) }),
   z.object({ type: z.literal('APPROVE'), id: ApprovalId }),
   z.object({ type: z.literal('DENY'), id: ApprovalId }),
 ]);
@@ -829,4 +964,5 @@ export type SwToPanelMessage =
       elapsedMs: number;
     }
   | { type: 'ERROR'; message: string }
+  | { type: 'QUEUE_ADDED'; position: number; size: number }
   | { type: 'APPROVAL'; id: string; tool: string; description: string; timeoutSec: number; domain?: string };
