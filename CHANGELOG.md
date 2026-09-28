@@ -48,7 +48,7 @@ coda task, nuovi tool, export log markdown, hint rotazione chiave.
 **Performance**
 
 - Ogni package provider è importato dinamicamente: il service worker carica
-  SOLO il chunk del provider configurato. **background.js: 1094 KB → 321 KB**.
+  SOLO il chunk del provider configurato. **background.js: 1.094.697 → 325.039 byte**.
 
 **Nuovo**
 
