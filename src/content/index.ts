@@ -19,6 +19,8 @@ type Incoming =
   | { kind: 'LMUSE_HOVER'; ref: number }
   | { kind: 'LMUSE_CLIPBOARD_WRITE'; text: string }
   | { kind: 'LMUSE_CLIPBOARD_READ' }
+  | { kind: 'LMUSE_DOWNLOAD'; ref: number }
+  | { kind: 'LMUSE_IFRAME_SNAPSHOT'; index: number; maskPii: boolean }
   | { kind: 'LMUSE_TEXT'; maxChars: number; maskPii: boolean; mode: 'full' | 'main' }
   | { kind: 'LMUSE_LINKS'; max: number }
   | { kind: 'LMUSE_RECT'; ref: number }
@@ -37,6 +39,8 @@ const KINDS = new Set([
   'LMUSE_HOVER',
   'LMUSE_CLIPBOARD_WRITE',
   'LMUSE_CLIPBOARD_READ',
+  'LMUSE_DOWNLOAD',
+  'LMUSE_IFRAME_SNAPSHOT',
   'LMUSE_TEXT',
   'LMUSE_LINKS',
   'LMUSE_RECT',
@@ -286,6 +290,42 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         case 'LMUSE_CLIPBOARD_READ': {
           const text = await navigator.clipboard.readText();
           reply({ ok: true, text: text.slice(0, MAX_TYPE_CHARS) });
+          break;
+        }
+        case 'LMUSE_DOWNLOAD': {
+          if (!validRef(msg.ref)) throw new Error('Ref non valido.');
+          const el = getElement(msg.ref);
+          if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
+          const a = el.closest('a[href]') as HTMLAnchorElement | null;
+          if (!a) throw new Error('Il ref non è un link.');
+          const isDownload =
+            a.hasAttribute('download') || /\.(pdf|zip|csv|xlsx?|docx?|png|jpe?g|svg|mp3|mp4|json|txt)(\?|$)/i.test(a.href);
+          clickElement(el);
+          reply({
+            ok: true,
+            ...(isDownload
+              ? { text: 'Download avviato: controlla il download shelf del browser.' }
+              : { text: 'Click eseguito: il link non sembra un download diretto, verifica la pagina.' }),
+          });
+          break;
+        }
+        case 'LMUSE_IFRAME_SNAPSHOT': {
+          const frames = Array.from(document.querySelectorAll('iframe, frame')) as HTMLElement[];
+          const idx = Math.min(Math.max(msg.index, 0), frames.length - 1);
+          const frame = frames[idx];
+          if (!frame) throw new Error('Nessun iframe nella pagina.');
+          let doc: Document | null = null;
+          try {
+            doc = (frame as HTMLIFrameElement).contentDocument;
+          } catch {
+            doc = null;
+          }
+          if (!doc) {
+            throw new Error(
+              'Iframe cross-origin (non accessibile dal browser): opera direttamente sul suo URL con browser_navigate.',
+            );
+          }
+          reply({ ok: true, tree: buildSnapshot(msg.maskPii !== false, doc) });
           break;
         }
         case 'LMUSE_TEXT': {

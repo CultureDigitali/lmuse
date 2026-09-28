@@ -105,12 +105,12 @@ export function registerElements(els: Element[]): number[] {
   return refs;
 }
 
-/** Costruisce lo snapshot testuale della pagina. */
-export function buildSnapshot(maskPiiEnabled = true): string {
+/** Costruisce lo snapshot testuale della pagina (o di un iframe stesso-origin). */
+export function buildSnapshot(maskPiiEnabled = true, doc: Document = document): string {
   refCounter = 0;
   refMap = new Map();
   const lines: string[] = [];
-  const found = collectInteractive(document);
+  const found = collectInteractive(doc);
 
   for (const el of found) {
     if (lines.length >= MAX_NODES) {
@@ -126,14 +126,20 @@ export function buildSnapshot(maskPiiEnabled = true): string {
     lines.push(`[${ref}] ${tag} "${name}"${describeExtra(el)}`);
   }
 
-  const headings = Array.from(document.querySelectorAll('h1, h2'))
+  const headings = Array.from(doc.querySelectorAll('h1, h2'))
     .slice(0, 8)
     .map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 100))
     .filter(Boolean);
   const scroll = Math.round(
     (window.scrollY / Math.max(1, document.body.scrollHeight - window.innerHeight)) * 100,
   );
-  const header = `URL pagina corrente: ${location.href}\nScroll: ${isFinite(scroll) ? scroll : 0}%\n${
+  let href = location.href;
+  try {
+    href = doc.defaultView?.location.href ?? location.href;
+  } catch {
+    /* iframe cross-origin: resta l'URL principale */
+  }
+  const header = `URL pagina corrente: ${href}\nScroll: ${isFinite(scroll) ? scroll : 0}%\n${
     headings.length > 0 ? `Contenuto: ${headings.join(' | ')}\n` : ''
   }`;
   const body = `Elementi interattivi (${lines.length}):\n${lines.join('\n') || '(nessuno)'}`;

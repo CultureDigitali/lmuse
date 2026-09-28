@@ -26,6 +26,7 @@ import {
   loadApiKey,
   loadModelsCache,
   addToQueue,
+  clearSessionKeys,
   loadQueue,
   popQueue,
   clearQueue,
@@ -35,6 +36,7 @@ import {
   loadKeySavedAt,
   keyAgeDays,
   keyRotationDue,
+  sanitizeSettings,
 } from './settings';
 
 function makeArea() {
@@ -262,6 +264,48 @@ describe('età chiave (rotazione)', () => {
     await saveApiKey('openai', 'sk-SUPER-SEGRETO-123', true);
     const age = keyAgeDays(await loadKeySavedAt('openai'));
     expect(String(age)).not.toContain('sk-');
+  });
+});
+
+describe('auto-lock chiave di sessione', () => {
+  it('sessionLockMin default 0 e clamp 0-120', () => {
+    expect(sanitizeSettings({}).sessionLockMin).toBe(0);
+    expect(sanitizeSettings({ sessionLockMin: 30 }).sessionLockMin).toBe(30);
+    expect(sanitizeSettings({ sessionLockMin: 999 }).sessionLockMin).toBe(120);
+    expect(sanitizeSettings({ sessionLockMin: -5 }).sessionLockMin).toBe(0);
+    expect(sanitizeSettings({ sessionLockMin: NaN }).sessionLockMin).toBe(0);
+  });
+
+  it('clearSessionKeys cancella SOLO session, mai le chiavi ricordate', async () => {
+    await saveApiKey('openai', 'chiave-locale', true);
+    await saveApiKey('nvidia', 'chiave-solo-sessione', false);
+    const removed = await clearSessionKeys();
+    expect(removed).toBe(1);
+    expect(await loadApiKey('nvidia', false)).toBe('');
+    expect(await loadApiKey('openai', true)).toBe('chiave-locale');
+  });
+
+  it('clearSessionKeys conta anche la chiave legacy v1', async () => {
+    await saveStoredKey('legacy-session', false);
+    expect(await clearSessionKeys()).toBe(1);
+    expect(await loadStoredKey(false)).toBe('');
+  });
+
+  it('clearSessionKeys su session vuota restituisce 0', async () => {
+    expect(await clearSessionKeys()).toBe(0);
+  });
+
+  it('auto-lock NON tocca le chiavi ricordate in local (scelta utente)', async () => {
+    // rememberKey=true → la chiave vive in local: l'auto-lock non deve cancellarla.
+    await saveApiKey('openai', 'chiave-ricordata', true);
+    expect(await clearSessionKeys()).toBe(0);
+    expect(await loadApiKey('openai', true)).toBe('chiave-ricordata');
+  });
+
+  it('clearAllData azzera anche sessionLockMin', async () => {
+    await saveSettings({ ...(await loadSettings()), sessionLockMin: 30 });
+    await clearAllData();
+    expect((await loadSettings()).sessionLockMin).toBe(0);
   });
 });
 

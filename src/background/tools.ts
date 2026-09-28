@@ -516,6 +516,50 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       },
     }),
 
+    browser_iframe_snapshot: tool({
+      description:
+        'Snapshot degli elementi dentro un iframe stesso-origin (indice 0-based). Cross-origin: errore con suggerimento.',
+      inputSchema: z.object({
+        index: z.number().int().min(0).max(20).optional().describe('Indice iframe (default 0)'),
+      }),
+      execute: async ({ index }: { index?: number }) =>
+        guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, {
+            kind: 'LMUSE_IFRAME_SNAPSHOT',
+            index: index ?? 0,
+            maskPii: cfg.maskPii,
+          });
+          if (!res.ok || typeof res.tree !== 'string' || !res.tree.trim()) {
+            throw new Error(res.error ?? 'Snapshot iframe fallito.');
+          }
+          const tree = cfg.maskPii ? maskPii(res.tree) : res.tree;
+          return { observation: checkStop(truncateTo(maskUrlTokens(tree), cfg.snapshotMaxChars)) };
+        }),
+    }),
+
+    browser_download: tool({
+      description:
+        'Clicca un link di download (ref dallo snapshot) e conferma l’avvio. Nessun nuovo permesso: il file va nel download shelf.',
+      inputSchema: z.object({ ref: z.number().int().describe('Ref numerico del link dallo snapshot') }),
+      execute: async ({ ref }: { ref: number }) => {
+        await approved('browser_download', { ref }, `Download da [${ref}]`);
+        return guarded(async () => {
+          const tab = await getActiveTab();
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_DOWNLOAD', ref });
+          if (!res.ok) {
+            if (res.error?.includes('scaduto')) {
+              return refRescue(tab.id, ref, snapOpts, 'Download non riuscito.', sendToTab);
+            }
+            throw new Error(res.error ?? 'Download fallito.');
+          }
+          return acted(tab.id, String(res.text ?? 'Download avviato.'));
+        });
+      },
+    }),
+
     browser_select: tool({
       description:
         'Sceglie un’opzione in un menu a tendina <select> (ref dallo snapshot), per valore o testo visibile.',

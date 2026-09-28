@@ -390,6 +390,8 @@ export interface Settings {
   compactLog: boolean;
   lastRuns: RunSummary[];
   schedules: Schedule[];
+  /** Auto-lock chiave di sessione: minuti di inattività (0 = mai). */
+  sessionLockMin: number;
 }
 
 export const SETTINGS_KEY = 'lmuse.settings.v1';
@@ -421,6 +423,7 @@ export const DEFAULT_SETTINGS: Settings = {
   compactLog: false,
   lastRuns: [],
   schedules: [],
+  sessionLockMin: 0,
 };
 
 function clamp(value: number, min: number, max: number, fallback: number): number {
@@ -470,6 +473,7 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined): Settings {
     compactLog: Boolean(base.compactLog),
     lastRuns: sanitizeLastRuns(base.lastRuns),
     schedules: sanitizeSchedules(base.schedules),
+    sessionLockMin: clamp(Number(base.sessionLockMin), 0, 120, DEFAULT_SETTINGS.sessionLockMin),
   };
 }
 
@@ -663,6 +667,21 @@ export async function clearApiKey(providerId: ProviderId): Promise<void> {
 /** Quante chiavi salvate (per la card opencode / diagnostica, senza valori). */
 export async function countApiKeys(rememberKey: boolean): Promise<number> {
   return Object.values(await loadKeyMap(rememberKey)).filter(Boolean).length;
+}
+
+/**
+ * Auto-lock: cancella SOLO le chiavi di sessione (storage.session), mai quelle
+ * ricordate in local. Restituisce quante ne ha rimosse.
+ */
+export async function clearSessionKeys(): Promise<number> {
+  const map = await loadKeyMap(false);
+  const count = Object.values(map).filter(Boolean).length;
+  const legacy = await chrome.storage.session.get(KEY_STORE_KEY);
+  const hadLegacy = Boolean(legacy[KEY_STORE_KEY]);
+  if (count > 0 || hadLegacy) {
+    await chrome.storage.session.remove([KEY_STORE_V2, KEY_STORE_KEY]);
+  }
+  return count + (hadLegacy ? 1 : 0);
 }
 
 export async function loadStoredKey(rememberKey: boolean): Promise<string> {

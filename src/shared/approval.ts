@@ -4,7 +4,12 @@
 export type ApprovalPolicy = 'off' | 'sensitive' | 'all';
 
 /** Tool di sola lettura/passivi: mai soggetti ad approval nemmeno con policy 'all'. */
-const READONLY_TOOLS = new Set(['browser_snapshot', 'browser_tabs_list', 'browser_wait']);
+const READONLY_TOOLS = new Set([
+  'browser_snapshot',
+  'browser_iframe_snapshot',
+  'browser_tabs_list',
+  'browser_wait',
+]);
 
 export interface ApprovalContext {
   /** Domini già visitati in questo run (per capire se un dominio è "nuovo"). */
@@ -82,6 +87,9 @@ export function shouldApprove(
   }
   if (toolName === 'browser_reload') {
     return { needed: true, reason: 'Ricarica pagina (perde lo stato dei form)' };
+  }
+  if (toolName === 'browser_download') {
+    return { needed: true, reason: 'Download di un file dal sito' };
   }
   return { needed: false, reason: '' };
 }

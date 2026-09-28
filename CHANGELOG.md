@@ -1,5 +1,43 @@
 # Changelog — lmuse
 
+## 0.8.0 (2026-09-17) — Auto-lock, iframe, sicurezza
+
+Settimo loop: auto-lock della chiave di sessione, due nuovi tool, tre difetti
+di sicurezza corretti in red-team. 294 test.
+
+**Auto-lock chiave di sessione**
+
+- Nuova impostazione "Blocco automatico chiave": dopo 5/15/30/60 minuti di
+  **inattività** le chiavi in session storage vengono cancellate.
+- Default 0 (mai): cambia comportamento solo se lo attivi tu.
+- L'attività è tracciata dal pannello (throttled, 1 messaggio ogni 30s) e
+  confrontata con l'alarm: non è un timer fisso, si blocca quando lasci
+  davvero l'estensione. Un run in corso non viene mai interrupt.
+- **Agisce solo su `storage.session`**: se hai "Ricorda la chiave" attivo la
+  chiave vive in local e non viene toccata, perché quella è una tua scelta.
+
+**Nuovi tool (24 → 26)**
+
+- `browser_iframe_snapshot`: elementi dentro un iframe stesso-origin; su
+  cross-origin dice cosa fare invece (nessun tentativo di aggiramento).
+- `browser_download`: avvia il download di un link, senza permessi aggiuntivi.
+
+**Sicurezza (difetti trovati in red-team)**
+
+- `browser_download` chiede ora conferma con policy "Azioni sensibili": prima
+  scaricava file senza approvazione.
+- `browser_iframe_snapshot` è classificato sola lettura: mai conferma, nemmeno
+  con la policy più restrittiva.
+- Corretta la regressione che allegava uno snapshot della pagina principale
+  dopo lo snapshot iframe, invalidando i ref appena ottenuti.
+
+**Altro**
+
+- Stima dei token del task prima di avviarlo, con avviso se supera metà budget.
+- Avviso se il modello digitato non è nella lista models del provider.
+- Ricerca testuale nel log, combinabile con i filtri per tipo.
+- Test sui tool browser (`src/background/tools.test.ts`), prima assenti.
+
 ## 0.7.0 (2026-09-17) — Leggero, con coda e discovery
 
 Sesto loop da 100 migliorie (gigiloop): service worker −71%, model discovery,

@@ -51,11 +51,12 @@ src/shared/budget.ts        Budget tool-call per run (testato)
 src/shared/i18n.ts          Stringhe UI it/en
 src/background/providers.ts Crea il modello AI SDK (import dinamico per provider:
                             solo il chunk configurato, SW −71%)
-src/background/tools.ts     24 tool browser (snapshot, navigate, back/forward, reload,
+src/background/tools.ts     26 tool browser (snapshot, navigate, back/forward, reload,
                              click, type, select, wait, press, find, table, query,
-                             hover, clipboard×2, scroll, screenshot×2, read_text,
-                             links, tabs×4)
+                             hover, clipboard×2, iframe_snapshot, download, scroll,
+                             screenshot×2, read_text, links, tabs×4)
                             con approval+budget/circuit/errori, inject on-demand
+src/shared/lock.ts          Auto-lock chiave: decisione su inattività (pura, testata)
 src/background/agent.ts     ToolLoopAgent in streaming + token-guard + system prompt
 src/background/index.ts     Service worker: RUN/STOP, approval, stream, schedule, badge, inbox
 src/content/snapshot.ts     Distilla il DOM in albero [ref] compatti (redatto)
@@ -74,7 +75,7 @@ reference/nanobrowser/      Clone di riferimento (fuori git, opzionale):
 ```mermaid
 flowchart LR
     Panel -- RUN --> SW[ServiceWorker]
-    SW -- prompt + 21 tools --> LLM
+    SW -- prompt + 26 tools --> LLM
     LLM -- tool-call --> SW
     SW -- APPROVAL --> Panel
     Panel -- APPROVE/DENY --> SW
@@ -84,7 +85,7 @@ flowchart LR
 ```
 
 ```
-┌─────────┐  RUN(task)   ┌──────────────┐  prompt+21 tools ┌───────────┐
+┌─────────┐  RUN(task)   ┌──────────────┐  prompt+26 tools ┌───────────┐
 │  Panel  │ ──────────→ │ ServiceWorker │ ──────────────→ │   LLM     │
 │  React  │ ←────────── │  (RUN/STOP,   │ ←────────────── │ (provider │
 └─────────┘  STEP/DONE  │  approval,   │  tool-call      │  scelto)  │
@@ -166,6 +167,24 @@ il badge ✓ segnala la fine. Senza panel le approval hanno timeout 20s e defaul
   (mai la chiave), resta sul tuo PC.
 - **Hint rotazione chiave**: se salvata > 90 giorni, suggerimento in ⚙ (solo locale).
 
+## Auto-lock e tool nuovi (v0.8.0)
+
+**Blocco automatico chiave** (⚙): scegli 5/15/30/60 minuti o "Mai" (default).
+Dopo quel tempo di **inattività** le chiavi in session storage vengono cancellate.
+Tre dettagli che contano:
+
+- Non è un timer fisso: se stai usando lmuse il blocco non scatta, e se un task
+  è in esecuzione aspetta che finisca.
+- Riguarda **solo** le chiavi di sessione. Con "Ricorda la chiave" attivo quella
+  chiave vive in `chrome.storage.local` e non viene toccata (è una tua scelta):
+  l'etichetta lo dice per evitare sorprese.
+- Per capire l'inattività lmuse salva un solo orario in session storage, nient'altro.
+
+**Nuovi tool**: `browser_iframe_snapshot` legge dentro un iframe stesso-origin
+(su cross-origin spiega di navigare l'URL dell'iframe invece di aggirarlo) e
+`browser_download` avvia il download di un link. Il download chiede conferma con
+la policy "Azioni sensibili"; lo snapshot iframe è sola lettura.
+
 ## Cosa vede il modello
 
 Per ogni passo: testo del task, snapshot testuale della pagina (URL, titolo, elementi
@@ -223,6 +242,7 @@ quando non servono. "Cancella tutti i dati" azzera anche le statistiche.
 | compactLog           | false        | nasconde il chatter tool nel log     |
 | lastRuns             | []           | ultimi 10 run (auto)                 |
 | schedules            | []           | task programmati, max 5              |
+| sessionLockMin       | 0 (0–120)    | auto-lock chiave di sessione, su inattività |
 
 ## Comandi tastiera
 

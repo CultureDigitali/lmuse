@@ -36,7 +36,9 @@ import {
 import { exportProfile, validateProfile } from '../shared/profile';
 import { buildLogMarkdown } from '../shared/log-export';
 import { formatNextRun, validateSchedule } from '../shared/schedules';
+import { filterLogEntries, type LogFilterKind } from '../shared/log-filter';
 import { formatElapsed } from '../shared/approval';
+import { estimateTokens, tokenEstimateHigh } from '../shared/budget';
 import { t, type Lang } from '../shared/i18n';
 import { mapBridgeCredentials, matchBridgeProviders } from '../shared/opencode';
 
@@ -47,7 +49,7 @@ interface LogEntry {
   at: number;
 }
 
-type LogFilter = 'all' | 'tools' | 'errors';
+type LogFilter = LogFilterKind;
 
 interface PendingApproval {
   id: string;
@@ -103,6 +105,7 @@ export default function App() {
   const [onboarded, setOnboardedState] = useState(true);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [logFilter, setLogFilter] = useState<LogFilter>('all');
+  const [logSearch, setLogSearch] = useState('');
   const [activeHost, setActiveHost] = useState('');
   const [testing, setTesting] = useState(false);
   const [rememberDomain, setRememberDomain] = useState(false);
@@ -252,7 +255,6 @@ export default function App() {
       if (!key && getProvider(s.providerId).needsKey) setShowSettings(true);
       setHistory(await loadHistory());
       setInbox(await loadInbox());
-      setModelCache(await loadModelsCache(s.providerId));
       setUsage(await loadUsage());
       setOnboardedState(await isOnboarded());
       const rs = await loadRunState();
@@ -332,6 +334,24 @@ export default function App() {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  // --- Auto-lock: segnala attività al worker, throttled (max 1 msg / 30s) ---
+  useEffect(() => {
+    if (settingsRef.current.sessionLockMin < 1) return;
+    let last = 0;
+    const ping = () => {
+      const now = Date.now();
+      if (now - last < 30_000) return;
+      last = now;
+      void chrome.runtime.sendMessage({ type: 'TOUCH_ACTIVITY' }).catch(() => undefined);
+    };
+    const events: (keyof WindowEventMap)[] = ['pointerdown', 'keydown', 'wheel', 'focus'];
+    for (const ev of events) window.addEventListener(ev, ping, { passive: true });
+    ping();
+    return () => {
+      for (const ev of events) window.removeEventListener(ev, ping);
+    };
   }, []);
 
   function refreshHistory() {
@@ -430,7 +450,7 @@ export default function App() {
     // Chiave per-provider: mostra subito quella salvata per il nuovo provider.
     void loadApiKey(id, settings.rememberKey).then((k) => setApiKey(k));
     // Cache modelli del nuovo provider.
-    void loadModelsCache(id).then((m) => setModelCache(m));
+    setModelCache({ providerId: id, models: [] });
     setModelsNotice(null);
   }
 
@@ -450,11 +470,28 @@ export default function App() {
   const rotationDue = keyRotationDue(keySavedAt);
 
   // --- Model discovery: GET {baseUrl}/models → cache locale + datalist ---
-  const [modelCache, setModelCache] = useState<string[]>([]);
+  const [modelCache, setModelCache] = useState<{ providerId: ProviderId; models: string[] }>({
+    providerId: settings.providerId,
+    models: [],
+  });
   const [fetchingModels, setFetchingModels] = useState(false);
   const [modelsNotice, setModelsNotice] = useState<string | null>(null);
+  const cachedModels = modelCache.providerId === settings.providerId ? modelCache.models : [];
+
+  useEffect(() => {
+    let disposed = false;
+    const providerId = settings.providerId;
+    setModelsNotice(null);
+    void loadModelsCache(providerId).then((models) => {
+      if (!disposed) setModelCache({ providerId, models });
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [settings.providerId]);
 
   function fetchModelsList() {
+    const providerId = settings.providerId;
     setFetchingModels(true);
     setModelsNotice(null);
     chrome.runtime
@@ -463,10 +500,13 @@ export default function App() {
         const r = res as { ok: boolean; models?: string[]; error?: string } | undefined;
         if (!r) throw new Error('Service worker non raggiungibile.');
         if (!r.ok) throw new Error(r.error ?? 'Errore modelli.');
-        setModelCache(r.models ?? []);
-        setModelsNotice(t(lang, 'models_updated', { n: (r.models ?? []).length }));
+        if (settingsRef.current.providerId !== providerId) return;
+        setModelCache({ providerId, models: r.models ?? [] });
+        setModelsNotice(t(langRef.current, 'models_updated', { n: (r.models ?? []).length }));
       })
-      .catch((e: unknown) => setModelsNotice(String((e as Error).message)))
+      .catch((e: unknown) => {
+        if (settingsRef.current.providerId === providerId) setModelsNotice(String((e as Error).message));
+      })
       .finally(() => setFetchingModels(false));
   }
 
@@ -734,6 +774,10 @@ export default function App() {
   const provider = getProvider(settings.providerId);
   const showBaseUrl = ['azure', 'custom'].includes(settings.providerId) || !!provider.defaultBaseUrl;
   const configured = !provider.needsKey || apiKey.trim().length > 0;
+  const taskTokenEstimate = estimateTokens(task.trim().slice(0, MAX_TASK_CHARS));
+  const taskTokenEstimateHigh = tokenEstimateHigh(taskTokenEstimate, settings.maxTokensPerRun);
+  const modelNotInList =
+    cachedModels.length > 0 && settings.model.trim().length > 0 && !cachedModels.includes(settings.model.trim());
 
   return (
     <div className="app">
@@ -932,12 +976,25 @@ export default function App() {
               </button>
             </span>
             <datalist id="lmuse-models">
-              {[...new Set([...modelCache, ...provider.models])].map((m) => (
+              {[...new Set([...cachedModels, ...provider.models])].map((m) => (
                 <option key={m} value={m} />
               ))}
             </datalist>
             {modelsNotice && <span className="muted">{modelsNotice}</span>}
           </label>
+          {modelNotInList && (
+            <div className="warn" role="status">
+              {t(lang, 'model_not_in_list')}{' '}
+              <button
+                type="button"
+                className="secondary xs"
+                onClick={fetchModelsList}
+                disabled={fetchingModels}
+              >
+                {t(lang, 'update_models')}
+              </button>
+            </div>
+          )}
           {provider.needsKey && (
             <label>
               {t(lang, 'api_key')}
@@ -970,6 +1027,19 @@ export default function App() {
               onChange={(e) => void onToggleRemember(e.target.checked)}
             />
             {t(lang, 'remember_key')}
+          </label>
+          <label>
+            {t(lang, 'session_lock_label')}
+            <select
+              value={String(settings.sessionLockMin)}
+              onChange={(e) => update({ sessionLockMin: Number(e.target.value) || 0 })}
+            >
+              {[0, 5, 15, 30, 60].map((m) => (
+                <option key={m} value={m}>
+                  {m === 0 ? t(lang, 'session_lock_off') : t(lang, 'session_lock_min', { n: m })}
+                </option>
+              ))}
+            </select>
           </label>
           <div className="btn-row">
             <button type="button" className="secondary" onClick={() => void onClearKey()}>
@@ -1339,13 +1409,20 @@ export default function App() {
             <select
               value={logFilter}
               onChange={(e) => setLogFilter(e.target.value as LogFilter)}
-              aria-label="Filtro log"
+              aria-label={t(lang, 'filter_log')}
               className="secondary xs"
             >
               <option value="all">{t(lang, 'filter_all')}</option>
               <option value="tools">{t(lang, 'filter_tools')}</option>
               <option value="errors">{t(lang, 'filter_errors')}</option>
             </select>
+            <input
+              type="search"
+              value={logSearch}
+              onChange={(e) => setLogSearch(e.target.value)}
+              placeholder={t(lang, 'search_log')}
+              aria-label={t(lang, 'search_log')}
+            />
             <button type="button" className="secondary xs" onClick={downloadLog}>
               {t(lang, 'download_log')}
             </button>
@@ -1440,14 +1517,8 @@ export default function App() {
             )}
           </>
         )}
-        {log
-          .filter((entry) => {
-            if (settings.compactLog && (entry.kind === 'tool' || entry.kind === 'info')) return false;
-            if (logFilter === 'tools') return entry.kind === 'tool' || entry.kind === 'info';
-            if (logFilter === 'errors') return entry.kind === 'error';
-            return true;
-          })
-          .map((entry) => (
+        {filterLogEntries(log, { kind: logFilter, query: logSearch, hideTools: settings.compactLog }).map(
+          (entry) => (
             <div
               key={entry.id}
               className={`msg ${entry.kind}`}
@@ -1495,6 +1566,12 @@ export default function App() {
           <span className="muted counter">
             {task.length}/{MAX_TASK_CHARS}
           </span>
+          {task.trim() && (
+            <span className={taskTokenEstimateHigh ? 'warn' : 'muted'} role="status">
+              {t(lang, 'token_estimate', { n: taskTokenEstimate })}
+              {taskTokenEstimateHigh && ` ${t(lang, 'token_estimate_high')}`}
+            </span>
+          )}
         </div>
         {running ? (
           <>

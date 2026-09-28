@@ -1,5 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { FailureCircuit, ToolBudget } from './budget';
+import { estimateTokens, FailureCircuit, tokenEstimateHigh, ToolBudget } from './budget';
+
+describe('estimateTokens', () => {
+  it.each([
+    ['', 0],
+    ['abcd', 1],
+    ['abcde', 2],
+    ['x'.repeat(4000), 1000],
+  ])('stima per %j: %i token', (text, expected) => {
+    expect(estimateTokens(text)).toBe(expected);
+  });
+});
+
+describe('tokenEstimateHigh', () => {
+  it('segnala solo stime oltre metà budget', () => {
+    expect(tokenEstimateHigh(499, 1000)).toBe(false);
+    expect(tokenEstimateHigh(500, 1000)).toBe(false);
+    expect(tokenEstimateHigh(501, 1000)).toBe(true);
+  });
+});
 
 describe('ToolBudget', () => {
   it('rifiuta max non validi', () => {

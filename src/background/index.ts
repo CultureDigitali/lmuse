@@ -9,6 +9,7 @@ import {
   clearAllData,
   clearQueue,
   clearRunState,
+  clearSessionKeys,
   getProvider,
   loadApiKey,
   loadInbox,
@@ -25,6 +26,7 @@ import {
 } from '../shared/settings';
 import { canStartRun, approvalTimeoutFor, isPlausibleKey } from '../shared/approval';
 import { mapProviderError } from '../shared/errors';
+import { ACTIVITY_KEY, LOCK_ALARM, decideSessionLock, lockAlarmDelay } from '../shared/lock';
 import { maskPii } from '../shared/pii';
 import { sanitizeTaskText } from '../shared/task';
 import { buildLastRuns } from '../shared/settings';
@@ -160,6 +162,12 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
     void syncAlarms().then(() => sendResponse({ ok: true }));
     return true;
   }
+  if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'TOUCH_ACTIVITY') {
+    void chrome.storage.session
+      .set({ [ACTIVITY_KEY]: Date.now() })
+      .then(() => sendResponse({ ok: true }));
+    return true;
+  }
   if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'CLEAR_QUEUE') {
     void clearQueue().then(() => sendResponse({ ok: true }));
     return true;
@@ -271,9 +279,44 @@ async function fetchModels(): Promise<string[]> {
   for (const s of settings.schedules.filter((x) => x.enabled).slice(0, 5)) {
     await chrome.alarms.create(`lmuse-${s.id}`, { periodInMinutes: s.intervalMin });
   }
+  const lock = lockAlarmDelay(settings.sessionLockMin);
+  if (lock) await chrome.alarms.create(LOCK_ALARM, lock);
+}
+
+/**
+ * Auto-lock: se l'utente è inattivo da troppo tempo, cancella le chiavi che
+ * vivono in session storage. Un run in corso non viene toccato (la chiave
+ * serve al provider). Le chiavi ricordate in local non sono toccate: sono una
+ * scelta esplicita dell'utente, l'auto-lock protegge la sessione.
+ */
+async function checkSessionLock(): Promise<void> {
+  const settings = await loadSettings();
+  const stored = await chrome.storage.session.get(ACTIVITY_KEY);
+  const raw = stored[ACTIVITY_KEY];
+  const lastActivity = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+  const decision = decideSessionLock(lastActivity, settings.sessionLockMin, Date.now());
+  if (decision.lock) {
+    if (running) return;
+    const cleared = await clearSessionKeys().catch(() => 0);
+    if (cleared > 0) {
+      await chrome.storage.session.remove(ACTIVITY_KEY);
+      broadcast({
+        type: 'ERROR',
+        message: `Chiave di sessione bloccata dopo ${settings.sessionLockMin} minuti di inattività: reinseriscila per continuare.`,
+      });
+    }
+    return;
+  }
+  if (decision.retryInMin > 0) {
+    await chrome.alarms.create(LOCK_ALARM, { periodInMinutes: decision.retryInMin });
+  }
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === LOCK_ALARM) {
+    void checkSessionLock();
+    return;
+  }
   if (!alarm.name.startsWith('lmuse-')) return;
   void (async () => {
     const settings = await loadSettings();

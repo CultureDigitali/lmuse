@@ -51,6 +51,23 @@ nel record del provider in uso alla prima lettura.
 "**Cancella tutti i dati**" (⚙, con conferma) svuota chiavi, impostazioni, cronologia,
 inbox, statistiche uso e flag onboarding.
 
+### Blocco automatico della chiave (v0.8.0)
+
+L'opzione "Blocco automatico chiave" cancella le chiavi dopo 5/15/30/60 minuti di
+**inattività**. Per capire l'inattività, lmuse registra solo un orario
+(`lmuse.activity.v1`, in `chrome.storage.session`): non sa cosa stai facendo, non
+sa quali pagine visiti, non registra nulla di personale. L'orologio viene azzerato
+a ogni interazione col pannello e non viene inviato ad alcun server.
+
+Due limiti da conoscere:
+
+- **Riguarda solo `storage.session`.** Se "Ricorda la chiave" è attivo, la chiave
+  sta in `chrome.storage.local` e l'auto-lock non la tocca: ricordarla è una tua
+  scelta esplicita. Per proteggere anche quella chiave usa "Cancella chiave" o
+  disattiva "Ricorda la chiave".
+- **Non è un timer fisso.** Se stai usando l'estensione, il blocco non scatta; se
+  un task è in esecuzione, il blocco attende che finisca.
+
 ## Bridge opencode (opt-in, solo se installato da te)
 
 Se esegui `pnpm setup:opencode`, l'estensione può chiedere al native host

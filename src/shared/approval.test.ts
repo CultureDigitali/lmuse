@@ -49,9 +49,14 @@ describe('shouldApprove', () => {
     expect(shouldApprove('browser_press', { key: 'Escape' }, 'sensitive', EMPTY).needed).toBe(false);
     expect(shouldApprove('browser_read_text', {}, 'sensitive', EMPTY).needed).toBe(false);
   });
-  it('all: tutto tranne snapshot, tabs_list e wait', () => {
+  it('sensitive: download sì, iframe_snapshot no (sola lettura)', () => {
+    expect(shouldApprove('browser_download', { ref: 1 }, 'sensitive', EMPTY).needed).toBe(true);
+    expect(shouldApprove('browser_iframe_snapshot', { index: 0 }, 'sensitive', EMPTY).needed).toBe(false);
+  });
+  it('all: tutto tranne snapshot, iframe_snapshot, tabs_list e wait', () => {
     expect(shouldApprove('browser_click', { ref: 1 }, 'all', EMPTY).needed).toBe(true);
     expect(shouldApprove('browser_snapshot', {}, 'all', EMPTY).needed).toBe(false);
+    expect(shouldApprove('browser_iframe_snapshot', { index: 0 }, 'all', EMPTY).needed).toBe(false);
     expect(shouldApprove('browser_tabs_list', {}, 'all', EMPTY).needed).toBe(false);
     expect(shouldApprove('browser_wait', {}, 'all', EMPTY).needed).toBe(false);
   });

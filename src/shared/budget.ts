@@ -60,3 +60,15 @@ export class FailureCircuit {
     this.consecutive += 1;
   }
 }
+
+// --- Stima token (solo locale, pura): ~4 caratteri per token ---
+
+/** Stima approssimativa dei token di un testo (chars/4, testata). */
+export function estimateTokens(text: string): number {
+  return Math.ceil((text ?? '').length / 4);
+}
+
+/** Soglia di avviso: stima oltre la metà del budget run. Pura, testata. */
+export function tokenEstimateHigh(estimate: number, maxTokensPerRun: number): boolean {
+  return estimate > maxTokensPerRun / 2;
+}
