@@ -91,6 +91,9 @@ export function shouldApprove(
   if (toolName === 'browser_download') {
     return { needed: true, reason: 'Download di un file dal sito' };
   }
+  if (toolName === 'browser_clipboard_read') {
+    return { needed: true, reason: 'Lettura degli appunti (può contenere dati personali)' };
+  }
   return { needed: false, reason: '' };
 }
 

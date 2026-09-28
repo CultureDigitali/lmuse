@@ -86,7 +86,7 @@ Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 67. ✅ Semantica esplicita: auto-lock agisce SOLO su storage.session
        (chiavi ricordate in local non sono toccate) — etichetta "solo sessione"
        + test di regressione. Difetto trovato in red-team.
-68. ⬜ PRIVACY/GUIDA: da scrivere alla chiusura.
+68. ✅ PRIVACY/GUIDA: auto-lock documentato (limiti espliciti in entrambi).
 
 ## Extra trovati in red-team (fuori piano)
 - ✅ Regressione `browser_iframe_snapshot`: `acted()` allegava lo snapshot della

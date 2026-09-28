@@ -49,9 +49,16 @@ describe('shouldApprove', () => {
     expect(shouldApprove('browser_press', { key: 'Escape' }, 'sensitive', EMPTY).needed).toBe(false);
     expect(shouldApprove('browser_read_text', {}, 'sensitive', EMPTY).needed).toBe(false);
   });
-  it('sensitive: download sì, iframe_snapshot no (sola lettura)', () => {
+  it('sensitive: download e clipboard_read sì, iframe_snapshot no (sola lettura)', () => {
     expect(shouldApprove('browser_download', { ref: 1 }, 'sensitive', EMPTY).needed).toBe(true);
+    expect(shouldApprove('browser_clipboard_read', {}, 'sensitive', EMPTY).needed).toBe(true);
     expect(shouldApprove('browser_iframe_snapshot', { index: 0 }, 'sensitive', EMPTY).needed).toBe(false);
+  });
+  it('click e clipboard_write NON chiedono conferma con sensitive (solo con all)', () => {
+    expect(shouldApprove('browser_click', { ref: 1 }, 'sensitive', EMPTY).needed).toBe(false);
+    expect(shouldApprove('browser_clipboard_write', { text: 'x' }, 'sensitive', EMPTY).needed).toBe(false);
+    expect(shouldApprove('browser_click', { ref: 1 }, 'all', EMPTY).needed).toBe(true);
+    expect(shouldApprove('browser_clipboard_write', { text: 'x' }, 'all', EMPTY).needed).toBe(true);
   });
   it('all: tutto tranne snapshot, iframe_snapshot, tabs_list e wait', () => {
     expect(shouldApprove('browser_click', { ref: 1 }, 'all', EMPTY).needed).toBe(true);

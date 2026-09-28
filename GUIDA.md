@@ -331,14 +331,14 @@ verify-dist → size → links → audit → secret-scan) + job e2e separato
 - [x] Cronologia task locale (max 20)
 - [x] Approvazione umana per azioni sensibili
 - [x] Test e2e smoke (resta: pubblicazione Chrome Web Store con listing definitivi)
-- [ ] Streaming dei token nel pannello (oggi: eventi per tool + risposta finale)
+- [x] Streaming live della risposta nel pannello (v0.5.0)
 - [ ] `optional_host_permissions` con consenso per-sito (alternativa a `<all_urls>`)
 - [ ] Modalità senza chiave via Chrome Built-in AI (Prompt API, Gemini Nano locale)
 - [ ] Offscreen document per task molto lunghi (il worker MV3 può addormentarsi)
 
 ## Stato onesto
 
-`pnpm check` verde (typecheck + 199 test + lint + build), e2e smoke verde con a11y
-su Chromium, coverage shared > 90%, Prettier verde, CI attiva.
+`pnpm check` verde (typecheck + 294 test + lint + build), e2e smoke verde con a11y
+su Chromium, coverage `src/shared` 94%, Prettier verde, CI attiva.
 Il giro completo con chiave reale va provato caricando `dist/` in Chrome: se un provider
 cambia formato risposta, si aggiusta in `providers.ts`.

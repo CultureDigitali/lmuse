@@ -1,6 +1,6 @@
 # Changelog — lmuse
 
-## 0.8.0 (2026-09-17) — Auto-lock, iframe, sicurezza
+## 0.8.0 (2026-09-28) — Auto-lock, iframe, sicurezza
 
 Settimo loop: auto-lock della chiave di sessione, due nuovi tool, tre difetti
 di sicurezza corretti in red-team. 294 test.
@@ -30,6 +30,8 @@ di sicurezza corretti in red-team. 294 test.
   con la policy più restrittiva.
 - Corretta la regressione che allegava uno snapshot della pagina principale
   dopo lo snapshot iframe, invalidando i ref appena ottenuti.
+- `browser_clipboard_read` ora chiede conferma anche con la policy predefinita:
+  la documentazione lo dichiarava già, ma il codice non lo applicava.
 
 **Altro**
 
@@ -55,7 +57,8 @@ coda task, nuovi tool, export log markdown, hint rotazione chiave.
 - **Coda task**: quando un task è in esecuzione, "Metti in coda" aggiunge il
   prossimo (max 5); parte in sequenza a fine run, mai dopo STOP esplicito.
 - **Nuovi tool (21 → 24)**: `browser_hover` (menu/tooltip),
-  `browser_clipboard_write`, `browser_clipboard_read` (conferma sensitive).
+  `browser_clipboard_write`, `browser_clipboard_read` (la lettura degli appunti
+  chiede conferma: può contenere dati personali).
   Drag sintetico saltato: inaffidabile con framework (decisione documentata).
 - **Export log markdown**: header con data/provider/modello (mai la chiave).
 - **Hint rotazione chiave**: se la chiave è stata salvata > 90gg, suggerimento
