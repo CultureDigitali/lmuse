@@ -4,7 +4,8 @@
 
 ```bash
 pnpm install
-pnpm check          # typecheck + test + lint + build (gate prima di ogni commit)
+pnpm check          # typecheck + test + lint + format:check + build +
+                    # verify-dist + check-size + check-links (gate prima di ogni commit)
 pnpm test           # vitest (199+ test)
 pnpm test:coverage  # coverage v8, soglie 85/85/80 su src/shared
 pnpm test:e2e        # smoke su Chromium reale (auto-scaricato in ~/.cache)

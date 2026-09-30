@@ -13,13 +13,13 @@ programmati, find/table/query, shadow DOM, run history, import/export profilo.
 
 ## Rubric (post-reconcile)
 
-| Criterio | Peso | Evidenza | Score |
-|---|---:|---|---|
-| Sicurezza | 30% | validate/import/query testati, audit grep, CI scan+no-remote | 9/10 |
-| Privacy | 25% | export/import/stream/schedule testati e documentati | 9/10 |
-| Robustezza | 25% | 199/199 test, e2e 7/7, stream, schedule, circuit | 9/10 |
-| Qualità | 10% | axe, chromium-age, links, CONTRIBUTING, STORE, tag+Release | 9/10 |
-| Documentazione | 10% | GUIDA(mermaid)/README/PRIVACY/SECURITY/CHANGELOG coerenti | 9/10 |
+| Criterio       | Peso | Evidenza                                                     | Score |
+| -------------- | ---: | ------------------------------------------------------------ | ----- |
+| Sicurezza      |  30% | validate/import/query testati, audit grep, CI scan+no-remote | 9/10  |
+| Privacy        |  25% | export/import/stream/schedule testati e documentati          | 9/10  |
+| Robustezza     |  25% | 199/199 test, e2e 7/7, stream, schedule, circuit             | 9/10  |
+| Qualità        |  10% | axe, chromium-age, links, CONTRIBUTING, STORE, tag+Release   | 9/10  |
+| Documentazione |  10% | GUIDA(mermaid)/README/PRIVACY/SECURITY/CHANGELOG coerenti    | 9/10  |
 
 **Post-reconcile: 9.0/10.** Residui: prompt injection intrinseca, `<all_urls>`,
 stream/tool-callback su `stream()` da confermare con chiave reale (typecheck ok,

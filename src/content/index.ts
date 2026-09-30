@@ -299,7 +299,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
           const a = el.closest('a[href]') as HTMLAnchorElement | null;
           if (!a) throw new Error('Il ref non è un link.');
           const isDownload =
-            a.hasAttribute('download') || /\.(pdf|zip|csv|xlsx?|docx?|png|jpe?g|svg|mp3|mp4|json|txt)(\?|$)/i.test(a.href);
+            a.hasAttribute('download') ||
+            /\.(pdf|zip|csv|xlsx?|docx?|png|jpe?g|svg|mp3|mp4|json|txt)(\?|$)/i.test(a.href);
           clickElement(el);
           reply({
             ok: true,

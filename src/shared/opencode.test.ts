@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  bridgeErrorKey,
-  BridgePayloadSchema,
-  mapBridgeCredentials,
-  matchBridgeProviders,
-} from './opencode';
+import { bridgeErrorKey, BridgePayloadSchema, mapBridgeCredentials, matchBridgeProviders } from './opencode';
 
 describe('BridgePayloadSchema', () => {
   it('accetta ping/list/export validi', () => {
@@ -25,8 +20,7 @@ describe('BridgePayloadSchema', () => {
       false,
     );
     expect(
-      BridgePayloadSchema.safeParse({ ok: true, credentials: [{ id: 'x', key: 'k'.repeat(5000) }] })
-        .success,
+      BridgePayloadSchema.safeParse({ ok: true, credentials: [{ id: 'x', key: 'k'.repeat(5000) }] }).success,
     ).toBe(false);
   });
 });

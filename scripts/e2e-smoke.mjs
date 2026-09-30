@@ -10,24 +10,50 @@ import puppeteer from 'puppeteer-core';
 const root = join(import.meta.dirname, '..');
 const dist = join(root, 'dist');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-// Chromium snapshot pinnato: Google Chrome branded blocca --load-extension,
-// Chromium no. Se manca: `node -e "import('@puppeteer/browsers')..."` (vedi CI).
-export const CHROMIUM_BUILD = '1698520';
-export const CHROMIUM_PIN_DATE = '2026-09-16';
+// Browser pinnato per e2e. Google Chrome branded blocca --load-extension;
+// "Chrome for Testing" è la build non marchiata usata per l'automazione e lo
+// consente. Va preso dal bucket chrome-for-testing, che pubblica sia Linux
+// sia macOS (il vecchio bucket chromium-browser-snapshots non ha più build
+// per Linux: era la causa del fallimento della CI).
+export const BROWSER_VERSION = '155.0.8059.12';
+export const CHROMIUM_PIN_DATE = '2026-09-28';
 
-function cachedChromium() {
-  const base = join(homedir(), '.cache', 'puppeteer', 'chromium');
-  try {
-    for (const dir of readdirSync(base)) {
-      for (const exe of [
-        join(base, dir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
-        join(base, dir, 'chrome-linux', 'chrome'),
-      ]) {
-        if (existsSync(exe)) return exe;
+function cachedBrowser() {
+  const base = join(homedir(), '.cache', 'puppeteer');
+  for (const flavour of ['chrome', 'chromium']) {
+    try {
+      for (const dir of readdirSync(join(base, flavour))) {
+        for (const exe of [
+          join(base, flavour, dir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+          join(
+            base,
+            flavour,
+            dir,
+            'chrome-mac-arm64',
+            'Google Chrome for Testing.app',
+            'Contents',
+            'MacOS',
+            'Google Chrome for Testing',
+          ),
+          join(
+            base,
+            flavour,
+            dir,
+            'chrome-mac-x64',
+            'Google Chrome for Testing.app',
+            'Contents',
+            'MacOS',
+            'Google Chrome for Testing',
+          ),
+          join(base, flavour, dir, 'chrome-linux64', 'chrome'),
+          join(base, flavour, dir, 'chrome-linux', 'chrome'),
+        ]) {
+          if (existsSync(exe)) return exe;
+        }
       }
+    } catch {
+      /* cache assente */
     }
-  } catch {
-    /* cache assente */
   }
   return '';
 }
@@ -35,9 +61,9 @@ function cachedChromium() {
 function findChrome() {
   if (process.env.CHROME_PATH && existsSync(process.env.CHROME_PATH)) return process.env.CHROME_PATH;
   return (
-    cachedChromium() ||
+    cachedBrowser() ||
     (existsSync('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
-      ? '(branded: --load-extension bloccato, usa Chromium in cache)'
+      ? '(branded: --load-extension bloccato, usa Chrome for Testing in cache)'
       : '')
   );
 }
@@ -45,8 +71,8 @@ function findChrome() {
 const executablePath = findChrome();
 if (!executablePath || executablePath.startsWith('(branded')) {
   console.error(
-    'e2e: serve Chromium (Google Chrome branded blocca --load-extension). ' +
-      `Scarica: node -e "import('@puppeteer/browsers').then(async (m) => { const {homedir} = await import('node:os'); const {join} = await import('node:path'); await m.install({browser: m.Browser.CHROMIUM, buildId: '${CHROMIUM_BUILD}', cacheDir: join(homedir(), '.cache', 'puppeteer')}); })"`,
+    'e2e: serve Chrome for Testing (Google Chrome branded blocca --load-extension). ' +
+      `Scarica: node -e "import('@puppeteer/browsers').then(async (m) => { const {homedir} = await import('node:os'); const {join} = await import('node:path'); await m.install({browser: m.Browser.CHROME, buildId: '${BROWSER_VERSION}', cacheDir: join(homedir(), '.cache', 'puppeteer')}); })"`,
   );
   process.exit(2);
 }

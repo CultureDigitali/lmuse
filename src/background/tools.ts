@@ -468,8 +468,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     }),
 
     browser_hover: tool({
-      description:
-        'Passa il mouse su un elemento (ref dallo snapshot): apre menu, tooltip, hover-state.',
+      description: 'Passa il mouse su un elemento (ref dallo snapshot): apre menu, tooltip, hover-state.',
       inputSchema: z.object({ ref: z.number().int().describe('Ref numerico dallo snapshot') }),
       execute: async ({ ref }: { ref: number }) => {
         await approved('browser_hover', { ref }, `Hover su [${ref}]`);

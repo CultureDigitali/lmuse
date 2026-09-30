@@ -25,11 +25,7 @@ export interface LockDecision {
  * - scaduto             → blocca.
  * - ancora valido        → non bloccare, riprova più avanti.
  */
-export function decideSessionLock(
-  lastActivity: number | null,
-  lockMin: number,
-  now: number,
-): LockDecision {
+export function decideSessionLock(lastActivity: number | null, lockMin: number, now: number): LockDecision {
   if (lockMin < LOCK_MIN_MINUTES) return { lock: false, retryInMin: 0 };
   if (lastActivity == null) return { lock: false, retryInMin: 0 };
   const idleMin = (now - lastActivity) / 60_000;

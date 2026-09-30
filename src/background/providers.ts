@@ -35,9 +35,7 @@ export async function createModel(settings: Settings, apiKey: string): Promise<L
       return (await import('@ai-sdk/azure')).createAzure({ apiKey, baseURL: baseUrl })(model);
     },
     openrouter: async () =>
-      (
-        await import('@ai-sdk/openai-compatible')
-      ).createOpenAICompatible({
+      (await import('@ai-sdk/openai-compatible')).createOpenAICompatible({
         name: 'openrouter',
         apiKey,
         baseURL: baseUrl || 'https://openrouter.ai/api/v1',

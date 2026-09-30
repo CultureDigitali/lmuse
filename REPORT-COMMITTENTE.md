@@ -43,23 +43,23 @@ prima delle azioni delicate.
 Il lavoro è stato condotto con un metodo iterativo e verificato: **sette cicli
 successivi**, ciascuno con una lista di 100 attività definite in anticipo, ciascuna
 attività chiusa solo dopo aver superato i controlli automatici di qualità. Sono state
- pianificate e tracciate **700 attività** complessive.
+pianificate e tracciate **700 attività** complessive.
 
 Risultati principali:
 
-| Indicatore | Valore |
-|---|---|
-| Versioni rilasciate | 7 (da 0.2.0 a 0.8.0) |
-| Attività pianificate e tracciate | 700 |
-| Test automatici in verde | 295 |
-| Copertura misurata (`src/shared`, 2.014 righe = 33% del sorgente) | 96,4% delle righe |
-| Copertura dei rami decisionali | 89,1% |
-| Strumenti operativi per l'agente | 26 |
-| Modelli LLM supportati | 25 |
-| Codice sorgente | 6.138 righe (26 file) |
-| Codice di test | 1.872 righe (24 file) |
-| Accessibilità (verifica automatizzata) | 0 violazioni serie |
-| Server propri, telemetria, tracciamento | nessuno |
+| Indicatore                                                        | Valore                |
+| ----------------------------------------------------------------- | --------------------- |
+| Versioni rilasciate                                               | 7 (da 0.2.0 a 0.8.0)  |
+| Attività pianificate e tracciate                                  | 700                   |
+| Test automatici in verde                                          | 295                   |
+| Copertura misurata (`src/shared`, 2.014 righe = 33% del sorgente) | 96,4% delle righe     |
+| Copertura dei rami decisionali                                    | 89,1%                 |
+| Strumenti operativi per l'agente                                  | 26                    |
+| Modelli LLM supportati                                            | 25                    |
+| Codice sorgente                                                   | 6.138 righe (26 file) |
+| Codice di test                                                    | 1.872 righe (24 file) |
+| Accessibilità (verifica automatizzata)                            | 0 violazioni serie    |
+| Server propri, telemetria, tracciamento                           | nessuno               |
 
 **Punto chiave per l'Amministrazione:** il progetto è stato realizzato interamente
 con il modello «chiave propria» (c-BYOK): **l'Amministrazione non deve fornire
@@ -77,13 +77,13 @@ prosecuzione.
 
 Il rapporto è pensato per lettori diversi. I percorsi consigliati:
 
-| Se lei è… | legga prima | in particolare |
-|---|---|---|
-| Dirigente di servizio | § 1, § 3, § 4 | cosa fa, a cosa serve, quanto costa |
-| Responsabile della protezione dei dati | § 10, § 17, § 21 | dove finiscono i dati, rischi, punti di controllo |
-| Responsabile della sicurezza informatica | § 9, § 12, § 16, § 17 | permessi, difese, verifiche, rischi residui |
-| Referente tecnico che dovrà installarlo | § 19, § 20 | installazione, collaudo guidato passo per passo |
-| Chi non è del mestiere | § 1, § 3 e la **Appendice D** (glossario) | il significato dei termini tecnici |
+| Se lei è…                                | legga prima                               | in particolare                                    |
+| ---------------------------------------- | ----------------------------------------- | ------------------------------------------------- |
+| Dirigente di servizio                    | § 1, § 3, § 4                             | cosa fa, a cosa serve, quanto costa               |
+| Responsabile della protezione dei dati   | § 10, § 17, § 21                          | dove finiscono i dati, rischi, punti di controllo |
+| Responsabile della sicurezza informatica | § 9, § 12, § 16, § 17                     | permessi, difese, verifiche, rischi residui       |
+| Referente tecnico che dovrà installarlo  | § 19, § 20                                | installazione, collaudo guidato passo per passo   |
+| Chi non è del mestiere                   | § 1, § 3 e la **Appendice D** (glossario) | il significato dei termini tecnici                |
 
 **Le tre domande a cui il documento dà risposta esplicita:**
 
@@ -173,7 +173,7 @@ fornitore di modelli.
 
 ### 3.1 Ricognizione e sintesi su fonti pubbliche
 
-*Esempio:* «Vai sul sito dell'ente, apri l'avviso del 2026, riassumimi scadenze e
+_Esempio:_ «Vai sul sito dell'ente, apri l'avviso del 2026, riassumimi scadenze e
 soggetti in cinque punti».
 
 **Perché interessa.** Il sito dell'ente è per definizione dentro il perimetro
@@ -185,7 +185,7 @@ sintetizza, non trasmette.
 
 ### 3.2 Raccolta dati da più fonti e tabulazione
 
-*Esempio:* «Confronta i dati pubblicati su tre portali e mettimi in tabella
+_Esempio:_ «Confronta i dati pubblicati su tre portali e mettimi in tabella
 le date di aggiornamento».
 
 **Capacità richieste:** navigazione, estrazione di tabelle, lettura di collegamenti,
@@ -197,7 +197,7 @@ richiesta. Con modello locale, restano in postazione.
 
 ### 3.3 Compilazione di moduli con dati già noti all'ente
 
-*Esempio:* «Nel portale, compila il campo codice fiscale con il valore che ti dico
+_Esempio:_ «Nel portale, compila il campo codice fiscale con il valore che ti dico
 e lascia il resto a me».
 
 **Capacità richieste:** digitazione, selezione nei menu a tendina, attesa di
@@ -211,7 +211,7 @@ in R11 (§ 17) e in § 10.2.
 
 ### 3.4 Verifica periodica di una condizione su un sito
 
-*Esempio:* «Ogni lunedì mattina controlla se la pagina delle graduatorie è
+_Esempio:_ «Ogni lunedì mattina controlla se la pagina delle graduatorie è
 pubblicata e, se sì, dimmi il numero dell'atto».
 
 **Capacità richieste:** lavori programmati, lettura, navigazione.
@@ -222,7 +222,7 @@ portare a un'azione non confermata.
 
 ### 3.5 Verifica del rispetto di una scadenza
 
-*Esempio:* «Guarda il bando che ho segnalato e dimmi entro quando devo presentare
+_Esempio:_ «Guarda il bando che ho segnalato e dimmi entro quando devo presentare
 la domanda».
 
 **Capacità richieste:** lettura, ricerca di testo, sintesi.
@@ -241,13 +241,13 @@ server. È uno strumento di **automazione del browser con supervisione umana**.
 
 ### 4.1 Costi per l'Amministrazione
 
-| Voce | Costo |
-|---|---|
-| Licenza del software | **nessuno** (MIT, libero) |
-| Canone per utente o per postazione | **nessuno** |
-| Infrastruttura server | **nessuna**: non esiste un server del progetto |
-| Manutenzione dell'estensione | **nessuna**: il codice è locale e non richiede amministrazione |
-| Aggiornamenti | **nessun costo**: versioni pubblicate con pacchetto firmato dal checksum |
+| Voce                               | Costo                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| Licenza del software               | **nessuno** (MIT, libero)                                                |
+| Canone per utente o per postazione | **nessuno**                                                              |
+| Infrastruttura server              | **nessuna**: non esiste un server del progetto                           |
+| Manutenzione dell'estensione       | **nessuna**: il codice è locale e non richiede amministrazione           |
+| Aggiornamenti                      | **nessun costo**: versioni pubblicate con pacchetto firmato dal checksum |
 
 ### 4.2 Costi reali, che vanno considerati
 
@@ -276,7 +276,7 @@ dell'Amministrazione** prima di ogni valutazione di ritorno.
 ## 5. Metodologia di lavoro
 
 Il lavoro non è stato condotto come una sequenza di richieste, ma secondo un
-protocollo iterativo interno, denominato *GigiLoop*, che impone regole precise.
+protocollo iterativo interno, denominato _GigiLoop_, che impone regole precise.
 
 ### 5.1 Le regole del protocollo
 
@@ -300,15 +300,15 @@ protocollo iterativo interno, denominato *GigiLoop*, che impone regole precise.
 ### 5.2 La struttura a sette cicli
 
 | Ciclo | Documento di piano | Attività | Versione prodotta |
-|---|---|---|---|
-| 1 | PIANO-100.md | 100 | 0.2.0 |
-| 2 | PIANO-200.md | 100 | 0.3.0 |
-| 3 | PIANO-300.md | 100 | 0.4.0 |
-| 4 | PIANO-400.md | 100 | 0.5.0 |
-| 5 | PIANO-500.md | 100 | 0.6.0 |
-| 6 | PIANO-600.md | 100 | 0.7.0 |
-| 7 | PIANO-700.md | 100 | 0.8.0 |
-| | | **700** | **7 versioni** |
+| ----- | ------------------ | -------- | ----------------- |
+| 1     | PIANO-100.md       | 100      | 0.2.0             |
+| 2     | PIANO-200.md       | 100      | 0.3.0             |
+| 3     | PIANO-300.md       | 100      | 0.4.0             |
+| 4     | PIANO-400.md       | 100      | 0.5.0             |
+| 5     | PIANO-500.md       | 100      | 0.6.0             |
+| 6     | PIANO-600.md       | 100      | 0.7.0             |
+| 7     | PIANO-700.md       | 100      | 0.8.0             |
+|       |                    | **700**  | **7 versioni**    |
 
 I sette documenti di piano sono conservati nel repository nella cartella `.gigiloop/`.
 Nei primi quattro cicli le singole attività sono marcate una per una come
@@ -321,21 +321,21 @@ e non altera il prodotto consegnato, ma è dichiarata per trasparenza.
 
 Ogni versione è stata pubblicata solo dopo il superamento di tutti i controlli:
 
-| # | Controllo | Cosa verifica |
-|---|---|---|
-| 1 | Type checking | Correttezza dei tipi in tutto il codice |
-| 2 | Test automatici + copertura | 295 test: comportamento, casi limite, protezioni; soglie 85% righe, 85% funzioni, 80% rami sul perimetro `src/shared` |
-| 3 | Lint | Errori di stile e di costrutto sospetto |
-| 4 | Formattazione | Coerenza formale del sorgente |
-| 5 | Build | Compilazione della versione distribuibile |
-| 6 | Verifica del pacchetto | Contenuto del `dist` generato (coerenza con i sorgenti) |
-| 7 | Dimensioni bundle | Che l'estensione non gonfi/disturbi il browser |
-| 8 | Link documentali | Che la documentazione non contenga riferimenti rotti |
-| 9 | Versione Chromium | Che il browser di test sia ancora supportato |
-| 10 | Audit delle dipendenze | Vulnerabilità note nelle librerie di terze parti (soglia: alta) |
-| 11 | Ricerca di segreti | Che nessuna credenziale sia finita nel codice |
-| 12 | Assenza di codice remoto | Che non siano stati introdotti riferimenti a codice esterno |
-| 13 | Test end-to-end + accessibilità | Estensione realmente avviata in un browser reale, con verifica accessibilità del pannello |
+| #   | Controllo                       | Cosa verifica                                                                                                         |
+| --- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 1   | Type checking                   | Correttezza dei tipi in tutto il codice                                                                               |
+| 2   | Test automatici + copertura     | 295 test: comportamento, casi limite, protezioni; soglie 85% righe, 85% funzioni, 80% rami sul perimetro `src/shared` |
+| 3   | Lint                            | Errori di stile e di costrutto sospetto                                                                               |
+| 4   | Formattazione                   | Coerenza formale del sorgente                                                                                         |
+| 5   | Build                           | Compilazione della versione distribuibile                                                                             |
+| 6   | Verifica del pacchetto          | Contenuto del `dist` generato (coerenza con i sorgenti)                                                               |
+| 7   | Dimensioni bundle               | Che l'estensione non gonfi/disturbi il browser                                                                        |
+| 8   | Link documentali                | Che la documentazione non contenga riferimenti rotti                                                                  |
+| 9   | Versione Chromium               | Che il browser di test sia ancora supportato                                                                          |
+| 10  | Audit delle dipendenze          | Vulnerabilità note nelle librerie di terze parti (soglia: alta)                                                       |
+| 11  | Ricerca di segreti              | Che nessuna credenziale sia finita nel codice                                                                         |
+| 12  | Assenza di codice remoto        | Che non siano stati introdotti riferimenti a codice esterno                                                           |
+| 13  | Test end-to-end + accessibilità | Estensione realmente avviata in un browser reale, con verifica accessibilità del pannello                             |
 
 ---
 
@@ -358,7 +358,7 @@ pubblico e senza licenza**.
 **Attività realizzate (100 voci).**
 
 - Impianto dell'estensione con le impostazioni di sicurezza di base.
-- *Hardening* della sicurezza: politica di sicurezza dei contenuti esplicita,
+- _Hardening_ della sicurezza: politica di sicurezza dei contenuti esplicita,
   assenza di risorse accessibili alle pagine web, verifica dell'origine dei messaggi
   per impedire l'iniezione da altre estensioni.
 - Validazione rigorosa di ogni messaggio tra pannello e processo di servizio.
@@ -564,12 +564,12 @@ fatto emergere tre difetti sulle funzionalità appena introdotte.
 - **Blocco automatico della credenziale (funzionalità richiesta):** dopo 5, 15, 30
   o 60 minuti di **inattività**, le chiavi conservate in memoria di sessione
   vengono cancellate. Predefinito: disattivato, si attiva scegliendo.
-  - *Non è un temporizzatore fisso:* viene registrato solo l'orario dell'ultima
+  - _Non è un temporizzatore fisso:_ viene registrato solo l'orario dell'ultima
     interazione con il pannello (in memoria di sessione, senza alcun dato
     personale) e il blocco scatta solo se il tempo trascorso supera la soglia.
-  - *Un lavoro in corso non viene mai interrotto:* se l'agente sta operando, il
+  - _Un lavoro in corso non viene mai interrotto:_ se l'agente sta operando, il
     blocco attende.
-  - *La semantica è stata resa esplicita* dopo la revisione: v. sotto.
+  - _La semantica è stata resa esplicita_ dopo la revisione: v. sotto.
 - **Passaggio da 24 a 26 strumenti:** lettura del contenuto di un riquadro
   incorporato nella pagina (iframe) e avvio di un download.
 - **Quattro difetti reali corretti** (dettagli nel riquadro seguente).
@@ -710,15 +710,15 @@ controllo completo del dispositivo.
 
 ### 9.2 Permessi richiesti e relative giustificazioni
 
-| Permesso | Uso | Alternativa valutata e scartata |
-|---|---|---|
-| `storage` | Conservare localmente impostazioni, cronologia e credenziali | Nessuna: servono per la persistenza |
-| `scripting` | Inserire il codice di pagina solo al momento dell'uso | Script sempre attivo su ogni sito: peggio |
-| `tabs` + `activeTab` | Leggere l'indirizzo e comandare la scheda | Solo `activeTab`: insufficiente per gestire più schede |
-| `sidePanel` | Pannello laterale | Finestra popup: inadatta a lavori lunghi |
-| `alarms` | Pianificazione locale dei lavori | Polling dal pannello: funziona solo a pannello aperto |
-| `nativeMessaging` | Ponte con opencode, **solo se installato dall'utente** | Nessuna; senza ponte installato il canale è chiuso |
-| Accesso ai siti | Operare dove l'utente chiede | Permessi per singolo sito: in valutazione (§ 16) |
+| Permesso             | Uso                                                          | Alternativa valutata e scartata                        |
+| -------------------- | ------------------------------------------------------------ | ------------------------------------------------------ |
+| `storage`            | Conservare localmente impostazioni, cronologia e credenziali | Nessuna: servono per la persistenza                    |
+| `scripting`          | Inserire il codice di pagina solo al momento dell'uso        | Script sempre attivo su ogni sito: peggio              |
+| `tabs` + `activeTab` | Leggere l'indirizzo e comandare la scheda                    | Solo `activeTab`: insufficiente per gestire più schede |
+| `sidePanel`          | Pannello laterale                                            | Finestra popup: inadatta a lavori lunghi               |
+| `alarms`             | Pianificazione locale dei lavori                             | Polling dal pannello: funziona solo a pannello aperto  |
+| `nativeMessaging`    | Ponte con opencode, **solo se installato dall'utente**       | Nessuna; senza ponte installato il canale è chiuso     |
+| Accesso ai siti      | Operare dove l'utente chiede                                 | Permessi per singolo sito: in valutazione (§ 16)       |
 
 Ogni permesso è motivato per iscritto nella documentazione di sicurezza del progetto.
 L'accesso ai siti è ampio perché l'agente deve poter operare dove gli viene chiesto;
@@ -761,14 +761,14 @@ end-to-end su browser reale con verifica di accessibilità.
 
 ### 10.1 Dove finiscono i dati
 
-| Elemento | Dove viene conservato | Contenuto |
-|---|---|---|
-| Impostazioni | computer dell'utente | provider, modello, limiti, preferenze |
-| Credenziali | area separata dalle impostazioni: disco del browser con «Ricorda la chiave» attivo, memoria di sessione altrimenti | chiave del provider, per provider |
-| Cronologia lavori | computer dell'utente, 20 voci | testo dei compiti, disattivabile |
-| Risultato in attesa | memoria di sessione | esito dell'ultimo lavoro |
-| Statistiche | computer dell'utente | **solo conteggi** di esecuzioni e token, nessun contenuto |
-| Orario di attività | memoria di sessione | un solo orario, per il blocco automatico |
+| Elemento            | Dove viene conservato                                                                                              | Contenuto                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| Impostazioni        | computer dell'utente                                                                                               | provider, modello, limiti, preferenze                     |
+| Credenziali         | area separata dalle impostazioni: disco del browser con «Ricorda la chiave» attivo, memoria di sessione altrimenti | chiave del provider, per provider                         |
+| Cronologia lavori   | computer dell'utente, 20 voci                                                                                      | testo dei compiti, disattivabile                          |
+| Risultato in attesa | memoria di sessione                                                                                                | esito dell'ultimo lavoro                                  |
+| Statistiche         | computer dell'utente                                                                                               | **solo conteggi** di esecuzioni e token, nessun contenuto |
+| Orario di attività  | memoria di sessione                                                                                                | un solo orario, per il blocco automatico                  |
 
 ### 10.2 Scelte progettuali a tutela dell'utente
 
@@ -873,12 +873,12 @@ sorgente): i moduli dell'agente, del processo di servizio, della pagina e del pa
 non sono soggetti a misurazione. Le percentuali che seguono **non** sono estese
 all'intero progetto.
 
-| Metrica | Valore | Soglia fissata |
-|---|---|---|
-| Righe | 96,45% | 85% |
-| Funzioni | 97,52% | 85% |
-| Ramificazioni (rami decisionali) | 89,06% | 80% |
-| Istruzioni | 94,16% | — |
+| Metrica                          | Valore | Soglia fissata |
+| -------------------------------- | ------ | -------------- |
+| Righe                            | 96,45% | 85%            |
+| Funzioni                         | 97,52% | 85%            |
+| Ramificazioni (rami decisionali) | 89,06% | 80%            |
+| Istruzioni                       | 94,16% | —              |
 
 Le soglie sono fissate nella configurazione e la pipeline **fallisce** se il
 progetto **non** le rispetta: il calo della copertura non può passare inosservato.
@@ -923,8 +923,8 @@ Alla versione 0.6.0 il processo di servizio dell'estensione occupava circa
 provider utilizzato. Dalla versione 0.7.0 il codice di ogni provider è stato reso
 caricamento differito: il browser carica **solo** il provider configurato.
 
-| | 0.6.0 | 0.8.0 | Riduzione |
-|---|---|---|---|
+|                      | 0.6.0       | 0.8.0     | Riduzione  |
+| -------------------- | ----------- | --------- | ---------- |
 | Processo di servizio | 1.094,70 kB | 326,63 kB | **−70,2%** |
 
 La riduzione misurata sulla versione 0.7.0, al momento dell'introduzione del
@@ -940,12 +940,12 @@ segnalato.
 
 ### 13.2 Dimensioni finali del pacchetto (v0.8.0)
 
-| Componente | Dimensione | Soglia |
-|---|---|---|
-| Processo di servizio | 326.633 byte (319,0 KiB) | 500 KB |
-| Script di pagina | 13.692 byte (13,4 KiB) | 50 KB |
-| Pannello | 263.087 byte (256,9 KiB) | 400 KB |
-| **Pacchetto compresso distribuito** | **424.711 byte (circa 415 KiB)** | — |
+| Componente                          | Dimensione                       | Soglia |
+| ----------------------------------- | -------------------------------- | ------ |
+| Processo di servizio                | 326.633 byte (319,0 KiB)         | 500 KB |
+| Script di pagina                    | 13.692 byte (13,4 KiB)           | 50 KB  |
+| Pannello                            | 263.087 byte (256,9 KiB)         | 400 KB |
+| **Pacchetto compresso distribuito** | **424.711 byte (circa 415 KiB)** | —      |
 
 ---
 
@@ -954,18 +954,18 @@ segnalato.
 Il progetto è accompagnato da documentazione scritta, in italiano, destinata a
 persone con profili diversi:
 
-| Documento | Destinatario | Contenuto |
-|---|---|---|
-| **GUIDA.md** | Sviluppatore, configuratore | Architettura, catalogo provider, flusso di un lavoro, ogni impostazione con valori predefiniti, scorciatoie, risoluzione dei problemi, stato onesto del progetto |
-| **PRIVACY.md** | Cittadino, responsabile della protezione dei dati | Dove finiscono i dati, cosa viene conservato, cosa non viene mai inviato, come cancellare tutto, funzionamento del ponte |
-| **SECURITY.md** | Responsabile sicurezza informatica | Permessi e relative motivazioni, minacce considerate, difese, superficie d'attacco del ponte |
-| **README.md** | Valutatore rapido | Descrizione sintetica, funzionalità, istruzioni di base |
-| **CHANGELOG.md** | Tutti | Registro dettagliato delle modifiche per versione |
-| **CONTRIBUTING.md** | Sviluppatore | Modalità di contributo e criteri |
-| **STORE.md** | Chi cura la pubblicazione | Testo per la scheda dell'estensione |
-| **AGENTS.md** | Sviluppatore, assistenti | Comandi, convenzioni, architettura |
-| **REPORT-COMMITTENTE.md** | Committente | Il presente documento |
-| `.gigiloop/PIANO-*.md` | Verifica interna | I 7 piani da 100 attività (400 con stato di chiusura per voce) |
+| Documento                 | Destinatario                                      | Contenuto                                                                                                                                                        |
+| ------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GUIDA.md**              | Sviluppatore, configuratore                       | Architettura, catalogo provider, flusso di un lavoro, ogni impostazione con valori predefiniti, scorciatoie, risoluzione dei problemi, stato onesto del progetto |
+| **PRIVACY.md**            | Cittadino, responsabile della protezione dei dati | Dove finiscono i dati, cosa viene conservato, cosa non viene mai inviato, come cancellare tutto, funzionamento del ponte                                         |
+| **SECURITY.md**           | Responsabile sicurezza informatica                | Permessi e relative motivazioni, minacce considerate, difese, superficie d'attacco del ponte                                                                     |
+| **README.md**             | Valutatore rapido                                 | Descrizione sintetica, funzionalità, istruzioni di base                                                                                                          |
+| **CHANGELOG.md**          | Tutti                                             | Registro dettagliato delle modifiche per versione                                                                                                                |
+| **CONTRIBUTING.md**       | Sviluppatore                                      | Modalità di contributo e criteri                                                                                                                                 |
+| **STORE.md**              | Chi cura la pubblicazione                         | Testo per la scheda dell'estensione                                                                                                                              |
+| **AGENTS.md**             | Sviluppatore, assistenti                          | Comandi, convenzioni, architettura                                                                                                                               |
+| **REPORT-COMMITTENTE.md** | Committente                                       | Il presente documento                                                                                                                                            |
+| `.gigiloop/PIANO-*.md`    | Verifica interna                                  | I 7 piani da 100 attività (400 con stato di chiusura per voce)                                                                                                   |
 
 Sono inoltre presenti i piani di lavoro con le 700 attività numerate, utili per
 la verifica del perimetro effettivamente svolto.
@@ -976,15 +976,15 @@ la verifica del perimetro effettivamente svolto.
 
 ### 15.1 Le versioni pubblicate
 
-| Versione | Data | Contenuto principale |
-|---|---|---|
-| 0.2.0 | 16/09/2026 | Prima versione funzionale, protezioni di base, 47 test |
-| 0.3.0 | 16/09/2026 | Conferma umana su tre livelli, iniezione on-demand, 130 test |
-| 0.4.0 | 16/09/2026 | 18 strumenti, domini fidati, test end-to-end, 176 test |
-| 0.5.0 | 16/09/2026 | Visualizzazione in tempo reale, lavori programmati, 21 strumenti, 199 test |
-| 0.6.0 | 17/09/2026 | 25 provider, credenziali per provider, integrazione opencode, 232 test |
-| 0.7.0 | 17/09/2026 | Alleggerimento 70,3%, coda lavori, elenco modelli, 24 strumenti, 251 test |
-| 0.8.0 | 28/09/2026 | Blocco automatico credenziale, 26 strumenti, correzioni di sicurezza, 295 test |
+| Versione | Data       | Contenuto principale                                                           |
+| -------- | ---------- | ------------------------------------------------------------------------------ |
+| 0.2.0    | 16/09/2026 | Prima versione funzionale, protezioni di base, 47 test                         |
+| 0.3.0    | 16/09/2026 | Conferma umana su tre livelli, iniezione on-demand, 130 test                   |
+| 0.4.0    | 16/09/2026 | 18 strumenti, domini fidati, test end-to-end, 176 test                         |
+| 0.5.0    | 16/09/2026 | Visualizzazione in tempo reale, lavori programmati, 21 strumenti, 199 test     |
+| 0.6.0    | 17/09/2026 | 25 provider, credenziali per provider, integrazione opencode, 232 test         |
+| 0.7.0    | 17/09/2026 | Alleggerimento 70,3%, coda lavori, elenco modelli, 24 strumenti, 251 test      |
+| 0.8.0    | 28/09/2026 | Blocco automatico credenziale, 26 strumenti, correzioni di sicurezza, 295 test |
 
 **Precisazione:** i tag di versione sono stati pubblicati a partire dalla 0.4.0.
 Le versioni 0.2.0 e 0.3.0 esistono come commit nel registro ma non hanno un tag
@@ -996,13 +996,13 @@ pratica di versionamento che viene qui dichiarata per completezza.
 Cinque versioni sono state pubblicate con pacchetto firmato dal checksum di
 verifica:
 
-| Release | Data pubblicazione | Pacchetto |
-|---|---|---|
-| v0.4.0 | 16/09/2026 | lmuse-0.4.0.zip |
-| v0.5.0 | 16/09/2026 | lmuse-0.5.0.zip |
-| v0.6.0 | 17/09/2026 | lmuse-0.6.0.zip |
-| v0.7.0 | 17/09/2026 | lmuse-0.7.0.zip |
-| v0.8.0 | 28/09/2026 | lmuse-0.8.0.zip (424.711 byte) |
+| Release | Data pubblicazione | Pacchetto                      |
+| ------- | ------------------ | ------------------------------ |
+| v0.4.0  | 16/09/2026         | lmuse-0.4.0.zip                |
+| v0.5.0  | 16/09/2026         | lmuse-0.5.0.zip                |
+| v0.6.0  | 17/09/2026         | lmuse-0.6.0.zip                |
+| v0.7.0  | 17/09/2026         | lmuse-0.7.0.zip                |
+| v0.8.0  | 28/09/2026         | lmuse-0.8.0.zip (424.711 byte) |
 
 L'ultimo pacchetto è identificato dall'impronta crittografica
 `8e9e286c8065143a4dc5df9c28de68af32fed931e3a70ecde8fc807a156f2175`, che il
@@ -1021,16 +1021,16 @@ decisione di proseguire sia informata.
    I test end-to-end verificano l'avvio, il rendering e l'accessibilità, ma
    **non** hanno eseguito un ciclo completo contro un provider LLM con chiave
    valida, perché richiede una credenziale e un Chrome con marchio proprietario.
-   *Mitigazione:* il primo ciclo con chiave reale va eseguito dall'Amministrazione
+   _Mitigazione:_ il primo ciclo con chiave reale va eseguito dall'Amministrazione
    come prova di accettazione. Se un provider modifica il formato delle risposte,
    l'adattamento è localizzato in un unico file di codice.
 
 2. **Accesso ai siti ampio.** L'estensione può operare su tutti i siti, perché
    l'agente deve poter lavorare dove l'utente chiede. È disponibile una
    restrizione per elenco di domini, ma l'impostazione per sito singolo con
-   richiesta di consenso è indicata come lavoro di evoluzione futura. *Rischio
-   residuo:* il perimetro è più ampio del necessario per un uso che non richieda
-   l'automazione. *Contromisura disponibile:* usare l'elenco di domini consentiti.
+   richiesta di consenso è indicata come lavoro di evoluzione futura. _Rischio
+   residuo:_ il perimetro è più ampio del necessario per un uso che non richieda
+   l'automazione. _Contromisura disponibile:_ usare l'elenco di domini consentiti.
 
 3. **Iniezione di istruzioni da parte delle pagine web.** Una pagina web visitata
    potrebbe, in teoria, contenere testo che induca l'agente a comportarsi in modo
@@ -1067,7 +1067,7 @@ decisione di proseguire sia informata.
 
 2. **Prova con utenti reali assente.** Non è stata svolta una sperimentazione con
    operatori dell'Amministrazione. Le scelte di ergonomia si basano su giudizio
-   tecnico, non su osservazione d'uso. *Proposta:* una sessione di prova con
+   tecnico, non su osservazione d'uso. _Proposta:_ una sessione di prova con
    5 operatori prima dell'eventuale diffusione.
 
 3. **Il registro locale non è un registro di audit.** Non attribuisce le operazioni
@@ -1093,20 +1093,20 @@ mitigazione già presente e residuo. È la sintesi operativa del § 16.
 **Legenda gravità:** Bassa / Media / Alta. **Probabilità:** Bassa / Media / Alta.
 «Residuo» indica il rischio che resta **dopo** le mitigazioni già realizzate.
 
-| # | Rischio | Gravità | Probabilità | Mitigazione già presente | Residuo |
-|---|---|---|---|---|---|
-| R1 | Perdita della credenziale per mancata custodia del dispositivo | Media | Media | Chiave in area separata; auto-lock opzionale su inattività; cancellazione completa con un comando | **Basso** se si attiva l'auto-lock; **medio** altrimenti |
-| R2 | Dati dell'utente inviati a un servizio esterno non valutato | Alta | Media | Scelta del modello lasciata all'utente; modelli locali disponibili; redazione automatica dei dati personali | **Medio**: dipende dalla scelta del provider |
-| R3 | Istruzioni ingannevoli contenute in una pagina web | Media | Media | Conferma umana, tetto di spesa, arresto su comando, blocco degli indirizzi pericolosi, protezione dei campi password | **Medio**: rischio intrineco alla classe di prodotti, non azzerabile |
-| R4 | Automazione su più siti del perimetro di quanto necessario | Media | Media | Elenco di domini consentiti già disponibile | **Basso** se si usa l'elenco; **medio** con l'impostazione predefinita |
-| R5 | Azione non reversibile eseguita senza supervisione | Alta | Bassa | Pavimento di sicurezza sull'invio moduli; conferme su download, invio moduli, dominio non visitato; a pannello chiuso la conferma scade in 20s con risposta «nega» | **Basso** |
-| R6 | Estensione che smette di funzionare dopo un aggiornamento del browser | Media | Media | Versione minima del browser dichiarata; test automatici end-to-end su browser reale; verifica dell'età del browser di prova | **Basso** |
-| R7 | Modello predefinito che diventa obsoleto | Bassa | Media | Campo modello liberamente modificabile; elenco modelli aggiornabile dal provider | **Basso** |
-| R8 | Perdita di tracciabilità delle operazioni svolte | Media | Media | Cronologia locale degli ultimi lavori; esportazione del registro in formato leggibile; il registro **non** è un sistema di audit (§ 16.2) | **Alto** se si confonde con un sistema di audit |
-| R9 | Estensione non installabile in ambiente gestito | Media | Media | Pacchetto firmato dal checksum; assenza di permessi esotici; nessun codice remoto | **Basso**: da confermare nella postazione di destinazione |
-| R10 | Modello locale non abbastanza capace per compiti complessi | Bassa | Media | Scelta fra 25 provider; configurazione del modello libero | **Basso**, con verifica in collaudo |
-| R11 | Digitazione automatica in campi password, se l'utente disattiva il blocco | Media | Bassa | Blocco attivo per impostazione predefinita; i valori dei campi password non compaiono mai negli snapshot; richiesta conferma su invio moduli | **Basso**, ma la protezione è disattivabile dall'utente: va verificata nelle impostazioni |
-| R12 | Perimetro dei siti più ampio del necessario (dichiarazione `host_permissions: <all_urls>`) | Media | Media | Elenco di domini consentiti disponibile | **Basso** con l'elenco; **medio** con l'impostazione predefinita (R4) |
+| #   | Rischio                                                                                    | Gravità | Probabilità | Mitigazione già presente                                                                                                                                           | Residuo                                                                                   |
+| --- | ------------------------------------------------------------------------------------------ | ------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| R1  | Perdita della credenziale per mancata custodia del dispositivo                             | Media   | Media       | Chiave in area separata; auto-lock opzionale su inattività; cancellazione completa con un comando                                                                  | **Basso** se si attiva l'auto-lock; **medio** altrimenti                                  |
+| R2  | Dati dell'utente inviati a un servizio esterno non valutato                                | Alta    | Media       | Scelta del modello lasciata all'utente; modelli locali disponibili; redazione automatica dei dati personali                                                        | **Medio**: dipende dalla scelta del provider                                              |
+| R3  | Istruzioni ingannevoli contenute in una pagina web                                         | Media   | Media       | Conferma umana, tetto di spesa, arresto su comando, blocco degli indirizzi pericolosi, protezione dei campi password                                               | **Medio**: rischio intrineco alla classe di prodotti, non azzerabile                      |
+| R4  | Automazione su più siti del perimetro di quanto necessario                                 | Media   | Media       | Elenco di domini consentiti già disponibile                                                                                                                        | **Basso** se si usa l'elenco; **medio** con l'impostazione predefinita                    |
+| R5  | Azione non reversibile eseguita senza supervisione                                         | Alta    | Bassa       | Pavimento di sicurezza sull'invio moduli; conferme su download, invio moduli, dominio non visitato; a pannello chiuso la conferma scade in 20s con risposta «nega» | **Basso**                                                                                 |
+| R6  | Estensione che smette di funzionare dopo un aggiornamento del browser                      | Media   | Media       | Versione minima del browser dichiarata; test automatici end-to-end su browser reale; verifica dell'età del browser di prova                                        | **Basso**                                                                                 |
+| R7  | Modello predefinito che diventa obsoleto                                                   | Bassa   | Media       | Campo modello liberamente modificabile; elenco modelli aggiornabile dal provider                                                                                   | **Basso**                                                                                 |
+| R8  | Perdita di tracciabilità delle operazioni svolte                                           | Media   | Media       | Cronologia locale degli ultimi lavori; esportazione del registro in formato leggibile; il registro **non** è un sistema di audit (§ 16.2)                          | **Alto** se si confonde con un sistema di audit                                           |
+| R9  | Estensione non installabile in ambiente gestito                                            | Media   | Media       | Pacchetto firmato dal checksum; assenza di permessi esotici; nessun codice remoto                                                                                  | **Basso**: da confermare nella postazione di destinazione                                 |
+| R10 | Modello locale non abbastanza capace per compiti complessi                                 | Bassa   | Media       | Scelta fra 25 provider; configurazione del modello libero                                                                                                          | **Basso**, con verifica in collaudo                                                       |
+| R11 | Digitazione automatica in campi password, se l'utente disattiva il blocco                  | Media   | Bassa       | Blocco attivo per impostazione predefinita; i valori dei campi password non compaiono mai negli snapshot; richiesta conferma su invio moduli                       | **Basso**, ma la protezione è disattivabile dall'utente: va verificata nelle impostazioni |
+| R12 | Perimetro dei siti più ampio del necessario (dichiarazione `host_permissions: <all_urls>`) | Media   | Media       | Elenco di domini consentiti disponibile                                                                                                                            | **Basso** con l'elenco; **medio** con l'impostazione predefinita (R4)                     |
 
 ### 17.1 I tre rischi che richiedono una decisione dell'Amministrazione
 
@@ -1129,11 +1129,11 @@ pianificate, **nessuno dei primi sei cicli è rimasto aperto**. Nell'ultimo cicl
 (700) restano **30 attività in tre gruppi**, **non concluse perché l'indirizzo di
 lavoro è cambiato prima che venissero affrontate** e non per difficoltà tecniche:
 
-| Attività | N. | Stato | Perché non conclusa |
-|---|---|---|---|
-| Verifiche end-to-end con interazioni reali (apertura impostazioni, cambio provider, ecc.) | 20 | **non fatta** | La priorità è stata spostata sugli aspetti di sicurezza su richiesta del committente |
-| Overlay con l'elenco delle scorciatoie da tastiera | 6 | **non fatta** | Attività di basso valore rispetto alle altre; l'elenco delle scorciatoie è già in documentazione |
-| Elenco dei provider con nome leggibile nella finestra di integrazione con opencode (compreso il test correlato) | 4 | **non fatta** | Funzionalità accessoria; l'import funziona ed è verificato da test |
+| Attività                                                                                                        | N.  | Stato         | Perché non conclusa                                                                              |
+| --------------------------------------------------------------------------------------------------------------- | --- | ------------- | ------------------------------------------------------------------------------------------------ |
+| Verifiche end-to-end con interazioni reali (apertura impostazioni, cambio provider, ecc.)                       | 20  | **non fatta** | La priorità è stata spostata sugli aspetti di sicurezza su richiesta del committente             |
+| Overlay con l'elenco delle scorciatoie da tastiera                                                              | 6   | **non fatta** | Attività di basso valore rispetto alle altre; l'elenco delle scorciatoie è già in documentazione |
+| Elenco dei provider con nome leggibile nella finestra di integrazione con opencode (compreso il test correlato) | 4   | **non fatta** | Funzionalità accessoria; l'import funziona ed è verificato da test                               |
 
 **Totale attività aperte: 30 su 700 (95,7% concluse).**
 
@@ -1169,6 +1169,7 @@ pnpm test:e2e    # avvio reale in browser + accessibilità
 ```bash
 pnpm build
 ```
+
 quindi caricare la cartella `dist/` generata in `chrome://extensions` con la modalità
 per sviluppatori attiva.
 
@@ -1214,25 +1215,25 @@ tecnico dell'Amministrazione, in autonomia, senza competenze di sviluppo.
   usare il pulsante di verifica della connessione.
 - **Percorso B — massima qualità, dati verso servizio esterno:** scegliere un
   provider cloud, incollare la chiave personale, usare il pulsante di verifica.
-  *Prima di questo percorso va autorizzato il servizio (§ 17, R2).*
+  _Prima di questo percorso va autorizzato il servizio (§ 17, R2)._
 
 In entrambi i casi: **disattivare «Ricorda la chiave»** se si vuole sfruttare il
 blocco automatico (§ 19.4) e **impostare l'elenco dei domini consentiti** (§ 17, R4).
 
 ### 20.3 Prove funzionali (circa 60 minuti)
 
-| # | Prova | Risultato atteso |
-|---|---|---|
-| P1 | «Riassumi questa pagina in tre punti» su una pagina interna nota | Risposta in streaming, elenco dei passi visibile |
-| P2 | Navigazione verso un dominio non ancora visitato | **Compare la conferma** con l'indirizzo del dominio; verso un dominio già visitato non compare |
-| P3 | Conferma negata | L'agente si ferma e spiega, **non** ripete l'azione |
-| P4 | Compilazione di un modulo di prova con invio | **Conferma richiesta**; con conferme disattivate la conferma compare ugualmente |
-| P5 | Avvio di un lavoro e comando di arresto | Arresto immediato, nessuna azione successiva |
-| P6 | Campo password | Digitazione automatica **bloccata** con messaggio in chiaro |
-| P7 | Download di un file di prova | **Conferma richiesta** prima del download |
-| P8 | Dati di prova con numero di telefono ed e-mail nello snapshot | Sostituiti da segnaposto prima dell'invio al modello |
-| P9 | Chiusura del pannello e riapertura | Il risultato precedente è ancora disponibile |
-| P10 | Disattivazione della rete e avvio di un lavoro | Errore chiaro in italiano, nessun arresto anomalo |
+| #   | Prova                                                            | Risultato atteso                                                                               |
+| --- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| P1  | «Riassumi questa pagina in tre punti» su una pagina interna nota | Risposta in streaming, elenco dei passi visibile                                               |
+| P2  | Navigazione verso un dominio non ancora visitato                 | **Compare la conferma** con l'indirizzo del dominio; verso un dominio già visitato non compare |
+| P3  | Conferma negata                                                  | L'agente si ferma e spiega, **non** ripete l'azione                                            |
+| P4  | Compilazione di un modulo di prova con invio                     | **Conferma richiesta**; con conferme disattivate la conferma compare ugualmente                |
+| P5  | Avvio di un lavoro e comando di arresto                          | Arresto immediato, nessuna azione successiva                                                   |
+| P6  | Campo password                                                   | Digitazione automatica **bloccata** con messaggio in chiaro                                    |
+| P7  | Download di un file di prova                                     | **Conferma richiesta** prima del download                                                      |
+| P8  | Dati di prova con numero di telefono ed e-mail nello snapshot    | Sostituiti da segnaposto prima dell'invio al modello                                           |
+| P9  | Chiusura del pannello e riapertura                               | Il risultato precedente è ancora disponibile                                                   |
+| P10 | Disattivazione della rete e avvio di un lavoro                   | Errore chiaro in italiano, nessun arresto anomalo                                              |
 
 ### 20.4 Prova organizzativa (consigliata, 1 settimana)
 
@@ -1255,53 +1256,53 @@ resta al committente** e non è oggetto di questo lavoro.
 
 ### 21.1 Protezione dei dati
 
-| # | Punto di controllo | Realizzato dal progetto | Da definire dall'Amministrazione |
-|---|---|---|---|
-| C1 | Nessun server del progetto | Sì | — |
-| C2 | Nessuna telemetria o tracciamento | Sì | — |
-| C3 | Credenziali non nei registri né negli errori | Sì | — |
-| C4 | Cancellazione completa con un comando | Sì | Procedura di cancellazione a livello organizzativo |
-| C5 | Esportazione senza credenziali | Sì | — |
-| C6 | Minimizzazione dei dati inviati (redazione) | Sì, attiva per impostazione predefinita | Criteri di minimizzazione specifici |
-| C7 | Scelta del destinatario dei dati | Offerta | **Elenco dei provider autorizzati** (R2) |
-| C8 | Base giuridica del trattamento | No | **Da definire** |
-| C9 | Informativa agli interessati | No | **Da definire** |
-| C10 | Valutazione d'impatto (art. 35) | No | **Da valutare** |
+| #   | Punto di controllo                           | Realizzato dal progetto                 | Da definire dall'Amministrazione                   |
+| --- | -------------------------------------------- | --------------------------------------- | -------------------------------------------------- |
+| C1  | Nessun server del progetto                   | Sì                                      | —                                                  |
+| C2  | Nessuna telemetria o tracciamento            | Sì                                      | —                                                  |
+| C3  | Credenziali non nei registri né negli errori | Sì                                      | —                                                  |
+| C4  | Cancellazione completa con un comando        | Sì                                      | Procedura di cancellazione a livello organizzativo |
+| C5  | Esportazione senza credenziali               | Sì                                      | —                                                  |
+| C6  | Minimizzazione dei dati inviati (redazione)  | Sì, attiva per impostazione predefinita | Criteri di minimizzazione specifici                |
+| C7  | Scelta del destinatario dei dati             | Offerta                                 | **Elenco dei provider autorizzati** (R2)           |
+| C8  | Base giuridica del trattamento               | No                                      | **Da definire**                                    |
+| C9  | Informativa agli interessati                 | No                                      | **Da definire**                                    |
+| C10 | Valutazione d'impatto (art. 35)              | No                                      | **Da valutare**                                    |
 
 ### 21.2 Sicurezza
 
-| # | Punto di controllo | Realizzato dal progetto | Da definire dall'Amministrazione |
-|---|---|---|---|
-| C11 | Politica di sicurezza dei contenuti dichiarata | Sì | — |
-| C12 | Nessun permesso di controllo del dispositivo | Sì | — |
-| C13 | Verifica dell'origine dei messaggi | Sì | — |
-| C14 | Validazione dei dati in ingresso | Sì | — |
-| C15 | Permessi motivati per iscritto | Sì | — |
-| C16 | Conferma umana sulle azioni sensibili | Sì | Politica di conferma da scegliere |
-| C17 | Arresto immediato del lavoro | Sì | — |
-| C18 | Analisi automatizzata delle vulnerabilità delle dipendenze | Sì, in integrazione continua | Politica di aggiornamento delle dipendenze |
-| C19 | Ricerca di segreti nel codice | Sì, in integrazione continua | — |
-| C20 | Verifiche di vulnerabilità indipendenti da terzi | **No** | **Da commissionare, se ritenuto necessario** |
-| C21 | Test di penetrazione | **No** | **Da commissionare, se ritenuto necessario** |
+| #   | Punto di controllo                                         | Realizzato dal progetto      | Da definire dall'Amministrazione             |
+| --- | ---------------------------------------------------------- | ---------------------------- | -------------------------------------------- |
+| C11 | Politica di sicurezza dei contenuti dichiarata             | Sì                           | —                                            |
+| C12 | Nessun permesso di controllo del dispositivo               | Sì                           | —                                            |
+| C13 | Verifica dell'origine dei messaggi                         | Sì                           | —                                            |
+| C14 | Validazione dei dati in ingresso                           | Sì                           | —                                            |
+| C15 | Permessi motivati per iscritto                             | Sì                           | —                                            |
+| C16 | Conferma umana sulle azioni sensibili                      | Sì                           | Politica di conferma da scegliere            |
+| C17 | Arresto immediato del lavoro                               | Sì                           | —                                            |
+| C18 | Analisi automatizzata delle vulnerabilità delle dipendenze | Sì, in integrazione continua | Politica di aggiornamento delle dipendenze   |
+| C19 | Ricerca di segreti nel codice                              | Sì, in integrazione continua | —                                            |
+| C20 | Verifiche di vulnerabilità indipendenti da terzi           | **No**                       | **Da commissionare, se ritenuto necessario** |
+| C21 | Test di penetrazione                                       | **No**                       | **Da commissionare, se ritenuto necessario** |
 
 ### 21.3 Qualità e tracciabilità
 
-| # | Punto di controllo | Realizzato dal progetto | Da definire dall'Amministrazione |
-|---|---|---|---|
-| C22 | Verifica automatica prima di ogni rilascio | Sì, 12 controlli | — |
-| C23 | Pacchetto con impronta crittografica | Sì | Verifica in ricezione |
-| C24 | Codice sorgente ispezionabile e con licenza nota | Sì, MIT | — |
-| C25 | Documentazione tecnica e per l'utente | Sì | — |
-| C26 | Registro delle versioni con note di rilascio | Sì | — |
-| C27 | Registro di audit delle operazioni svolte | **No** (R8) | **Da realizzare, se necessario** |
-| C28 | Collaudo con credenziale reale | **No** | **Da eseguire (§ 20)** |
+| #   | Punto di controllo                               | Realizzato dal progetto | Da definire dall'Amministrazione |
+| --- | ------------------------------------------------ | ----------------------- | -------------------------------- |
+| C22 | Verifica automatica prima di ogni rilascio       | Sì, 12 controlli        | —                                |
+| C23 | Pacchetto con impronta crittografica             | Sì                      | Verifica in ricezione            |
+| C24 | Codice sorgente ispezionabile e con licenza nota | Sì, MIT                 | —                                |
+| C25 | Documentazione tecnica e per l'utente            | Sì                      | —                                |
+| C26 | Registro delle versioni con note di rilascio     | Sì                      | —                                |
+| C27 | Registro di audit delle operazioni svolte        | **No** (R8)             | **Da realizzare, se necessario** |
+| C28 | Collaudo con credenziale reale                   | **No**                  | **Da eseguire (§ 20)**           |
 
 ### 21.4 Accessibilità
 
-| # | Punto di controllo | Realizzato dal progetto | Da definire dall'Amministrazione |
-|---|---|---|---|
-| C29 | Verifica automatica del pannello | Sì, senza violazioni serie | — |
-| C30 | Verifica con utenti e tecnologie assistive | **No** | **Da eseguire se il pannello è destinato a utenti con disabilità** |
+| #   | Punto di controllo                         | Realizzato dal progetto    | Da definire dall'Amministrazione                                   |
+| --- | ------------------------------------------ | -------------------------- | ------------------------------------------------------------------ |
+| C29 | Verifica automatica del pannello           | Sì, senza violazioni serie | —                                                                  |
+| C30 | Verifica con utenti e tecnologie assistive | **No**                     | **Da eseguire se il pannello è destinato a utenti con disabilità** |
 
 ---
 
@@ -1309,114 +1310,114 @@ resta al committente** e non è oggetto di questo lavoro.
 
 ### 22.1 Attività e versioni
 
-| Indicatore | Valore |
-|---|---|
-| Cicli di lavoro completati | 7 |
-| Attività pianificate | 700 |
-| Attività concluse e verificate | 670 |
-| Attività pianificate e non concluse | 30 (riportate al § 18) |
-| Versioni prodotte | 7 (0.2.0 → 0.8.0) |
-| Versioni con tag formale | 5 (da 0.4.0) |
-| Release pubblicate con checksum | 5 |
-| Registri (commit) | 9, di cui uno è questo rapporto |
+| Indicatore                           | Valore                            |
+| ------------------------------------ | --------------------------------- |
+| Cicli di lavoro completati           | 7                                 |
+| Attività pianificate                 | 700                               |
+| Attività concluse e verificate       | 670                               |
+| Attività pianificate e non concluse  | 30 (riportate al § 18)            |
+| Versioni prodotte                    | 7 (0.2.0 → 0.8.0)                 |
+| Versioni con tag formale             | 5 (da 0.4.0)                      |
+| Release pubblicate con checksum      | 5                                 |
+| Registri (commit)                    | 9, di cui uno è questo rapporto   |
 | Linee di codice inserite complessive | 16.399 (7 commit di funzionalità) |
-| Documenti di piano conservati | 7 |
+| Documenti di piano conservati        | 7                                 |
 
 ### 22.2 Prodotto
 
-| Indicatore | Valore |
-|---|---|
-| Strumenti operativi per l'agente | 26 |
-| Provider LLM supportati | 25 |
+| Indicatore                             | Valore                                                  |
+| -------------------------------------- | ------------------------------------------------------- |
+| Strumenti operativi per l'agente       | 26                                                      |
+| Provider LLM supportati                | 25                                                      |
 | Provider locali (nessun invio esterno) | 2 (Ollama, LM Studio) + 1 endpoint compatibile a scelta |
-| Permessi API dichiarati | 7, tutti motivati per iscritto |
-| Accesso ai siti | dichiarazione `host_permissions: <all_urls>` |
-| Dimensione del pacchetto compresso | 424.711 byte |
-| Dimensione del processo di servizio | 326.633 byte (era 1.094.697) |
+| Permessi API dichiarati                | 7, tutti motivati per iscritto                          |
+| Accesso ai siti                        | dichiarazione `host_permissions: <all_urls>`            |
+| Dimensione del pacchetto compresso     | 424.711 byte                                            |
+| Dimensione del processo di servizio    | 326.633 byte (era 1.094.697)                            |
 
 ### 22.3 Qualità
 
-| Indicatore | Valore |
-|---|---|
-| Test automatici in verde | 295 |
-| Copertura linee / funzioni / ramificazioni (perimetro `src/shared`) | 96,45% / 97,52% / 89,06% |
-| Controlli end-to-end superati | 7 controlli in un'unica suite |
-| Violazioni di accessibilità serie | 0 |
-| Controlli automatici nel processo di verifica | 12, più la suite end-to-end |
-| Difetti trovati e corretti in revisione | 7 |
+| Indicatore                                                          | Valore                        |
+| ------------------------------------------------------------------- | ----------------------------- |
+| Test automatici in verde                                            | 295                           |
+| Copertura linee / funzioni / ramificazioni (perimetro `src/shared`) | 96,45% / 97,52% / 89,06%      |
+| Controlli end-to-end superati                                       | 7 controlli in un'unica suite |
+| Violazioni di accessibilità serie                                   | 0                             |
+| Controlli automatici nel processo di verifica                       | 12, più la suite end-to-end   |
+| Difetti trovati e corretti in revisione                             | 7                             |
 
 ---
 
 ## Appendice A — Elenco completo dei tool browser
 
-| # | Strumento | Funzione | Conferma richiesta |
-|---|---|---|---|
-| 1 | `browser_snapshot` | Cattura la struttura della pagina con riferimenti numerici | no (mai, neppure con «ogni azione») |
-| 2 | `browser_navigate` | Apre un indirizzo | sì, verso dominio non ancora visitato |
-| 3 | `browser_back` | Torna indietro nella cronologia | solo con «ogni azione» |
-| 4 | `browser_forward` | Avanti nella cronologia | solo con «ogni azione» |
-| 5 | `browser_reload` | Ricarica la pagina | sì (azioni sensibili, predefinito) |
-| 6 | `browser_click` | Clic su un elemento identificato | solo con «ogni azione» |
-| 7 | `browser_type` | Digitazione in un campo, con invio opzionale | sì solo se invia il modulo (sempre, anche a conferme disattivate) |
-| 8 | `browser_hover` | Passaggio del mouse (menu, suggerimenti) | solo con «ogni azione» |
-| 9 | `browser_clipboard_write` | Copia testo negli appunti | solo con «ogni azione» |
-| 10 | `browser_clipboard_read` | Legge gli appunti | sì (azioni sensibili, predefinito) |
-| 11 | `browser_iframe_snapshot` | Legge dentro un riquadro incorporato | no (mai, neppure con «ogni azione») |
-| 12 | `browser_download` | Avvia il download di un file | sì (azioni sensibili, predefinito) |
-| 13 | `browser_select` | Scelta in un menu a tendina | sì (azioni sensibili, predefinito) |
-| 14 | `browser_wait` | Attende che appaia un elemento | no (mai, neppure con «ogni azione») |
-| 15 | `browser_press` | Pressione di tasti di navigazione | solo con «ogni azione» |
-| 16 | `browser_scroll` | Scorrimento della pagina | solo con «ogni azione» |
-| 17 | `browser_screenshot` | Cattura dello schermo | solo con «ogni azione» |
-| 18 | `browser_screenshot_element` | Cattura ritagliata di un elemento | solo con «ogni azione» |
-| 19 | `browser_tabs_list` | Elenco delle schede | no (mai, neppure con «ogni azione») |
-| 20 | `browser_tab_focus` | Passaggio a un'altra scheda | sì (azioni sensibili, predefinito) |
-| 21 | `browser_tab_duplicate` | Duplica la scheda corrente | solo con «ogni azione» |
-| 22 | `browser_read_text` | Testo della pagina, completo o riassunto | solo con «ogni azione» |
-| 23 | `browser_links` | Elenco dei collegamenti | solo con «ogni azione» |
-| 24 | `browser_find` | Ricerca di un testo con conteggio | solo con «ogni azione» |
-| 25 | `browser_table` | Estrazione di una tabella | solo con «ogni azione» |
-| 26 | `browser_query` | Interrogazione della struttura con selettori | solo con «ogni azione» |
+| #   | Strumento                    | Funzione                                                   | Conferma richiesta                                                |
+| --- | ---------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- |
+| 1   | `browser_snapshot`           | Cattura la struttura della pagina con riferimenti numerici | no (mai, neppure con «ogni azione»)                               |
+| 2   | `browser_navigate`           | Apre un indirizzo                                          | sì, verso dominio non ancora visitato                             |
+| 3   | `browser_back`               | Torna indietro nella cronologia                            | solo con «ogni azione»                                            |
+| 4   | `browser_forward`            | Avanti nella cronologia                                    | solo con «ogni azione»                                            |
+| 5   | `browser_reload`             | Ricarica la pagina                                         | sì (azioni sensibili, predefinito)                                |
+| 6   | `browser_click`              | Clic su un elemento identificato                           | solo con «ogni azione»                                            |
+| 7   | `browser_type`               | Digitazione in un campo, con invio opzionale               | sì solo se invia il modulo (sempre, anche a conferme disattivate) |
+| 8   | `browser_hover`              | Passaggio del mouse (menu, suggerimenti)                   | solo con «ogni azione»                                            |
+| 9   | `browser_clipboard_write`    | Copia testo negli appunti                                  | solo con «ogni azione»                                            |
+| 10  | `browser_clipboard_read`     | Legge gli appunti                                          | sì (azioni sensibili, predefinito)                                |
+| 11  | `browser_iframe_snapshot`    | Legge dentro un riquadro incorporato                       | no (mai, neppure con «ogni azione»)                               |
+| 12  | `browser_download`           | Avvia il download di un file                               | sì (azioni sensibili, predefinito)                                |
+| 13  | `browser_select`             | Scelta in un menu a tendina                                | sì (azioni sensibili, predefinito)                                |
+| 14  | `browser_wait`               | Attende che appaia un elemento                             | no (mai, neppure con «ogni azione»)                               |
+| 15  | `browser_press`              | Pressione di tasti di navigazione                          | solo con «ogni azione»                                            |
+| 16  | `browser_scroll`             | Scorrimento della pagina                                   | solo con «ogni azione»                                            |
+| 17  | `browser_screenshot`         | Cattura dello schermo                                      | solo con «ogni azione»                                            |
+| 18  | `browser_screenshot_element` | Cattura ritagliata di un elemento                          | solo con «ogni azione»                                            |
+| 19  | `browser_tabs_list`          | Elenco delle schede                                        | no (mai, neppure con «ogni azione»)                               |
+| 20  | `browser_tab_focus`          | Passaggio a un'altra scheda                                | sì (azioni sensibili, predefinito)                                |
+| 21  | `browser_tab_duplicate`      | Duplica la scheda corrente                                 | solo con «ogni azione»                                            |
+| 22  | `browser_read_text`          | Testo della pagina, completo o riassunto                   | solo con «ogni azione»                                            |
+| 23  | `browser_links`              | Elenco dei collegamenti                                    | solo con «ogni azione»                                            |
+| 24  | `browser_find`               | Ricerca di un testo con conteggio                          | solo con «ogni azione»                                            |
+| 25  | `browser_table`              | Estrazione di una tabella                                  | solo con «ogni azione»                                            |
+| 26  | `browser_query`              | Interrogazione della struttura con selettori               | solo con «ogni azione»                                            |
 
 ## Appendice B — Elenco completo dei provider
 
-| # | Provider | Tipo | Credenziale richiesta | Visione |
-|---|---|---|---|---|
-| 1 | OpenAI | cloud | sì | sì |
-| 2 | Anthropic | cloud | sì | sì |
-| 3 | Google Gemini | cloud | sì | sì |
-| 4 | xAI Grok | cloud | sì | sì |
-| 5 | Azure OpenAI | cloud | sì + risorsa | sì |
-| 6 | DeepSeek | cloud | sì | no |
-| 7 | Groq | cloud | sì | sì |
-| 8 | Cerebras | cloud | sì | sì |
-| 9 | Mistral AI | cloud | sì | sì |
-| 10 | Cohere | cloud | sì | no |
-| 11 | DeepInfra | cloud | sì | no |
-| 12 | Fireworks AI | cloud | sì | no |
-| 13 | Perplexity | cloud | sì | no |
-| 14 | Together AI | cloud | sì | no |
-| 15 | Hugging Face | cloud | sì | no |
-| 16 | NVIDIA NIM | cloud | sì | no |
-| 17 | Baseten | cloud | sì | no |
-| 18 | SambaNova | cloud | sì | no |
-| 19 | OpenRouter | gateway | sì | sì |
-| 20 | OpenCode Zen | gateway | sì | sì |
-| 21 | GitHub Models | gateway | sì | sì |
-| 22 | Vercel AI Gateway | gateway | sì | sì |
-| 23 | Ollama | locale | no | sì |
-| 24 | LM Studio | locale | no | sì |
-| 25 | OpenAI-compatibile | personalizzato | facoltativa | sì |
+| #   | Provider           | Tipo           | Credenziale richiesta | Visione |
+| --- | ------------------ | -------------- | --------------------- | ------- |
+| 1   | OpenAI             | cloud          | sì                    | sì      |
+| 2   | Anthropic          | cloud          | sì                    | sì      |
+| 3   | Google Gemini      | cloud          | sì                    | sì      |
+| 4   | xAI Grok           | cloud          | sì                    | sì      |
+| 5   | Azure OpenAI       | cloud          | sì + risorsa          | sì      |
+| 6   | DeepSeek           | cloud          | sì                    | no      |
+| 7   | Groq               | cloud          | sì                    | sì      |
+| 8   | Cerebras           | cloud          | sì                    | sì      |
+| 9   | Mistral AI         | cloud          | sì                    | sì      |
+| 10  | Cohere             | cloud          | sì                    | no      |
+| 11  | DeepInfra          | cloud          | sì                    | no      |
+| 12  | Fireworks AI       | cloud          | sì                    | no      |
+| 13  | Perplexity         | cloud          | sì                    | no      |
+| 14  | Together AI        | cloud          | sì                    | no      |
+| 15  | Hugging Face       | cloud          | sì                    | no      |
+| 16  | NVIDIA NIM         | cloud          | sì                    | no      |
+| 17  | Baseten            | cloud          | sì                    | no      |
+| 18  | SambaNova          | cloud          | sì                    | no      |
+| 19  | OpenRouter         | gateway        | sì                    | sì      |
+| 20  | OpenCode Zen       | gateway        | sì                    | sì      |
+| 21  | GitHub Models      | gateway        | sì                    | sì      |
+| 22  | Vercel AI Gateway  | gateway        | sì                    | sì      |
+| 23  | Ollama             | locale         | no                    | sì      |
+| 24  | LM Studio          | locale         | no                    | sì      |
+| 25  | OpenAI-compatibile | personalizzato | facoltativa           | sì      |
 
 ## Appendice C — Elenco dei rilasci
 
-| Release | Data | Pacchetto | Contenuto sintetico |
-|---|---|---|---|
-| v0.4.0 | 16/09/2026 | lmuse-0.4.0.zip | 18 strumenti, domini fidati, test end-to-end |
-| v0.5.0 | 16/09/2026 | lmuse-0.5.0.zip | Visualizzazione in tempo reale, lavori programmati, 21 strumenti |
-| v0.6.0 | 17/09/2026 | lmuse-0.6.0.zip | 25 provider, credenziali per provider, integrazione opencode |
-| v0.7.0 | 17/09/2026 | lmuse-0.7.0.zip | Alleggerimento 70,3%, coda lavori, elenco modelli, 24 strumenti |
-| v0.8.0 | 28/09/2026 | lmuse-0.8.0.zip | Blocco automatico credenziale, 26 strumenti, correzioni di sicurezza |
+| Release | Data       | Pacchetto       | Contenuto sintetico                                                  |
+| ------- | ---------- | --------------- | -------------------------------------------------------------------- |
+| v0.4.0  | 16/09/2026 | lmuse-0.4.0.zip | 18 strumenti, domini fidati, test end-to-end                         |
+| v0.5.0  | 16/09/2026 | lmuse-0.5.0.zip | Visualizzazione in tempo reale, lavori programmati, 21 strumenti     |
+| v0.6.0  | 17/09/2026 | lmuse-0.6.0.zip | 25 provider, credenziali per provider, integrazione opencode         |
+| v0.7.0  | 17/09/2026 | lmuse-0.7.0.zip | Alleggerimento 70,3%, coda lavori, elenco modelli, 24 strumenti      |
+| v0.8.0  | 28/09/2026 | lmuse-0.8.0.zip | Blocco automatico credenziale, 26 strumenti, correzioni di sicurezza |
 
 ---
 
@@ -1424,35 +1425,35 @@ resta al committente** e non è oggetto di questo lavoro.
 
 Termini tecnici presenti nel rapporto, spiegati in linguaggio non specializzato.
 
-| Termine | Significato |
-|---|---|
-| **Estensione** | Programma che si installa nel browser (Chrome, Chromium, Edge) e ne aggiunge funzionalità. È un file che l'utente carica: non è un software da installare sul sistema operativo. |
-| **Processo di servizio** | Componente dell'estensione che resta «addormentato» quando non serve e si riattiva all'occorrenza. È la parte che dialoga con il modello. |
-| **Side panel** | Pannello laterale che si apre a fianco della pagina, senza coprire il contenuto. È l'interfaccia di lmuse. |
-| **Chiave API** | Codice segreto che identifica l'utente presso un servizio esterno. Chi la possiede, paga il servizio. lmuse non la crea e non la gestisce. |
-| **Modello LLM** | Programma di intelligenza artificiale che genera testo a partire da una richiesta. È il «motore» a cui l'agente chiede cosa fare. |
-| **Provider** | Servizio che ospita e rende disponibile un modello (OpenAI, Google, un modello locale…). L'utente ne sceglie uno e vi inserisce la chiave. |
-| **Gateway** | Intermediario che instrada le richieste verso modelli di più fornitori con una sola chiave (OpenRouter, Vercel AI Gateway). |
-| **Modello locale** | Modello installato sul computer dell'utente, che non invia nulla fuori dalla postazione. È la scelta di massima prudenza. |
-| **Token** | Unità di misura del testo usata dai modelli (circa quattro caratteri). Serve a misurare il consumo e i costi. |
-| **Streaming** | Visualizzazione del testo mentre viene generato, invece che solo a lavoro finito. |
-| **Prompt injection** | Tentativo di una pagina web di indirizzare l'agente con istruzioni scritte in modo ingannevole. È il limite di sicurezza più discusso di questa classe di prodotti (§ 16.1). |
-| **Riferimento (ref)** | Numero che identifica un elemento della pagina nell'istantanea. L'agente usa i numeri per indicare cosa cliccare; l'utente li vede nello schermo. |
-| **Instantanea (snapshot)** | Descrizione testuale della pagina: elementi interattivi con i loro riferimenti. È ciò che l'agente «vede». Inviare schermate è facoltativo. |
-| **Tool** | Operazione che l'agente può eseguire sul browser (clic, digitazione, navigazione…). Sono 26 (§ 7). |
-| **Agente** | Il programma che riceve un obiettivo in linguaggio naturale, sceglie gli strumenti e li usa in sequenza. |
-| **Cicli di lavoro (gigiloop)** | Il metodo di sviluppo adottato: cicli brevi con obiettivi definiti in anticipo, verifica automatica e revisione avversariale (§ 5). |
-| **Ciclo (release)** | Una versione numerata e pubblicata, con note di rilascio. |
-| **Test automatico** | Programma che verifica il comportamento del software senza intervento umano. |
-| **Copertura del codice** | Quota di codice effettivamente eseguita dai test. Nel progetto è misurata solo su una parte del sorgente (§ 12.2). |
-| **Test end-to-end** | Verifica che avvia realmente il software in un browser vero, invece di simulare il funzionamento. |
-| **Accessibilità** | Possibilità di usare l'interfaccia anche con tecnologie assistive. |
-| **Permesso** | Autorizzazione che l'estensione chiede al browser (leggere schede, inserire codice in una pagina…). Se ne concede troppi, si espone il computer. |
-| **Critografia / impronta crittografica** | Codice che identifica un file in modo univoco: serve a verificare che il pacchetto ricevuto sia quello autentico e non alterato. |
-| **Checksum** | L'impronta crittografica di cui sopra. |
-| **DPIA** | Valutazione d'impatto sulla protezione dei dati, prevista dal regolamento europeo quando il trattamento è ad alto rischio. È una verifica del committente. |
-| **Credenziali per-provider** | Archivio in cui ogni servizio conserva la propria chiave, invece di un unico campo da riscrivere. |
-| **Blocco automatico** | Cancellazione automatica della chiave dopo un periodo di inattività. |
+| Termine                                  | Significato                                                                                                                                                                      |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Estensione**                           | Programma che si installa nel browser (Chrome, Chromium, Edge) e ne aggiunge funzionalità. È un file che l'utente carica: non è un software da installare sul sistema operativo. |
+| **Processo di servizio**                 | Componente dell'estensione che resta «addormentato» quando non serve e si riattiva all'occorrenza. È la parte che dialoga con il modello.                                        |
+| **Side panel**                           | Pannello laterale che si apre a fianco della pagina, senza coprire il contenuto. È l'interfaccia di lmuse.                                                                       |
+| **Chiave API**                           | Codice segreto che identifica l'utente presso un servizio esterno. Chi la possiede, paga il servizio. lmuse non la crea e non la gestisce.                                       |
+| **Modello LLM**                          | Programma di intelligenza artificiale che genera testo a partire da una richiesta. È il «motore» a cui l'agente chiede cosa fare.                                                |
+| **Provider**                             | Servizio che ospita e rende disponibile un modello (OpenAI, Google, un modello locale…). L'utente ne sceglie uno e vi inserisce la chiave.                                       |
+| **Gateway**                              | Intermediario che instrada le richieste verso modelli di più fornitori con una sola chiave (OpenRouter, Vercel AI Gateway).                                                      |
+| **Modello locale**                       | Modello installato sul computer dell'utente, che non invia nulla fuori dalla postazione. È la scelta di massima prudenza.                                                        |
+| **Token**                                | Unità di misura del testo usata dai modelli (circa quattro caratteri). Serve a misurare il consumo e i costi.                                                                    |
+| **Streaming**                            | Visualizzazione del testo mentre viene generato, invece che solo a lavoro finito.                                                                                                |
+| **Prompt injection**                     | Tentativo di una pagina web di indirizzare l'agente con istruzioni scritte in modo ingannevole. È il limite di sicurezza più discusso di questa classe di prodotti (§ 16.1).     |
+| **Riferimento (ref)**                    | Numero che identifica un elemento della pagina nell'istantanea. L'agente usa i numeri per indicare cosa cliccare; l'utente li vede nello schermo.                                |
+| **Instantanea (snapshot)**               | Descrizione testuale della pagina: elementi interattivi con i loro riferimenti. È ciò che l'agente «vede». Inviare schermate è facoltativo.                                      |
+| **Tool**                                 | Operazione che l'agente può eseguire sul browser (clic, digitazione, navigazione…). Sono 26 (§ 7).                                                                               |
+| **Agente**                               | Il programma che riceve un obiettivo in linguaggio naturale, sceglie gli strumenti e li usa in sequenza.                                                                         |
+| **Cicli di lavoro (gigiloop)**           | Il metodo di sviluppo adottato: cicli brevi con obiettivi definiti in anticipo, verifica automatica e revisione avversariale (§ 5).                                              |
+| **Ciclo (release)**                      | Una versione numerata e pubblicata, con note di rilascio.                                                                                                                        |
+| **Test automatico**                      | Programma che verifica il comportamento del software senza intervento umano.                                                                                                     |
+| **Copertura del codice**                 | Quota di codice effettivamente eseguita dai test. Nel progetto è misurata solo su una parte del sorgente (§ 12.2).                                                               |
+| **Test end-to-end**                      | Verifica che avvia realmente il software in un browser vero, invece di simulare il funzionamento.                                                                                |
+| **Accessibilità**                        | Possibilità di usare l'interfaccia anche con tecnologie assistive.                                                                                                               |
+| **Permesso**                             | Autorizzazione che l'estensione chiede al browser (leggere schede, inserire codice in una pagina…). Se ne concede troppi, si espone il computer.                                 |
+| **Critografia / impronta crittografica** | Codice che identifica un file in modo univoco: serve a verificare che il pacchetto ricevuto sia quello autentico e non alterato.                                                 |
+| **Checksum**                             | L'impronta crittografica di cui sopra.                                                                                                                                           |
+| **DPIA**                                 | Valutazione d'impatto sulla protezione dei dati, prevista dal regolamento europeo quando il trattamento è ad alto rischio. È una verifica del committente.                       |
+| **Credenziali per-provider**             | Archivio in cui ogni servizio conserva la propria chiave, invece di un unico campo da riscrivere.                                                                                |
+| **Blocco automatico**                    | Cancellazione automatica della chiave dopo un periodo di inattività.                                                                                                             |
 
 ---
 
@@ -1468,4 +1469,4 @@ formale, una **prova di accettazione con credenziale reale** condotta dall'Ammin
 (§ 16.1, punto 1) e una **sessione di prova con operatori** (§ 16.2, punto 2), prima
 di ogni eventuale diffusione.
 
-*Fine del rapporto.*
+_Fine del rapporto._

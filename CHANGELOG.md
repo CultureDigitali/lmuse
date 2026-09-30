@@ -1,5 +1,18 @@
 # Changelog — lmuse
 
+## Non pubblicato
+
+**Correzioni alla pipeline di verifica**
+
+- `pnpm check` ora include `format:check`, `verify-dist`, `check-size` e
+  `check-links`: coincide con i controlli della CI, così un controllo non può
+  più essere dato per superato in locale e fallire in remoto. In precedenza
+  `format:check` falliva sulla CI da diversi cicli senza che fosse noto.
+- Browser di test e2e spostato su **Chrome for Testing 155.0.8059.12**: il vecchio
+  bucket dei snapshot Chromium non pubblica più build per Linux, e la CI falliva
+  in fase di installazione. Verificato che `--load-extension` funzioni con questa
+  build (il service worker si registra).
+
 ## 0.8.0 (2026-09-28) — Auto-lock, iframe, sicurezza
 
 Settimo loop: auto-lock della chiave di sessione, due nuovi tool, tre difetti

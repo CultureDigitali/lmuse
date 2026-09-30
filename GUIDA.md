@@ -12,11 +12,11 @@ tenuto solo come riferimento per le idee (es. distillazione DOM).
 
 ## Provider supportati (25)
 
-| Gruppo      | Provider                                                                                              |
-| ----------- | ----------------------------------------------------------------------------------------------------- |
+| Gruppo      | Provider                                                                                                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Cloud**   | OpenAI, Anthropic, Google Gemini, xAI, Azure, DeepSeek, Groq, Cerebras, Mistral, Cohere, DeepInfra, Fireworks, Perplexity, Together AI, Hugging Face, NVIDIA NIM, Baseten, SambaNova |
-| **Gateway** | OpenRouter, OpenCode Zen (`opencode.ai/zen`), GitHub Models, Vercel AI Gateway                          |
-| **Locali**  | Ollama, LM Studio, Custom OpenAI-compatibile                                                           |
+| **Gateway** | OpenRouter, OpenCode Zen (`opencode.ai/zen`), GitHub Models, Vercel AI Gateway                                                                                                       |
+| **Locali**  | Ollama, LM Studio, Custom OpenAI-compatibile                                                                                                                                         |
 
 I nomi modello di default sono quelli correnti (set 2026), ma il campo modello è libero:
 se esce un modello nuovo lo scrivi e funziona, senza aggiornare l'estensione.
@@ -32,8 +32,8 @@ pnpm setup:opencode --uninstall  # rimuove il bridge
 Il bridge (`native/lmuse-opencode-bridge.mjs`) legge `~/.local/share/opencode/auth.json`
 e restituisce all'estensione solo i provider compatibili (NVIDIA, OpenAI, Anthropic,
 Google, xAI, DeepSeek, Groq, Mistral, Cerebras, Together, Hugging Face, Cohere,
-DeepInfra, opencode stesso, …). Nel pannello: ⚙ → sezione **opencode** → *Rileva* →
-*Importa chiavi*. Le chiavi non escono mai dal PC e non finiscono nei log.
+DeepInfra, opencode stesso, …). Nel pannello: ⚙ → sezione **opencode** → _Rileva_ →
+_Importa chiavi_. Le chiavi non escono mai dal PC e non finiscono nei log.
 
 ## Struttura
 
@@ -215,33 +215,33 @@ quando non servono. "Cancella tutti i dati" azzera anche le statistiche.
 
 ## Impostazioni (tutte, con default)
 
-| Chiave               | Default      | Note                                 |
-| -------------------- | ------------ | ------------------------------------ |
-| providerId / model   | openai/gpt…  | catalogo in `src/shared/settings.ts` |
-| baseUrl              | ''           | Azure/custom/locali                  |
-| maxSteps             | 25 (3–100)   | budget tool = maxSteps × 3           |
-| maxRetries           | 2 (0–6)      | retry SDK su errori transienti       |
-| runTimeoutMin        | 15 (1–120)   | timeout globale run                  |
-| rememberKey          | true         | false = chiave solo in sessione      |
-| privacyMaskPii       | true         | redazione snapshot (banner se OFF)   |
-| privacyHidePasswords | true         | blocco digitazione password          |
-| privacyHostOnly      | false        | solo origin+path, niente query       |
-| keepHistory          | true         | false = nessuna persistenza task     |
-| approval             | sensitive    | off / sensitive / all                |
-| approvalTimeoutSec   | 120 (30–300) | timeout conferma → negata            |
-| snapshotMaxChars     | 12000        | 4000–20000, taglio snapshot          |
-| sendScreenshots      | true         | OFF = tool screenshot rifiutato      |
-| allowedDomains       | ''           | CSV, vuoto = tutti                   |
-| trustedDomains       | []           | max 50, niente conferma navigate     |
-| savedPrompts         | []           | template task, max 20                |
-| theme                | auto         | auto / dark / light                  |
-| locale               | auto         | auto / it / en                       |
-| maxTokensPerRun      | 60000        | 1000–200000, abort oltre soglia      |
-| stopText             | ''           | chiude il run se appare nella pagina |
-| soundOnDone          | false        | beep a fine task                     |
-| compactLog           | false        | nasconde il chatter tool nel log     |
-| lastRuns             | []           | ultimi 10 run (auto)                 |
-| schedules            | []           | task programmati, max 5              |
+| Chiave               | Default      | Note                                        |
+| -------------------- | ------------ | ------------------------------------------- |
+| providerId / model   | openai/gpt…  | catalogo in `src/shared/settings.ts`        |
+| baseUrl              | ''           | Azure/custom/locali                         |
+| maxSteps             | 25 (3–100)   | budget tool = maxSteps × 3                  |
+| maxRetries           | 2 (0–6)      | retry SDK su errori transienti              |
+| runTimeoutMin        | 15 (1–120)   | timeout globale run                         |
+| rememberKey          | true         | false = chiave solo in sessione             |
+| privacyMaskPii       | true         | redazione snapshot (banner se OFF)          |
+| privacyHidePasswords | true         | blocco digitazione password                 |
+| privacyHostOnly      | false        | solo origin+path, niente query              |
+| keepHistory          | true         | false = nessuna persistenza task            |
+| approval             | sensitive    | off / sensitive / all                       |
+| approvalTimeoutSec   | 120 (30–300) | timeout conferma → negata                   |
+| snapshotMaxChars     | 12000        | 4000–20000, taglio snapshot                 |
+| sendScreenshots      | true         | OFF = tool screenshot rifiutato             |
+| allowedDomains       | ''           | CSV, vuoto = tutti                          |
+| trustedDomains       | []           | max 50, niente conferma navigate            |
+| savedPrompts         | []           | template task, max 20                       |
+| theme                | auto         | auto / dark / light                         |
+| locale               | auto         | auto / it / en                              |
+| maxTokensPerRun      | 60000        | 1000–200000, abort oltre soglia             |
+| stopText             | ''           | chiude il run se appare nella pagina        |
+| soundOnDone          | false        | beep a fine task                            |
+| compactLog           | false        | nasconde il chatter tool nel log            |
+| lastRuns             | []           | ultimi 10 run (auto)                        |
+| schedules            | []           | task programmati, max 5                     |
 | sessionLockMin       | 0 (0–120)    | auto-lock chiave di sessione, su inattività |
 
 ## Comandi tastiera
@@ -266,7 +266,8 @@ pnpm test:e2e        # smoke su Chromium reale (auto-scaricato in ~/.cache)
 pnpm check-links     # link relativi nei .md
 pnpm lint           # eslint flat
 pnpm format         # prettier
-pnpm check          # typecheck + test + lint + build
+pnpm check          # typecheck + test + lint + format:check + build +
+                    # verify-dist + check-size + check-links
 pnpm build          # compila in dist/
 pnpm dev            # ricompila a ogni modifica (watch)
 pnpm release        # check + verify-dist + zip di dist/ in release/

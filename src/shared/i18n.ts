@@ -67,7 +67,8 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     history_empty: 'Nessun task recente.',
     token_estimate: 'Stima approssimativa del solo testo del task: circa {n} token (locale).',
     token_estimate_high: 'La stima supera metà del budget per run; puoi comunque avviare.',
-    model_not_in_list: 'Modello non nella cache discovery: verifica o aggiorna la lista. Puoi comunque avviare.',
+    model_not_in_list:
+      'Modello non nella cache discovery: verifica o aggiorna la lista. Puoi comunque avviare.',
     search_log: 'Cerca nel log',
     filter_log: 'Filtro log',
     filter_all: 'Tutti',
@@ -205,7 +206,8 @@ const STRINGS: Record<Lang, Record<string, string>> = {
     history_empty: 'No recent tasks.',
     token_estimate: 'Approximate task text only estimate: about {n} tokens (local).',
     token_estimate_high: 'The estimate exceeds half the run budget; you can still run the task.',
-    model_not_in_list: 'Model not in the discovery cache: check or refresh the list. You can still run the task.',
+    model_not_in_list:
+      'Model not in the discovery cache: check or refresh the list. You can still run the task.',
     search_log: 'Search log',
     filter_log: 'Log filter',
     filter_all: 'All',

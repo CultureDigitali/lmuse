@@ -73,7 +73,7 @@ Due limiti da conoscere:
 Se esegui `pnpm setup:opencode`, l'estensione può chiedere al native host
 `native/lmuse-opencode-bridge.mjs` (solo stdio, **nessuna rete**) di leggere
 `~/.local/share/opencode/auth.json` e restituire: (a) l'elenco dei provider
-configurati (nomi, mai chiavi) e (b) — solo su click "*Importa chiavi*" — le chiavi
+configurati (nomi, mai chiavi) e (b) — solo su click "_Importa chiavi_" — le chiavi
 dei provider che lmuse supporta. Nulla viene inviato a terzi; permesso richiesto:
 `nativeMessaging`. Disinstalla con `pnpm setup:opencode --uninstall`.
 

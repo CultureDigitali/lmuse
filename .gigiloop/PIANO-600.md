@@ -7,6 +7,7 @@ aggiungere model discovery live, coda task, export log, nuovi tool browser
 Baseline: `pnpm check` verde (232 test), HEAD 5786811, release v0.6.0 pubblicata.
 
 ## A. Performance bundle (dynamic import provider) — 1–14
+
 1. providers.ts: mappa factory lazy (`() => import('@ai-sdk/xxx')`).
 2. createModel diventa async, un solo chunk per provider caricato on-demand.
 3. Vite manualChunks disattivato per provider (default dynamic chunks ok).
@@ -23,6 +24,7 @@ Baseline: `pnpm check` verde (232 test), HEAD 5786811, release v0.6.0 pubblicata
 14. Docs: GUIDA nota performance.
 
 ## B. Model discovery live — 15–26
+
 15. GET {baseUrl}/models per provider OpenAI-compatibili (openrouter, nvidia, opencode, github, baseten, sambanova, ollama, lmstudio, custom).
 16. `fetchModels(providerId, apiKey, baseUrl)` in background, timeout 10s.
 17. Risposta validata: array id stringhe, max 500, dedup, sort.
@@ -37,6 +39,7 @@ Baseline: `pnpm check` verde (232 test), HEAD 5786811, release v0.6.0 pubblicata
 26. i18n test parità (regressione auto).
 
 ## C. Coda task — 27–38
+
 27. Coda in storage.session `lmuse.queue.v1` (max 5, task troncati).
 28. addToQueue / loadQueue / clearQueue + sanitizeQueue pure.
 29. Worker: a fine run, se coda non vuota → avvia il prossimo (dopo cooldown).
@@ -51,6 +54,7 @@ Baseline: `pnpm check` verde (232 test), HEAD 5786811, release v0.6.0 pubblicata
 38. Docs GUIDA sezione coda.
 
 ## D. Export log + persistenza run — 39–46
+
 39. exportLog(list) → file .md scaricabile (chrome.downloads? no: anchor blob).
 40. Header md con data, provider, modello (mai chiave).
 41. Bottone "Scarica log" già presente → wired a exportLog.
@@ -61,6 +65,7 @@ Baseline: `pnpm check` verde (232 test), HEAD 5786811, release v0.6.0 pubblicata
 46. PRIVACY: file log resta locale (nessun upload).
 
 ## E. Nuovi tool browser — 47–62
+
 47. `browser_hover` (hover su ref, content actions).
 48. `browser_drag` (drag da ref a coordinate/ref).
 49. `browser_clipboard_write` (testo negli appunti del tab).
@@ -79,6 +84,7 @@ Baseline: `pnpm check` verde (232 test), HEAD 5786811, release v0.6.0 pubblicata
 62. GUIDA tabella tool aggiornata (21 → 26).
 
 ## F. opencode deepening — 63–72
+
 63. Status opencode nel header pannello (dot verde se bridge ok, cached 60s).
 64. bridgeCall cache in memoria panel (no doppio ping).
 65. `opencode models` via bridge comando 'models'? No: zen /models già in B. Skip.
@@ -91,6 +97,7 @@ Baseline: `pnpm check` verde (232 test), HEAD 5786811, release v0.6.0 pubblicata
 72. PRIVACY invariata (nessun nuovo dato).
 
 ## G. Sicurezza / privacy — 73–80
+
 73. optional_host_permissions: roadmap → valutazione reale, resta <all_urls> (decisione documentata).
 74. Rotazione chiave: hint età chiave (>90gg → suggerimento rotazione, solo locale).
 75. keySavedAt in storage, aggiornato a ogni saveApiKey.
@@ -101,6 +108,7 @@ Baseline: `pnpm check` verde (232 test), HEAD 5786811, release v0.6.0 pubblicata
 80. SECURITY: nota rotazione.
 
 ## H. UX polish — 81–88
+
 81. Overlay scorciatoie (Ctrl+Shift+L, Ctrl+Shift+X, Ctrl+K, Esc) nel footer ⚙.
 82. i18n: shortcuts_title, shortcuts list.
 83. Esc chiude settings/approval (già? verifica, se manca aggiungi).
@@ -111,6 +119,7 @@ Baseline: `pnpm check` verde (232 test), HEAD 5786811, release v0.6.0 pubblicata
 88. e2e a11y 7/7.
 
 ## I. Test + coverage — 89–94
+
 89. pnpm vitest run: ≥ 232 + nuovi (~35) verdi.
 90. Coverage soglie 85/85/80 mantenute (src/shared).
 91. settings.test: coda + modelli cache + key age.
@@ -119,9 +128,10 @@ Baseline: `pnpm check` verde (232 test), HEAD 5786811, release v0.6.0 pubblicata
 94. exportLog test.
 
 ## J. Q + docs + release — 95–100
+
 95. pnpm check verde completo.
 96. pnpm test:e2e 7/7.
 97. GUIDA.md: performance + coda + tool 26 + discovery.
 98. PRIVACY/SECURITY aggiornate; CHANGELOG 0.7.0 + bump versione + release zip dinamico.
 99. README/STORE aggiornati (26 tool, coda, discovery, opencode usa).
-100. Commit + tag v0.7.0 + GitHub release.
+100.  Commit + tag v0.7.0 + GitHub release.

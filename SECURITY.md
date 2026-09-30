@@ -24,7 +24,7 @@
 | `activeTab`       | agire sul tab attivo senza prompt                | —                                              |
 | `sidePanel`       | pannello laterale                                | popup (peggiore per task lunghi)               |
 | `alarms`          | cadenza task programmati (solo locali)           | polling dal panel (richiede panel aperto)      |
-| `nativeMessaging` | bridge opencode (host registrato dall'utente)    | nessuna; senza bridge il canale è chiuso        |
+| `nativeMessaging` | bridge opencode (host registrato dall'utente)    | nessuna; senza bridge il canale è chiuso       |
 | host `<all_urls>` | operare dove l'utente chiede                     | `optional_host_permissions` per-sito (roadmap) |
 
 ### Bridge opencode — superficie d'attacco

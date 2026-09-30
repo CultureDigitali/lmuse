@@ -224,7 +224,11 @@ export const PROVIDERS: ProviderDef[] = [
     opencodeId: 'nvidia',
     needsKey: true,
     defaultModel: 'meta/llama-3.3-70b-instruct',
-    models: ['meta/llama-3.3-70b-instruct', 'deepseek-ai/deepseek-r1', 'nvidia/llama-3.1-nemotron-70b-instruct'],
+    models: [
+      'meta/llama-3.3-70b-instruct',
+      'deepseek-ai/deepseek-r1',
+      'nvidia/llama-3.1-nemotron-70b-instruct',
+    ],
     defaultBaseUrl: 'https://integrate.api.nvidia.com/v1',
     keyUrl: 'https://build.nvidia.com/',
     supportsVision: false,
@@ -270,7 +274,10 @@ export const PROVIDERS: ProviderDef[] = [
     opencodeId: 'fireworks-ai',
     needsKey: true,
     defaultModel: 'accounts/fireworks/models/llama-v3p3-70b-instruct',
-    models: ['accounts/fireworks/models/llama-v3p3-70b-instruct', 'accounts/fireworks/models/qwen3-235b-a22b'],
+    models: [
+      'accounts/fireworks/models/llama-v3p3-70b-instruct',
+      'accounts/fireworks/models/qwen3-235b-a22b',
+    ],
     keyUrl: 'https://fireworks.ai/account/api-keys',
     supportsVision: false,
   },
@@ -623,7 +630,10 @@ export async function saveApiKey(providerId: ProviderId, key: string, rememberKe
   // Meta: quando la chiave è stata salvata (per l'hint rotazione, solo locale).
   if (key.trim()) {
     const metaRaw = await chrome.storage.local.get(KEYS_META_KEY);
-    const meta = metaRaw[KEYS_META_KEY] && typeof metaRaw[KEYS_META_KEY] === 'object' ? (metaRaw[KEYS_META_KEY] as Record<string, unknown>) : {};
+    const meta =
+      metaRaw[KEYS_META_KEY] && typeof metaRaw[KEYS_META_KEY] === 'object'
+        ? (metaRaw[KEYS_META_KEY] as Record<string, unknown>)
+        : {};
     meta[providerId] = Date.now();
     await chrome.storage.local.set({ [KEYS_META_KEY]: meta });
   }

@@ -49,7 +49,8 @@ beforeEach(() => {
 
 describe('browser_iframe_snapshot', () => {
   it('restituisce il tree dell iframe senza snapshot della pagina principale', async () => {
-    const iframeTree = 'URL pagina corrente: https://esempio.it/pagina\nElementi interattivi (1):\n[0] button "Dentro"';
+    const iframeTree =
+      'URL pagina corrente: https://esempio.it/pagina\nElementi interattivi (1):\n[0] button "Dentro"';
     sendMessage.mockResolvedValue({ ok: true, tree: iframeTree });
 
     const { tools } = createBrowserTools(baseConfig());

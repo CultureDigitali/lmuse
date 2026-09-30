@@ -28,9 +28,17 @@ vi.stubGlobal('chrome', {
     sendNativeMessage,
   },
   storage: { local, session: local },
-  action: { setBadgeText: () => undefined, setBadgeBackgroundColor: () => undefined, onClicked: { addListener: () => undefined } },
+  action: {
+    setBadgeText: () => undefined,
+    setBadgeBackgroundColor: () => undefined,
+    onClicked: { addListener: () => undefined },
+  },
   commands: { onCommand: { addListener: () => undefined } },
-  alarms: { onAlarm: { addListener: () => undefined }, clearAll: async () => true, create: async () => undefined },
+  alarms: {
+    onAlarm: { addListener: () => undefined },
+    clearAll: async () => true,
+    create: async () => undefined,
+  },
   tabs: { query: async () => [] },
   sidePanel: { setPanelBehavior: async () => undefined, open: async () => undefined },
 });

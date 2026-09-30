@@ -26,6 +26,6 @@ console.log(
   `check-chromium-age: pin ${pin}, stable ref ${ref.toISOString().slice(0, 10)}, età ${ageDays}gg.`,
 );
 if (ageDays > MAX_AGE_DAYS) {
-  console.error(`check-chromium-age: pin più vecchio di ${MAX_AGE_DAYS}gg, aggiornare CHROMIUM_BUILD.`);
+  console.error(`check-chromium-age: pin più vecchio di ${MAX_AGE_DAYS}gg, aggiornare BROWSER_VERSION.`);
   process.exit(1);
 }

@@ -5,6 +5,7 @@ con keystore per-provider, e integrazione opzionale con opencode installato sul
 sistema (bridge nativo che legge le credenziali opencode, solo su richiesta utente).
 
 ## A. Catalogo provider (settings.ts) — 1–25
+
 1. Estendere `ProviderId` union con 12 nuovi id.
 2. `ProviderDef.group` ('cloud' | 'local' | 'gateway').
 3. Provider `nvidia` (NIM, openai-compatible, base https://integrate.api.nvidia.com/v1).
@@ -32,6 +33,7 @@ sistema (bridge nativo che legge le credenziali opencode, solo su richiesta uten
 25. Test: getProvider su ogni nuovo id non lancia.
 
 ## B. Factory modello (providers.ts) — 26–42
+
 26. pnpm add @ai-sdk/cohere/deepinfra/fireworks/togetherai/perplexity/huggingface/gateway.
 27. Caso `nvidia` via createOpenAICompatible.
 28. Caso `opencode` via createOpenAICompatible (+header X-Title lmuse).
@@ -51,6 +53,7 @@ sistema (bridge nativo che legge le credenziali opencode, solo su richiesta uten
 42. Errori provider mappati (errors.ts) anche per i nuovi nomi pacchetto.
 
 ## C. Keystore per-provider — 43–56
+
 43. KEY_STORE_V2 = 'lmuse.keys.v2' (mappa providerId→key).
 44. loadApiKey(providerId, rememberKey).
 45. saveApiKey(providerId, key, rememberKey).
@@ -67,6 +70,7 @@ sistema (bridge nativo che legge le credenziali opencode, solo su richiesta uten
 56. PRIVACY.md: keystore per-provider documentato.
 
 ## D. Bridge opencode (native messaging) — 57–78
+
 57. native/lmuse-opencode-bridge.mjs: protocollo native messaging (len 32bit LE).
 58. Comando 'list': legge ~/.local/share/opencode/auth.json.
 59. Output { ok, providers: [{id, type}] } mai valori grezzi nei log.
@@ -91,6 +95,7 @@ sistema (bridge nativo che legge le credenziali opencode, solo su richiesta uten
 78. verify-dist: nessun segreto di test nel bundle.
 
 ## E. Panel + i18n — 79–90
+
 79. Select provider con <optgroup> per group.
 80. Card "opencode" nel tab impostazioni: stato + bottoni Rileva/Importa.
 81. Stato: opencode trovato (N credenziali) / bridge mancante (comando setup).
@@ -105,6 +110,7 @@ sistema (bridge nativo che legge le credenziali opencode, solo su richiesta uten
 90. usage/stats invariati (regressione).
 
 ## F. Q + docs + release — 91–100
+
 91. pnpm typecheck verde.
 92. pnpm test: ≥ 199 + nuovi (~40) tutti verdi.
 93. Coverage soglie 85/85/80 mantenute.
@@ -114,4 +120,4 @@ sistema (bridge nativo che legge le credenziali opencode, solo su richiesta uten
 97. README/STORE.md: conteggio 25 provider, opencode integration.
 98. CHANGELOG.md 0.6.0 + version bump package/manifest + release zip name dinamico.
 99. AGENTS.md: struttura native/ + script setup + provider count.
-100. Commit + tag v0.6.0 + release zip + GitHub release.
+100.  Commit + tag v0.6.0 + release zip + GitHub release.

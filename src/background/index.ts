@@ -163,9 +163,7 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
     return true;
   }
   if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'TOUCH_ACTIVITY') {
-    void chrome.storage.session
-      .set({ [ACTIVITY_KEY]: Date.now() })
-      .then(() => sendResponse({ ok: true }));
+    void chrome.storage.session.set({ [ACTIVITY_KEY]: Date.now() }).then(() => sendResponse({ ok: true }));
     return true;
   }
   if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'CLEAR_QUEUE') {
@@ -180,15 +178,15 @@ chrome.runtime.onMessage.addListener((raw: unknown, sender, sendResponse) => {
     return true;
   }
   if (raw && typeof raw === 'object' && (raw as { type?: string }).type === 'OPENCODE_BRIDGE') {
-    const cmd = (raw as { cmd?: string }).cmd === 'export' ? 'export' : ((raw as { cmd?: string }).cmd ?? 'ping');
+    const cmd =
+      (raw as { cmd?: string }).cmd === 'export' ? 'export' : ((raw as { cmd?: string }).cmd ?? 'ping');
     if (cmd !== 'ping' && cmd !== 'list' && cmd !== 'export') {
       sendResponse({ ok: false, error: 'Comando non valido.' });
       return true;
     }
     void sendNative(OPENCODE_HOST, { cmd }).then(
       (payload) => sendResponse({ ok: true, payload }),
-      (error: unknown) =>
-        sendResponse({ ok: false, error: mapOpencodeError(error) }),
+      (error: unknown) => sendResponse({ ok: false, error: mapOpencodeError(error) }),
     );
     return true;
   }
@@ -227,7 +225,7 @@ function mapOpencodeError(error: unknown): string {
   if (/not found|Specified native messaging host/i.test(msg))
     return "Bridge opencode non installato: esegui `pnpm setup:opencode` poi ricarica l'estensione.";
   if (/Access/i.test(msg))
-    return "Il bridge opencode non è autorizzato per questo ID estensione: reinstalla con `pnpm setup:opencode --extension-id=<id>`.";
+    return 'Il bridge opencode non è autorizzato per questo ID estensione: reinstalla con `pnpm setup:opencode --extension-id=<id>`.';
   return 'Bridge opencode non raggiungibile. Riprova più tardi.';
 }
 
@@ -247,7 +245,10 @@ async function fetchModels(): Promise<string[]> {
   }
   const base = (settings.baseUrl || def.defaultBaseUrl || '').replace(/\/+$/, '');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new DOMException('Timeout modelli', 'TimeoutError')), 10_000);
+  const timer = setTimeout(
+    () => controller.abort(new DOMException('Timeout modelli', 'TimeoutError')),
+    10_000,
+  );
   try {
     const res = await fetch(`${base}/models`, {
       headers: def.needsKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
@@ -260,7 +261,7 @@ async function fetchModels(): Promise<string[]> {
       throw new Error(`Il provider ha risposto ${res.status}: riprova più tardi.`);
     }
     const data = (await res.json()) as { data?: unknown; models?: unknown };
-    const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
+    const list = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [];
     const ids = list
       .map((m) => (typeof m === 'string' ? m : ((m as { id?: unknown })?.id ?? '')))
       .filter((id): id is string => typeof id === 'string' && id.length > 0);
@@ -273,7 +274,7 @@ async function fetchModels(): Promise<string[]> {
   }
 }
 
-/** Allinea chrome.alarms agli schedule abilitati (chiamato dal panel a ogni modifica). */async function syncAlarms(): Promise<void> {
+/** Allinea chrome.alarms agli schedule abilitati (chiamato dal panel a ogni modifica). */ async function syncAlarms(): Promise<void> {
   await chrome.alarms.clearAll();
   const settings = await loadSettings();
   for (const s of settings.schedules.filter((x) => x.enabled).slice(0, 5)) {

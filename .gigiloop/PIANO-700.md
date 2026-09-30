@@ -7,6 +7,7 @@ validazione modello con cache discovery, auto-lock chiave di sessione.
 Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 
 ## A. e2e con interazioni reali — 1–20
+
 1. scripts/e2e-smoke.mjs: apri settings via bottone ⚙ (click reale).
 2. e2e: provider select renderizza optgroup Cloud/Gateway/Locali.
 3. e2e: cambio provider reale → model-tag aggiornato.
@@ -29,6 +30,7 @@ Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 20. Docs GUIDA: nota e2e espanse.
 
 ## B. Nuovi tool: browser_download + iframe snapshot — 21–36
+
 21. `browser_download`: click su ref di un link download + attesa evento.
 22. Content: LMUSE_DOWNLOAD (click + listener download nel page world).
 23. Reply download: { ok, filename? }.
@@ -47,6 +49,7 @@ Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 36. GUIDA tabella tool aggiornata.
 
 ## C. Stima token pre-run + validazione modello — 37–48
+
 37. estimateTokens(text): chars/4 approssimazione (pura, testata).
 38. Panel: stima token del task prima dell'avvio (sotto il composer).
 39. Avviso se stima > maxTokensPerRun/2 (hint, non blocco).
@@ -61,12 +64,14 @@ Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 48. PRIVACY: nessun dato inviato per la stima (solo locale).
 
 ## D. UX log: ricerca + collapse — 49–52
+
 49. Search nel log (input filtro testo, combina con filtro kind).
 50. Test: filtro combinato pure (extract? in App, test via grep manuale).
 51. i18n: search_log.
 52. e2e: search input presente.
 
 ## E. Overlay scorciatoie — 53–58
+
 53. Bottone ⌨ nel header → overlay lista scorciatoie.
 54. Contenuto: Ctrl+K, Esc, Ctrl+Shift+L, Ctrl+Shift+X da manifest commands.
 55. i18n: shortcuts_title già presente — riusa.
@@ -75,6 +80,7 @@ Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 58. GUIDA nota scorciatoie.
 
 ## F. Auto-lock chiave sessione — 59–68 ✅ fatto
+
 59. ✅ Setting `sessionLockMin` (default 0 = mai, range 0–120).
 60. ✅ settings.ts: campo + sanitize + default.
 61. ✅ Alarm dedicato `lmuse-lock` + marker attività in session storage.
@@ -84,11 +90,12 @@ Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 65. ✅ Test `lock.ts` puro: 10 casi (soglia, esattamente-soglia, orologio indietro).
 66. ✅ i18n: session_lock_label/off/min it+en.
 67. ✅ Semantica esplicita: auto-lock agisce SOLO su storage.session
-       (chiavi ricordate in local non sono toccate) — etichetta "solo sessione"
-       + test di regressione. Difetto trovato in red-team.
+    (chiavi ricordate in local non sono toccate) — etichetta "solo sessione"
+    - test di regressione. Difetto trovato in red-team.
 68. ✅ PRIVACY/GUIDA: auto-lock documentato (limiti espliciti in entrambi).
 
 ## Extra trovati in red-team (fuori piano)
+
 - ✅ Regressione `browser_iframe_snapshot`: `acted()` allegava lo snapshot della
   pagina principale, azzerando i refMap → l'iframe era inutile. Fix + 5 test.
 - ✅ Policy approval mancante: `browser_download` non era in nessuna policy.
@@ -96,12 +103,14 @@ Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 - ✅ Nuovo file `src/background/tools.test.ts` (era il gap di copertura sui tool).
 
 ## G. opencode minor — 69–72
+
 69. Card opencode: lista provider trovati (nomi leggibili, non solo conteggio).
 70. Import: dopo import, messaggio con provider importati per nome.
 71. Test: mapping nomi leggibili (opencode.test).
 72. GUIDA aggiornata.
 
 ## H. Test + i18n — 73–90
+
 73. pnpm vitest: ≥ 251 + nuovi (~25) verdi.
 74. Coverage soglie 85/85/80 (src/shared) mantenute.
 75. settings.test: sessionLockMin.
@@ -122,6 +131,7 @@ Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 90. check-size verde (background < 500 KB).
 
 ## I. Q + docs + release — 91–100
+
 91. pnpm check completo.
 92. pnpm test:e2e (con interazioni reali) verde.
 93. check-links ok.
@@ -131,4 +141,4 @@ Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 97. README/STORE: 26 tool, stima token, e2e reali.
 98. CHANGELOG 0.8.0 + bump versione package/manifest/tooltip.
 99. AGENTS.md aggiornato se serve.
-100. Commit + tag v0.8.0 + GitHub release.
+100.  Commit + tag v0.8.0 + GitHub release.

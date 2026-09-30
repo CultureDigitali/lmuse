@@ -23,7 +23,7 @@
     "format:check": "prettier --check .",
     "check-size": "node scripts/check-size.mjs",
     "verify-dist": "node scripts/verify-dist.mjs",
-    "check": "pnpm typecheck && pnpm test && pnpm lint && pnpm build",
+    "check": "pnpm typecheck && pnpm test && pnpm lint && pnpm format:check && pnpm build && pnpm verify-dist && pnpm check-size && pnpm check-links",
     "release": "pnpm check && pnpm verify-dist && rm -rf release && mkdir -p release && cd dist && zip -r ../release/lmuse-$(node -p \"require('../package.json').version\").zip . && cd .. && shasum -a 256 release/lmuse-*.zip",
     "release:github": "git push origin \"v$(node -p \"require('./package.json').version\")\" && gh release create \"v$(node -p \"require('./package.json').version\")\" --title \"lmuse v$(node -p \"require('./package.json').version\")\" --notes-file CHANGELOG.md release/lmuse-*.zip"
   },

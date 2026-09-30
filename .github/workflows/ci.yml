@@ -46,7 +46,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: install Chromium
+      - name: install browser di test
         run: |
-          node --input-type=module -e "import {install, Browser} from '@puppeteer/browsers'; import {homedir} from 'node:os'; import {join} from 'node:path'; import {readFileSync} from 'node:fs'; const build = readFileSync('scripts/e2e-smoke.mjs', 'utf8').match(/CHROMIUM_BUILD = '(\d+)'/)[1]; await install({browser: Browser.CHROMIUM, buildId: build, cacheDir: join(homedir(), '.cache', 'puppeteer')}); console.log('chromium', build, 'ok');"
+          node --input-type=module -e "import {install, Browser} from '@puppeteer/browsers'; import {homedir} from 'node:os'; import {join} from 'node:path'; import {readFileSync} from 'node:fs'; const v = readFileSync('scripts/e2e-smoke.mjs', 'utf8').match(/BROWSER_VERSION = '([^']+)'/)[1]; await install({browser: Browser.CHROME, buildId: v, cacheDir: join(homedir(), '.cache', 'puppeteer')}); console.log('browser', v, 'ok');"
       - run: xvfb-run -a pnpm test:e2e

@@ -250,7 +250,8 @@ export default function App() {
       const s = await loadSettings();
       setSettings(s);
       setLang(s.locale === 'auto' ? detectLang() : s.locale);
-      const key = (await loadApiKey(s.providerId, s.rememberKey)) || (await loadApiKey(s.providerId, !s.rememberKey));
+      const key =
+        (await loadApiKey(s.providerId, s.rememberKey)) || (await loadApiKey(s.providerId, !s.rememberKey));
       setApiKey(key);
       if (!key && getProvider(s.providerId).needsKey) setShowSettings(true);
       setHistory(await loadHistory());
@@ -777,14 +778,19 @@ export default function App() {
   const taskTokenEstimate = estimateTokens(task.trim().slice(0, MAX_TASK_CHARS));
   const taskTokenEstimateHigh = tokenEstimateHigh(taskTokenEstimate, settings.maxTokensPerRun);
   const modelNotInList =
-    cachedModels.length > 0 && settings.model.trim().length > 0 && !cachedModels.includes(settings.model.trim());
+    cachedModels.length > 0 &&
+    settings.model.trim().length > 0 &&
+    !cachedModels.includes(settings.model.trim());
 
   return (
     <div className="app">
       <header className="header">
         <div className="brand">
           <span className="logo">lmuse</span>
-          <span className="version-tag" title={`lmuse v${APP_VERSION}${bridgeOk ? ' · opencode attivo' : ''}`}>
+          <span
+            className="version-tag"
+            title={`lmuse v${APP_VERSION}${bridgeOk ? ' · opencode attivo' : ''}`}
+          >
             v{APP_VERSION}
             {bridgeOk ? ' ⟳' : ''}
           </span>
@@ -1538,7 +1544,8 @@ export default function App() {
                 </button>
               )}
             </div>
-          ))}
+          ),
+        )}
         {running && streamText && (
           <div className="msg result streaming" role="status" aria-live="polite">
             {streamText}▍
