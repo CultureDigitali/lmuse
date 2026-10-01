@@ -339,7 +339,7 @@ export default function App() {
 
   // --- Auto-lock: segnala attività al worker, throttled (max 1 msg / 30s) ---
   useEffect(() => {
-    if (settingsRef.current.sessionLockMin < 1) return;
+    if (settings.sessionLockMin < 1) return;
     let last = 0;
     const ping = () => {
       const now = Date.now();
@@ -353,7 +353,7 @@ export default function App() {
     return () => {
       for (const ev of events) window.removeEventListener(ev, ping);
     };
-  }, []);
+  }, [settings.sessionLockMin]);
 
   function refreshHistory() {
     return loadHistory().then(setHistory);

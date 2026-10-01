@@ -576,6 +576,16 @@ fatto emergere tre difetti sulle funzionalità appena introdotte.
 - Suite cresciuta a **295 test**; copertura del perimetro `src/shared` 96,4% delle
   righe e 89,1% dei rami decisionali.
 
+> **Errata tecnica successiva alla release v0.8.0 (1 ottobre 2026).**
+> Una verifica del sorgente ha individuato una regressione nel pannello: il listener
+> che aggiorna il timestamp di attività dell'auto-lock veniva montato solo al primo
+> render, quando l'impostazione è ancora al valore predefinito 0. Se l'auto-lock era
+> abilitato dopo il caricamento, l'attività dell'utente poteva non aggiornare il marker
+> di sessione. La correzione è stata preparata per **v0.8.1** insieme a uno smoke test
+> end-to-end che attiva l'opzione e verifica la scrittura del marker in
+> `chrome.storage.session`. Il pacchetto v0.8.0 resta storicamente identificato e
+> non viene retroattivamente descritto come corretto.
+
 > **I difetti trovati nella revisione avversariale del ciclo 7**
 >
 > Questa sezione è riportata integralmente perché documenta il risultato del
@@ -895,12 +905,10 @@ Si tratta di controlli di integrazione, non di collaudo funzionale: verificano c
 l'estensione si avvii e si comporti correttamente nell'interfaccia, **non** eseguono
 un ciclo completo con credenziale reale (limite dichiarato al § 16.1).
 
-Il browser di test è Chromium, scaricato automaticamente e **bloccato a una versione
-confermata**, con un controllo automatico che ne verifica l'età e ne segnala
-l'obsolescenza. È documentato che il Chrome con marchio proprietario non accetta il
-caricamento di estensioni non pubblicate a scopo di sviluppo: per le verifiche
-automatiche si usa Chromium, che è il browser di riferimento open source per questa
-funzionalità.
+Il browser di test è **Chrome for Testing**, scaricato automaticamente e bloccato
+a una versione confermata, con un controllo automatico che ne verifica l'età e ne
+segnala l'obsolescenza. È la build destinata all'automazione e consente il caricamento
+dell'estensione non pacchettizzata usato dallo smoke test.
 
 ### 12.4 La verifica delle revisioni
 

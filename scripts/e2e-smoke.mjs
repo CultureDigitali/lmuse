@@ -134,6 +134,40 @@ try {
       ),
     );
     check('panel interattivo (bottone impostazioni)', hasSettings);
+
+    // Regressione v0.8.0: il listener attività auto-lock era montato solo al primo
+    // render, quando sessionLockMin è ancora 0. Attivandolo dalle impostazioni deve
+    // partire subito un TOUCH_ACTIVITY e comparire il marker in storage.session.
+    const lockActivity = await page.evaluate(async () => {
+      const findLockSelect = () =>
+        [...document.querySelectorAll('select')].find((el) => {
+          const values = [...el.querySelectorAll('option')].map((o) => o.value);
+          return ['0', '5', '15', '30', '60'].every((v) => values.includes(v));
+        });
+      let select = findLockSelect();
+      if (!(select instanceof HTMLSelectElement)) {
+        const button = [...document.querySelectorAll('button')].find((b) =>
+          ['Impostazioni', 'Settings'].includes(b.getAttribute('aria-label') ?? ''),
+        );
+        button?.click();
+        await new Promise((r) => setTimeout(r, 150));
+        select = findLockSelect();
+      }
+      if (!(select instanceof HTMLSelectElement)) {
+        return { ok: false, detail: 'select auto-lock assente' };
+      }
+      select.value = '5';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 350));
+      const stored = await globalThis.chrome.storage.session.get('lmuse.activity.v1');
+      const at = stored['lmuse.activity.v1'];
+      return {
+        ok: typeof at === 'number' && Number.isFinite(at),
+        detail: typeof at === 'number' ? String(at) : 'marker assente',
+      };
+    });
+    check('auto-lock registra attività dopo attivazione', lockActivity.ok, lockActivity.detail);
+
     check('zero errori pagina', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
     // A11y: axe-core via CDP evaluate (esente da CSP extension_pages), zero serious/critical.
     const axeSource = readFileSync(join(root, 'node_modules', 'axe-core', 'axe.min.js'), 'utf8');
