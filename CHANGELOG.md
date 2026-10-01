@@ -2,6 +2,33 @@
 
 ## Non pubblicato
 
+**Difetti bloccanti corretti (rinvenuti da un panel di revisori avversari)**
+
+- **Il prodotto non funzionava.** `dist/content.js` era un modulo ES, ma
+  `chrome.scripting.executeScript({files})` inietta script classici: il listener
+  non si registrava e **24 tool su 26 erano inerti**. Ora il content script è
+  emesso in IIFE da una build dedicata (`vite.config.content.ts`).
+- **Bypass della conferma di navigazione.** Un URL senza schema
+  (`evil.example.com:8443/x`, `//evil.example.com`) faceva fallire
+  `new URL()` e quindi **saltava la conferma «dominio nuovo»**. Ora si passa
+  l'URL normalizzato; 5 test di regressione.
+- **Task in coda perso.** `drainQueue` estraeva il task e, se il cooldown non
+  era scaduto, non lo rimetteva in coda: andava perso. Ora usa `peekQueue` ed
+  estrae solo quando può partire.
+- **Auto-lock mai attivo.** L'effetto che segnala l'attività aveva dipendenze
+  vuote e leggeva il valore al mount, quindi l'opzione non faceva nulla se
+  attivata dopo l'apertura; `syncAlarms` non era chiamata. Corretti entrambi.
+- **Impostazioni perse a fine run.** Il worker riscriveva l'intero settings
+  letto all'inizio del run, annullando le modifiche fatte dal pannello durante
+  il run. Ora rilegge e aggiorna solo `lastRuns`.
+
+**Verifica aggiunta (era la causa per cui i difetti passavano inosservati)**
+
+- L'e2e ora **esercita davvero il prodotto**: inietta il content script in una
+  pagina HTTP reale e pretende uno snapshot con gli elementi della pagina.
+- `verify-dist` rifiuta un `content.js` che contenga `import`/`export`: il
+  packaging rotto non può più passare senza browser.
+
 **Correzioni alla pipeline di verifica**
 
 - `pnpm check` ora include `format:check`, `verify-dist`, `check-size` e

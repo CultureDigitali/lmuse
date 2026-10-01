@@ -5,7 +5,12 @@ import type { BrowserToolConfig } from './tools';
 
 const sendMessage = vi.fn();
 const executeScript = vi.fn(async () => []);
-const getTab = vi.fn(async () => ({ id: 1, url: 'https://esempio.it/pagina', title: 'Pagina' }));
+const getTab = vi.fn(async () => ({
+  id: 1,
+  url: 'https://esempio.it/pagina',
+  title: 'Pagina',
+  status: 'complete',
+}));
 
 vi.stubGlobal('chrome', {
   runtime: { id: 'lmuse-test', getManifest: () => ({ version: '0.0.0-test' }) },
@@ -93,6 +98,44 @@ describe('browser_iframe_snapshot', () => {
     await expect(tools.browser_iframe_snapshot.execute({}, {} as never)).rejects.toThrow(
       /Snapshot iframe fallito/,
     );
+  });
+});
+
+// Esegue un tool senza propagare l'errore: l'AI SDK restituisce un union che
+// non è sempre un Promise, quindi non si può chiamare .catch direttamente.
+async function runTool(outcome: unknown): Promise<void> {
+  try {
+    await outcome;
+  } catch {
+    /* errore atteso: la navigazione non arriva davvero a fine */
+  }
+}
+
+describe('browser_navigate — conferma di dominio (regressione)', () => {
+  // Un URL senza schema faceva saltare la conferma "dominio nuovo": shouldApprove
+  // ricalcolava il dominio da new URL(), che su una stringa senza schema fallisce.
+  // Con il fix si passa l'URL normalizzato.
+  it.each([
+    ['evil.example.com', true],
+    ['//evil.example.com', true],
+    ['evil.example.com:8443/x', true],
+    ['https://evil.example.com/', true],
+  ])('%s chiede conferma', async (url, atteso) => {
+    const requestApproval = vi.fn(async () => true);
+    sendMessage.mockResolvedValue({ ok: true, tree: 'x' });
+    const { tools } = createBrowserTools(baseConfig({ policy: 'sensitive', requestApproval }));
+    await runTool(tools.browser_navigate.execute({ url }, {} as never));
+    expect(requestApproval.mock.calls.length > 0).toBe(atteso);
+  });
+
+  it('dominio già visitato: nessuna conferma', async () => {
+    const requestApproval = vi.fn(async () => true);
+    sendMessage.mockResolvedValue({ ok: true, tree: 'x' });
+    const { tools } = createBrowserTools(
+      baseConfig({ policy: 'sensitive', requestApproval, trustedDomains: ['evil.example.com'] }),
+    );
+    await runTool(tools.browser_navigate.execute({ url: 'https://evil.example.com/' }, {} as never));
+    expect(requestApproval).not.toHaveBeenCalled();
   });
 });
 

@@ -936,6 +936,11 @@ export async function addToQueue(task: string): Promise<QueueEntry[]> {
   return next;
 }
 
+/** Guarda il primo task in coda SENZA rimuoverlo. */
+export async function peekQueue(): Promise<QueueEntry | null> {
+  return (await loadQueue())[0] ?? null;
+}
+
 export async function popQueue(): Promise<QueueEntry | null> {
   const list = await loadQueue();
   const [first, ...rest] = list;

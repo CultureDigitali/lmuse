@@ -322,7 +322,11 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async ({ url }: { url: string }) => {
         const target = normalizeNavigationTarget(url);
         const domain = target ? extractDomain(target) : null;
-        await approved('browser_navigate', { url }, `Naviga a ${url}`, domain ?? undefined);
+        // Si passa l'URL NORMALIZZATO: shouldApprove ricalcola il dominio con
+        // new URL(), che fallisce (→ nessuna conferma) su una stringa senza
+        // schema. Con il valore grezzo, `evil.example.com` scavalcava la conferma
+        // "dominio nuovo". Bypass scoperto in revisione di sicurezza.
+        await approved('browser_navigate', { url: target ?? url }, `Naviga a ${url}`, domain ?? undefined);
         return guarded(async () => {
           if (!target || isBlockedUrl(target)) {
             throw new Error('URL bloccato: lmuse non naviga pagine chrome://, interne o del Web Store.');

@@ -3,6 +3,7 @@
 // Uso: pnpm test:e2e (richiede pnpm build prima; CHROME_PATH opzionale).
 // Su CI linux girare sotto xvfb-run.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import puppeteer from 'puppeteer-core';
@@ -143,6 +144,48 @@ try {
     const violations = JSON.parse(violationsJson);
     check('a11y: zero serious/critical', violations.length === 0, violations.slice(0, 5).join(' | '));
     await page.close();
+
+    // --- Prova REALE del prodotto: il content script iniettato su una pagina
+    // vera deve registrarsi e rispondere a uno snapshot. È il percorso che
+    // usano 24 tool su 26: senza questo controllo un bundle non iniettabile
+    // passerebbe la CI verde (bug del 2026-09-30).
+    const pageHtml =
+      '<!doctype html><html lang="it"><head><title>Pagina di prova</title></head>' +
+      '<body><h1>Verifica</h1><a href="/prova">Link di prova</a>' +
+      '<button id="b">Premi</button></body></html>';
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(pageHtml);
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const testUrl = `http://127.0.0.1:${server.address().port}/prova.html`;
+    const target = await browser.newPage();
+    await target.goto(testUrl, { waitUntil: 'domcontentloaded' });
+    const swTarget = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
+    const worker = await swTarget?.worker();
+    const snapResult = await worker.evaluate(async (tabUrl) => {
+      const [tab] = await chrome.tabs.query({ url: tabUrl });
+      if (!tab?.id) return { ok: false, error: 'tab non trovato' };
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+      await new Promise((r) => setTimeout(r, 400));
+      try {
+        const res = await chrome.tabs.sendMessage(tab.id, { kind: 'LMUSE_SNAPSHOT', maskPii: true });
+        return { ok: Boolean(res?.ok && res.tree), tree: String(res?.tree ?? '').slice(0, 200) };
+      } catch (e) {
+        return { ok: false, error: String(e?.message ?? e).slice(0, 120) };
+      }
+    }, testUrl);
+    check(
+      'content script iniettato e snapshot funzionante',
+      snapResult.ok === true,
+      snapResult.ok ? '' : `errore: ${snapResult.error}`,
+    );
+    check(
+      'snapshot contiene gli elementi della pagina',
+      snapResult.ok === true && /Link di prova|Premi/.test(snapResult.tree ?? ''),
+    );
+    await target.close();
+    server.close();
   }
 } finally {
   await browser.close();

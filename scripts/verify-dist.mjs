@@ -24,4 +24,20 @@ for (const file of ['background.js', 'content.js', 'sidepanel/index.html']) {
   if (!existsSync(join(root, 'dist', file))) fail(`dist/${file} mancante`);
 }
 if (manifest.content_scripts) fail('content_scripts statico non ammesso (iniezione on-demand)');
+
+// Il content script viene iniettato con chrome.scripting.executeScript({files}),
+// che accetta SOLO script classici. Un modulo ES residuo (import/export di primo
+// livello) fa fallire l'iniezione in silenzio: il listener non si registra e
+// 24 tool su 26 restano morti senza che nulla fallisca. Controllo statico:
+// intercetta il packaging rotto anche senza browser.
+const contentJs = join(root, 'dist', 'content.js');
+try {
+  const src = readFileSync(contentJs, 'utf8');
+  if (/^\s*(import|export)\s/m.test(src)) {
+    fail('dist/content.js è un modulo ES: deve essere IIFE (build separata vite.config.content.ts)');
+  }
+  if (/\bimport\s*\(/.test(src)) fail('dist/content.js contiene import dinamico: non valido in IIFE');
+} catch (error) {
+  if (error?.code !== 'ENOENT') throw error;
+}
 console.log(`verify-dist ok: lmuse ${manifest.version}, MV3, entry presenti.`);

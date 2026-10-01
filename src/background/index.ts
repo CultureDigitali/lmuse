@@ -16,6 +16,7 @@ import {
   loadSettings,
   loadUsage,
   mergeUsage,
+  peekQueue,
   popQueue,
   saveInbox,
   saveModelsCache,
@@ -320,12 +321,14 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
   if (!alarm.name.startsWith('lmuse-')) return;
   void (async () => {
-    const settings = await loadSettings();
-    const schedule = settings.schedules.find((s) => `lmuse-${s.id}` === alarm.name && s.enabled);
+    // Solo `schedules` viene riscritto: le altre impostazioni sono lette al
+    // momento della scrittura, così un cambio fatto dal pannello non viene perso.
+    const fresh = await loadSettings();
+    const schedule = fresh.schedules.find((s) => `lmuse-${s.id}` === alarm.name && s.enabled);
     if (!schedule) return;
     await saveSettings({
-      ...settings,
-      schedules: settings.schedules.map((s) => (s.id === schedule.id ? { ...s, lastFire: Date.now() } : s)),
+      ...fresh,
+      schedules: fresh.schedules.map((s) => (s.id === schedule.id ? { ...s, lastFire: Date.now() } : s)),
     });
     if (running) {
       broadcast({
@@ -503,9 +506,14 @@ async function startRun(task: string): Promise<void> {
     try {
       await saveInbox({ text, steps, at: Date.now() });
       await saveUsage(mergeUsage(await loadUsage(), { inputTokens, outputTokens }));
+      // Si rileggono le impostazioni correnti e si aggiorna SOLO lastRuns:
+      // riscrivere l'intero settings letto all'inizio del run annullava le
+      // modifiche fatte dal pannello durante il run (es. "ricorda dominio",
+      // tema, trustedDomains). Bug scoperto in revisione.
+      const fresh = await loadSettings();
       await saveSettings({
-        ...settings,
-        lastRuns: buildLastRuns(settings.lastRuns, { task: trimmed, at: startedAt, steps, tokens }),
+        ...fresh,
+        lastRuns: buildLastRuns(fresh.lastRuns, { task: trimmed, at: startedAt, steps, tokens }),
       });
     } catch (error) {
       throw new Error('Spazio di archiviazione esaurito: impossibile salvare il risultato.', {
@@ -549,15 +557,19 @@ async function startRun(task: string): Promise<void> {
 /** Coda: avvia il prossimo task in attesa, se presente. */
 async function drainQueue(): Promise<void> {
   if (stopRequested) return; // STOP esplicito: la coda resta per il prossimo avvio
-  const next = await popQueue().catch(() => null);
+  const next = await peekQueue().catch(() => null);
   if (!next) return;
   const elapsed = canStartRun(lastRunAt, Date.now());
   if (!elapsed) {
-    // Cooldown non scaduto: ritenta quando resta poco (il task resta in coda).
+    // Cooldown non scaduto: NON si estrae il task (prima bug: veniva perso),
+    // si riprogramma solo il controllo. Il task resta in coda.
     const remaining = Math.max(500, 5000 - (Date.now() - (lastRunAt ?? 0)));
     setTimeout(() => void drainQueue(), remaining);
     return;
   }
+  // Cooldown scaduto: a questo punto si estrae davvero.
+  const taken = await popQueue().catch(() => null);
+  if (!taken) return;
   broadcast({
     type: 'STEP',
     index: -1,
@@ -565,7 +577,7 @@ async function drainQueue(): Promise<void> {
     input: null,
     result: 'Avvio task in coda.',
   });
-  void startRun(next.task);
+  void startRun(taken.task);
 }
 
 export {};

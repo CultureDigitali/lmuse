@@ -338,8 +338,12 @@ export default function App() {
   }, []);
 
   // --- Auto-lock: segnala attività al worker, throttled (max 1 msg / 30s) ---
+  // La dipendenza è sessionLockMin: senza di essa l'effetto si registrava solo
+  // al mount e l'auto-lock restava inerte se attivato dopo (bug scoperto in
+  // revisione). syncAlarms allinea l'alarm di lock nel worker.
+  const lockMin = settings.sessionLockMin;
   useEffect(() => {
-    if (settingsRef.current.sessionLockMin < 1) return;
+    if (lockMin < 1) return;
     let last = 0;
     const ping = () => {
       const now = Date.now();
@@ -353,6 +357,11 @@ export default function App() {
     return () => {
       for (const ev of events) window.removeEventListener(ev, ping);
     };
+  }, [lockMin]);
+
+  // Allinea gli alarm (schedule + lock) appena il pannello è pronto.
+  useEffect(() => {
+    void chrome.runtime.sendMessage({ type: 'SYNC_ALARMS' }).catch(() => undefined);
   }, []);
 
   function refreshHistory() {
@@ -1038,7 +1047,10 @@ export default function App() {
             {t(lang, 'session_lock_label')}
             <select
               value={String(settings.sessionLockMin)}
-              onChange={(e) => update({ sessionLockMin: Number(e.target.value) || 0 })}
+              onChange={(e) => {
+                update({ sessionLockMin: Number(e.target.value) || 0 });
+                syncAlarms();
+              }}
             >
               {[0, 5, 15, 30, 60].map((m) => (
                 <option key={m} value={m}>

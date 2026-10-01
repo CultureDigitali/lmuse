@@ -28,7 +28,9 @@ export default tseslint.config(
   },
   {
     files: ['scripts/**/*.mjs', 'native/**/*.mjs'],
-    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+    // `chrome` qui è l'API estensione usata dentro worker.evaluate(), cioè
+    // codice che gira nel contesto del browser, non in Node.
+    languageOptions: { globals: { ...globals.node, ...globals.browser, chrome: 'readonly' } },
     rules: { 'no-console': 'off' },
   },
 );

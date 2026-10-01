@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.config.content.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
