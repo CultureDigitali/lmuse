@@ -159,7 +159,7 @@ try {
       select.value = '5';
       select.dispatchEvent(new Event('change', { bubbles: true }));
       await new Promise((r) => setTimeout(r, 350));
-      const stored = await chrome.storage.session.get('lmuse.activity.v1');
+      const stored = await globalThis.chrome.storage.session.get('lmuse.activity.v1');
       const at = stored['lmuse.activity.v1'];
       return {
         ok: typeof at === 'number' && Number.isFinite(at),
