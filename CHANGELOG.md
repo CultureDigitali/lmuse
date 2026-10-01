@@ -2,6 +2,12 @@
 
 ## Non pubblicato
 
+### 0.8.1 — hardening e verifica
+
+- Corretto il tracking attività dell'auto-lock nel side panel: il listener ora si attiva e si disattiva quando cambia `sessionLockMin`, invece di dipendere dal solo primo render con valore predefinito 0.
+- Aggiunto uno smoke test e2e di regressione: abilita l'auto-lock e verifica che il marker `lmuse.activity.v1` venga scritto in `chrome.storage.session`.
+- Allineata la documentazione: 295 test, Chrome for Testing nell'e2e e descrizione corretta delle richieste di rete usate per health-check e model discovery.
+
 **Correzioni alla pipeline di verifica**
 
 - `pnpm check` ora include `format:check`, `verify-dist`, `check-size` e
