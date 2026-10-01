@@ -260,7 +260,7 @@ Requisiti: Node ≥ 22 (`nvm use 22`), pnpm 9.
 ```bash
 pnpm install        # installa dipendenze
 pnpm typecheck      # tsc --noEmit
-pnpm test           # vitest (176 test)
+pnpm test           # vitest (295 test)
 pnpm test:coverage  # coverage v8 (soglie 85/85/80 su src/shared)
 pnpm test:e2e        # smoke su Chromium reale (auto-scaricato in ~/.cache)
 pnpm check-links     # link relativi nei .md
@@ -339,7 +339,6 @@ verify-dist → size → links → audit → secret-scan) + job e2e separato
 
 ## Stato onesto
 
-`pnpm check` verde (typecheck + 294 test + lint + build), e2e smoke verde con a11y
-su Chromium, coverage `src/shared` 94%, Prettier verde, CI attiva.
+`pnpm check` verde sulla baseline verificata (typecheck + 295 test + lint + build); l'e2e smoke usa Chrome for Testing con controllo a11y. La coverage misurata su `src/shared` resta sopra le soglie 85/85/80. La CI è attiva.
 Il giro completo con chiave reale va provato caricando `dist/` in Chrome: se un provider
 cambia formato risposta, si aggiusta in `providers.ts`.
