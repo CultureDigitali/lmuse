@@ -99,8 +99,10 @@ dei provider che lmuse supporta. Nulla viene inviato a terzi; permesso richiesto
 
 ## Cosa lmuse NON fa
 
-- Nessuna telemetria, analytics, crash-report o chiamata di rete oltre al provider scelto
-  (verifica: nessun `fetch`/`XHR`/`sendBeacon` nel codice, solo gli SDK dei provider).
+- Nessuna telemetria, analytics o crash-report. Le richieste di rete dell'estensione
+  sono limitate al provider scelto dall'utente e alle relative API necessarie al funzionamento
+  (ad esempio health-check e discovery dei modelli); il bridge opencode resta locale e non usa rete.
+  Non vengono inviati dati a infrastrutture di lmuse.
 - Nessun cookie o credenziale inviato manualmente; niente `localStorage`/`cookie` di pagina letto.
 - Il content script non legge né esporta nulla di suo: agisce solo su richiesta del task
   (snapshot/click/digitazione/scroll) e non gira negli iframe (`all_frames: false`).
