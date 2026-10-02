@@ -250,8 +250,16 @@ try {
 
     // Il pilotaggio del run avviene dal service worker (non dal pannello): è il
     // contesto dell'estensione che ha chrome.tabs e gestisce RUN/Port.
-    const swNow = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
-    const workerNow = await swNow?.worker();
+    // Il service worker MV3 si addormenta: su CI può essere dormiente in quel
+    // momento e worker() restituirebbe undefined, facendo fallire le valutazioni
+    // con un errore fuorviante ("document is not defined"). Si riprova.
+    let workerNow = null;
+    for (let attempt = 0; attempt < 20 && !workerNow; attempt++) {
+      const t = browser.targets().find((x) => x.type() === 'service_worker' && x.url().includes(extId));
+      if (t) workerNow = await t.worker();
+      if (!workerNow) await new Promise((r) => setTimeout(r, 500));
+    }
+    check('service worker raggiungibile per il run', workerNow !== null);
     // Storage e Port sono pilotati in due contesti distinti, per un motivo
     // preciso: la Port la gestisce il lato UI (pannello), mentre le impostazioni
     // e la lettura delle statistiche le scrive/legge il worker. Una Port aperta
