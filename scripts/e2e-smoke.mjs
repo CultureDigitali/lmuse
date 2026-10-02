@@ -244,6 +244,11 @@ try {
                 ],
                 usage,
               };
+        if (process.env.LMUSE_E2E_TRACE === '1') {
+          console.log(
+            `TRACE mock: chiamata ${llmCalls}, tool=${Boolean(payload.choices[0].message.tool_calls)}`,
+          );
+        }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(payload));
       });
@@ -415,6 +420,11 @@ try {
       }
     })();
 
+    if (process.env.LMUSE_E2E_TRACE === '1') {
+      console.log('TRACE mock totale:', llmCalls);
+      console.log('TRACE step:', JSON.stringify(runResult.steps ?? []).slice(0, 300));
+      console.log('TRACE done:', JSON.stringify(runResult.done ?? null).slice(0, 300));
+    }
     if (runResult.skipped) {
       console.log(`SKIP e2e: run completo non eseguito — ${runResult.motivo}`);
     } else {
