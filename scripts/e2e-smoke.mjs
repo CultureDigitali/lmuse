@@ -244,8 +244,12 @@ try {
     await new Promise((r) => mock.listen(0, '127.0.0.1', r));
     const mockBase = `http://127.0.0.1:${mock.address().port}/v1`;
 
+    // Pagina dell'estensione che fa da client della Port. Non si usa il
+    // pannello: in CI il side panel non è un frame di documento e la
+    // serializzazione delle funzioni fallisce con "document is not defined".
     const panel = await browser.newPage();
     await panel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
+    await panel.bringToFront();
     await new Promise((r) => setTimeout(r, 1500));
 
     // Il pilotaggio del run avviene dal service worker (non dal pannello): è il
