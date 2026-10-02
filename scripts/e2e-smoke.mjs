@@ -453,8 +453,16 @@ try {
     }
 
     if (!runResult.skipped) {
-      const usageStored = await workerNow.evaluate(() => chrome.storage.local.get('lmuse.usage.v1'));
-      check("run completo: statistiche d'uso salvate", (usageStored['lmuse.usage.v1']?.runs ?? 0) >= 1);
+      // La scrittura delle statistiche avviene poco prima del DONE, ma la
+      // lettura può precedere la propagazione su chrome.storage: si attende.
+      let runs = 0;
+      for (let i = 0; i < 10; i += 1) {
+        const stored = await workerNow.evaluate(() => chrome.storage.local.get('lmuse.usage.v1'));
+        runs = stored['lmuse.usage.v1']?.runs ?? 0;
+        if (runs >= 1) break;
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      check("run completo: statistiche d'uso salvate", runs >= 1, `runs=${runs}`);
     }
 
     await panel.close();
