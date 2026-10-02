@@ -258,17 +258,6 @@ try {
     // attesa + attesa del contesto): sotto xvfb un tab dell'estensione aperto
     // per il pilotaggio non aveva un execution context pronto e ogni
     // valutazione falliva con "document is not defined".
-    const panel = await browser.newPage();
-    await panel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
-    await new Promise((r) => setTimeout(r, 2500));
-    // Si verifica il contesto PRIMA di usarlo: se manca, si dice perché.
-    const panelReady = await panel
-      .evaluate('typeof document !== "undefined" && !!chrome && !!chrome.runtime')
-      .catch(() => false);
-    check('contesto del pannello pronto per il pilotaggio', panelReady === true);
-
-    // Il pilotaggio del run avviene dal service worker (non dal pannello): è il
-    // contesto dell'estensione che ha chrome.tabs e gestisce RUN/Port.
     // Il service worker MV3 si addormenta: su CI può essere dormiente in quel
     // momento e worker() restituirebbe undefined, facendo fallire le valutazioni
     // con un errore fuorviante ("document is not defined"). Si riprova.
@@ -279,6 +268,28 @@ try {
       if (!workerNow) await new Promise((r) => setTimeout(r, 500));
     }
     check('service worker raggiungibile per il run', workerNow !== null);
+
+    const panel = await browser.newPage();
+    await panel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
+    await new Promise((r) => setTimeout(r, 2500));
+    // Si verifica il contesto PRIMA di usarlo: se manca, si dice perché.
+    const panelReady = await panel
+      .evaluate('typeof document !== "undefined" && !!chrome && !!chrome.runtime')
+      .catch(() => false);
+    check('contesto del pannello pronto per il pilotaggio', panelReady === true);
+
+    // Diagnosi: il pilotaggio avviene dal pannello o dal worker? Il worker è
+    // l'unico contesto che ha sempre funzionato; la Port dal pannello fallisce
+    // in CI. Si prova la connessione su entrambi e si riporta l'esito.
+    const portProbePanel = await panel
+      .evaluate(
+        `(() => { try { const p = chrome.runtime.connect({ name: 'lmuse' }); p.disconnect(); return 'ok'; } catch (e) { return 'ERR ' + String(e && e.message); } })()`,
+      )
+      .catch((e) => 'EVAL ' + String(e && e.message));
+    check('Port: connessione dal pannello', portProbePanel === 'ok', portProbePanel);
+
+    // Il pilotaggio del run avviene dal service worker (non dal pannello): è il
+    // contesto dell'estensione che ha chrome.tabs e gestisce RUN/Port.
     // Storage e Port sono pilotati in due contesti distinti, per un motivo
     // preciso: la Port la gestisce il lato UI (pannello), mentre le impostazioni
     // e la lettura delle statistiche le scrive/legge il worker. Una Port aperta
