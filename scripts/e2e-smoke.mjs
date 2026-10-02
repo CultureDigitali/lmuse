@@ -292,21 +292,24 @@ try {
       });
     }, mockBase);
 
-    const runOutcome = await panel.evaluate(
-      () =>
-        new Promise((resolve) => {
-          const steps = [];
-          let done = null;
-          let error = null;
-          const port = chrome.runtime.connect({ name: 'lmuse' });
-          port.onMessage.addListener((m) => {
-            if (m?.type === 'STEP') steps.push(m);
-            if (m?.type === 'DONE') done = m;
-            if (m?.type === 'ERROR') error = m;
-          });
-          port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
-          setTimeout(() => resolve({ steps, done, error }), 25_000);
-        }),
+    // Si passa una STRINGA, non una funzione: il serializzatore di Puppeteer
+    // delle funzioni fallisce con "document is not defined" quando la pagina non
+    // è un frame di documento (in CI capita). La forma a stringa è già usata più
+    // sotto per axe e funziona in ogni contesto.
+    const runOutcome = JSON.parse(
+      await panel.evaluate(`new Promise((resolve) => {
+        const steps = [];
+        let done = null;
+        let error = null;
+        const port = chrome.runtime.connect({ name: 'lmuse' });
+        port.onMessage.addListener((m) => {
+          if (m && m.type === 'STEP') steps.push(m);
+          if (m && m.type === 'DONE') done = m;
+          if (m && m.type === 'ERROR') error = m;
+        });
+        port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
+        setTimeout(() => resolve(JSON.stringify({ steps, done, error })), 25000);
+      })`),
     );
     check('run completo: nessun errore', !runOutcome.error, runOutcome.error?.message ?? '');
     check(
