@@ -419,6 +419,13 @@ try {
       console.log(`SKIP e2e: run completo non eseguito — ${runResult.motivo}`);
     } else if (process.env.LMUSE_E2E_TRACE === '1') {
       console.log('TRACE error completo:', JSON.stringify(runResult.error));
+      console.log(
+        'TRACE stack:',
+        String(runResult.error?.trace ?? '')
+          .split('\n')
+          .slice(0, 12)
+          .join('\n'),
+      );
       console.log('TRACE done:', JSON.stringify(runResult.done));
       console.log('TRACE step:', JSON.stringify((runResult.steps ?? []).slice(0, 3)));
     } else {
