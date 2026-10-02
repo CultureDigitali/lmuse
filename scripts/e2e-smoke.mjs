@@ -254,16 +254,18 @@ try {
     // Pagina dell'estensione che fa da client della Port. Non si usa il
     // pannello: in CI il side panel non è un frame di documento e la
     // serializzazione delle funzioni fallisce con "document is not defined".
+    // Stessa sequenza che funziona per il tab del pannello più sopra (goto +
+    // attesa + attesa del contesto): sotto xvfb un tab dell'estensione aperto
+    // per il pilotaggio non aveva un execution context pronto e ogni
+    // valutazione falliva con "document is not defined".
     const panel = await browser.newPage();
     await panel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
-    await panel.bringToFront();
-    // Attesa esplicita che il documento e l'API estensione siano pronti: in CI
-    // il tab dell'estensione resta a metà inizializzazione e la valutazione
-    // successiva falliva con "document is not defined".
-    await panel.waitForFunction('document.readyState === "complete" && !!chrome?.runtime?.id', {
-      timeout: 15_000,
-    });
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 2500));
+    // Si verifica il contesto PRIMA di usarlo: se manca, si dice perché.
+    const panelReady = await panel
+      .evaluate('typeof document !== "undefined" && !!chrome && !!chrome.runtime')
+      .catch(() => false);
+    check('contesto del pannello pronto per il pilotaggio', panelReady === true);
 
     // Il pilotaggio del run avviene dal service worker (non dal pannello): è il
     // contesto dell'estensione che ha chrome.tabs e gestisce RUN/Port.
