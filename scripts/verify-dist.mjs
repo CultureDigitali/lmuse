@@ -40,4 +40,27 @@ try {
 } catch (error) {
   if (error?.code !== 'ENOENT') throw error;
 }
+
+// L'helper __vitePreload di Vite avvolge ogni import() dinamico (i 25 provider)
+// e, se gli viene passata una lista di dipendenze, esegue
+// `document.getElementsByTagName('link')`: in un service worker MV3 `document`
+// non esiste e il task muore con "document is not defined". Il codice dell'helper
+// resta nel bundle anche quando è innocuo, quindi si verifica il comportamento
+// reale: nessuna chiamata all'helper può ricevere una lista di dipendenze.
+try {
+  const src = readFileSync(join(root, 'dist', 'background.js'), 'utf8');
+  const preloadCalls = [...src.matchAll(/(?<![A-Za-z0-9_$])__vitePreload\(|Z\(async\(\)=>\{/g)];
+  if (preloadCalls.length > 0) {
+    const withDeps = [...src.matchAll(/__vite__mapDeps\(\[(?!\])([^\]]*)\]/g)];
+    if (withDeps.length > 0) {
+      fail(
+        'dist/background.js precarica chunk nei dynamic import: nel service worker ' +
+          "l'helper usa `document` e il task fallisce. Configura " +
+          'build.modulePreload con polyfill:false e resolveDependencies:()=>[].',
+      );
+    }
+  }
+} catch (error) {
+  if (error?.code !== 'ENOENT') throw error;
+}
 console.log(`verify-dist ok: lmuse ${manifest.version}, MV3, entry presenti.`);

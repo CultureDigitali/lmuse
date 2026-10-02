@@ -2,6 +2,16 @@
 
 ## Non pubblicato
 
+**Difetto bloccante: ogni task falliva con «document is not defined»**
+
+Vite avvolge ogni `import()` dinamico — cioè il caricamento dei 25 provider —
+con l'helper `__vitePreload`, che per precaricare i chunk esegue
+`document.getElementsByTagName('link')`. Nel service worker MV3 `document` non
+esiste: il primo tool del task moriva con `ReferenceError: document is not
+defined` e all'utente arrivava solo «Si è verificato un errore». Il precaching
+è una pura ottimizzazione, ora disattivato per il worker
+(`build.modulePreload`), e `scripts/verify-dist.mjs` fallisce se torna.
+
 **E2E completo: un run reale dell'agente, senza credenziali**
 
 L'e2e ora avvia un run vero (pannello → worker → agente → tool → content script →
