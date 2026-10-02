@@ -350,21 +350,36 @@ try {
       return 'ok';
     } catch (e) { return 'ERR ' + String(e && e.message) + ' @ ' + String(e && e.stack).slice(0,120); } })()`);
     check('run completo: pilotaggio avviato', setupOutcome === 'ok', setupOutcome);
+    // Il worker MV3 si addormenta: in CI, dopo l'attesa del worker, il RUN
+    // inviato dal pannello non lo sveglia e resta lettera morta (diagnostica:
+    // listener installato, zero step). Lo si tiene sveglio con un heartbeat
+    // durante l'attesa del run.
+    const keepAlive = setInterval(() => {
+      void workerNow.evaluate('void 0').catch(() => undefined);
+    }, 2000);
     // Causa del fallimento in CI: se window.__lmuseRun è undefined, `r.done`
     // genera in-page un errore che Puppeteer riporta come "document is not
     // defined" (il nome della variabile della closure). Da qui la necessità di
     // controllare l'esistenza prima di leggerne i campi.
-    let runOutcome;
+    let runOutcome = { steps: [], done: null, error: null };
     try {
-      const handle = await panel.waitForFunction(
-        `(() => {
-          const r = window.__lmuseRun;
+      // Ciclo di attesa esplicito: con polling 'raf' l'handle restituito da
+      // waitForFunction può riferirsi a una valutazione precedente (null), quindi
+      // il risultato va riletto dalla pagina finché non è pronto.
+      const deadline = Date.now() + 25_000;
+      while (Date.now() < deadline) {
+        const raw = await panel.evaluate(`(function () {
+          var r = window.__lmuseRun;
           if (!r) return null;
-          return r.done || r.error ? JSON.stringify(r) : null;
-        })()`,
-        { timeout: 25_000, polling: 250 },
-      );
-      runOutcome = JSON.parse(await handle.jsonValue());
+          if (r.done || r.error) return JSON.stringify(r);
+          return null;
+        })()`);
+        if (typeof raw === 'string' && raw) {
+          runOutcome = JSON.parse(raw);
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 300));
+      }
     } catch (e) {
       const dump = await panel
         .evaluate(
@@ -373,12 +388,14 @@ try {
         .catch((x) => 'dump fallito: ' + String(x && x.message));
       check('run completo: diagnostica', false, String(e && e.message).slice(0, 90) + ' | stato: ' + dump);
       runOutcome = { steps: [], done: null, error: { message: 'timeout in attesa del run' } };
+    } finally {
+      clearInterval(keepAlive);
     }
     check('run completo: nessun errore', !runOutcome.error, runOutcome.error?.message ?? '');
     check(
       'run completo: DONE ricevuto con risposta del modello',
       runOutcome.done?.text === 'RISPOSTA FINALE MOCK',
-      runOutcome.done?.text ?? 'nessun DONE',
+      JSON.stringify(runOutcome.done ?? null).slice(0, 160),
     );
     check(
       "run completo: l'agente ha usato browser_snapshot",
