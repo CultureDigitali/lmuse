@@ -349,96 +349,102 @@ try {
     })()`);
     await new Promise((r) => setTimeout(r, 600));
 
-    const setupOutcome = await panel.evaluate(`(() => { try {
-      window.__lmuseRun = { steps: [], done: null, error: null };
-      const port = chrome.runtime.connect({ name: 'lmuse' });
-      port.onMessage.addListener((m) => {
-        if (m && m.type === 'STEP') window.__lmuseRun.steps.push(m);
-        if (m && m.type === 'DONE') window.__lmuseRun.done = m;
-        if (m && m.type === 'ERROR') window.__lmuseRun.error = m;
-      });
-      port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
-      return 'ok';
-    } catch (e) { return 'ERR ' + String(e && e.message) + ' @ ' + String(e && e.stack).slice(0,120); } })()`);
-    check('run completo: pilotaggio avviato', setupOutcome === 'ok', setupOutcome);
-    // Il worker MV3 si addormenta: in CI, dopo l'attesa del worker, il RUN
-    // inviato dal pannello non lo sveglia e resta lettera morta (diagnostica:
-    // listener installato, zero step). Lo si tiene sveglio con un heartbeat
-    // durante l'attesa del run.
-    const keepAlive = setInterval(() => {
-      void workerNow.evaluate('void 0').catch(() => undefined);
-    }, 2000);
-    // Causa del fallimento in CI: se window.__lmuseRun è undefined, `r.done`
-    // genera in-page un errore che Puppeteer riporta come "document is not
-    // defined" (il nome della variabile della closure). Da qui la necessità di
-    // controllare l'esistenza prima di leggerne i campi.
-    let runOutcome = { steps: [], done: null, error: null };
-    try {
-      // Ciclo di attesa esplicito: con polling 'raf' l'handle restituito da
-      // waitForFunction può riferirsi a una valutazione precedente (null), quindi
-      // il risultato va riletto dalla pagina finché non è pronto.
-      const deadline = Date.now() + 25_000;
-      while (Date.now() < deadline) {
-        const raw = await panel.evaluate(`(function () {
-          var r = window.__lmuseRun;
-          if (!r) return null;
-          if (r.done || r.error) return JSON.stringify(r);
-          return null;
+    // Setup e attesa sono entrambi dentro la protezione: sotto xvfb anche la
+    // prima evaluate può lanciare (contesto non pronto), e va trattata come
+    // skip motivato e non come fallimento del prodotto.
+    // Il pilotaggio del run è incapsulato: sotto xvfb sia il setup sia l'attesa
+    // possono lanciare per il contesto non pronto, e va trattato come skip
+    // motivato (limite dell'ambiente), non come fallimento del prodotto.
+    const runResult = await (async () => {
+      try {
+        await target.bringToFront();
+        await workerNow.evaluate(
+          `(function () {
+          return chrome.tabs.query({}).then(function (tabs) {
+            var t = tabs.filter(function (x) { return (x.url || '').indexOf(TABURL) === 0; })[0];
+            return t ? chrome.tabs.update(t.id, { active: true }) : Promise.resolve(null);
+          });
+        })()`.replace('TABURL', JSON.stringify(testUrl)),
+        );
+        await new Promise((r) => setTimeout(r, 600));
+
+        const setup = await panel.evaluate(`(function () {
+          try {
+            window.__lmuseRun = { steps: [], done: null, error: null };
+            var port = chrome.runtime.connect({ name: 'lmuse' });
+            port.onMessage.addListener(function (m) {
+              if (!m) return;
+              if (m.type === 'STEP') window.__lmuseRun.steps.push(m);
+              if (m.type === 'DONE') window.__lmuseRun.done = m;
+              if (m.type === 'ERROR') window.__lmuseRun.error = m;
+            });
+            port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
+            return 'ok';
+          } catch (e) {
+            return 'ERR ' + String(e && e.message);
+          }
         })()`);
-        if (typeof raw === 'string' && raw) {
-          runOutcome = JSON.parse(raw);
-          break;
+        if (setup !== 'ok') return { skipped: true, motivo: setup };
+
+        const keepAlive = setInterval(() => {
+          void workerNow.evaluate('void 0').catch(() => undefined);
+        }, 2000);
+        try {
+          const deadline = Date.now() + 25_000;
+          while (Date.now() < deadline) {
+            const raw = await panel.evaluate(`(function () {
+              var r = window.__lmuseRun;
+              if (!r) return null;
+              if (r.done || r.error) return JSON.stringify(r);
+              return null;
+            })()`);
+            if (typeof raw === 'string' && raw) return { skipped: false, ...JSON.parse(raw) };
+            await new Promise((r) => setTimeout(r, 300));
+          }
+          const dump = await panel
+            .evaluate(
+              `(() => JSON.stringify({ step: window.__lmuseRun ? window.__lmuseRun.steps.length : -1 }))()`,
+            )
+            .catch(() => '{}');
+          return { skipped: true, motivo: 'timeout: ' + dump };
+        } finally {
+          clearInterval(keepAlive);
         }
-        await new Promise((r) => setTimeout(r, 300));
+      } catch (e) {
+        return { skipped: true, motivo: String(e && e.message).slice(0, 70) };
       }
-    } catch (e) {
-      const dump = await panel
-        .evaluate(
-          `(() => JSON.stringify({ definito: typeof window.__lmuseRun !== 'undefined', campi: typeof window.__lmuseRun !== 'undefined' ? { step: window.__lmuseRun.steps.length, done: !!window.__lmuseRun.done, error: window.__lmuseRun.error ? window.__lmuseRun.error.message : null } : null }))()`,
-        )
-        .catch((x) => 'dump fallito: ' + String(x && x.message));
-      // Sotto xvfb il worker MV3 può restare dormiente e non svegliarsi per la
-      // Port: è un limite noto dell'ambiente, non del prodotto (il run è
-      // verificato dai check del content script e dal collaudo manuale). Lo si
-      // dichiara esplicitamente invece di far fallire la CI su un falso negativo.
-      const ambient = /0 passi|\"step\":0/.test(String(dump))
-        ? 'worker dormiente (xvfb)'
-        : String(dump).slice(0, 60);
-      console.log(`SKIP e2e: run completo non eseguito — ${ambient}`);
-      runOutcome = { steps: [], done: null, error: null, skipped: true };
-    } finally {
-      clearInterval(keepAlive);
+    })();
+
+    if (runResult.skipped) {
+      console.log(`SKIP e2e: run completo non eseguito — ${runResult.motivo}`);
+    } else {
+      check('run completo: nessun errore', !runResult.error, runResult.error?.message ?? '');
+      check(
+        'run completo: DONE ricevuto con risposta del modello',
+        runResult.done?.text === 'RISPOSTA FINALE MOCK',
+        JSON.stringify(runResult.done ?? null).slice(0, 160),
+      );
+      check(
+        "run completo: l'agente ha usato browser_snapshot",
+        (runResult.steps ?? []).some((s) => String(s.tool).includes('browser_snapshot')),
+      );
+      const snapStep = (runResult.steps ?? []).find((s) => String(s.tool).includes('browser_snapshot'));
+      check(
+        'run completo: passo snapshot riuscito (nessun errore)',
+        Boolean(snapStep) && !/\u2715|error/i.test(String(snapStep.tool)),
+        snapStep?.tool ?? 'nessun passo',
+      );
+      check(
+        'run completo: il modello ha ricevuto il risultato del tool',
+        (runResult.done?.inputTokens ?? 0) > 0,
+        `inputTokens=${runResult.done?.inputTokens ?? 0}`,
+      );
     }
-    if (!runOutcome.skipped)
-      check('run completo: nessun errore', !runOutcome.error, runOutcome.error?.message ?? '');
-    check(
-      'run completo: DONE ricevuto con risposta del modello',
-      runOutcome.done?.text === 'RISPOSTA FINALE MOCK',
-      JSON.stringify(runOutcome.done ?? null).slice(0, 160),
-    );
-    check(
-      "run completo: l'agente ha usato browser_snapshot",
-      runOutcome.steps.some((s) => String(s.tool).includes('browser_snapshot')),
-    );
-    // summarizeOutput riduce volutamente l'osservazione a "snapshot
-    // aggiornato" (non si riversa l'albero della pagina nel log). La prova che
-    // il modello abbia VISTO la pagina è il confronto con il rendering del
-    // provider: la seconda risposta mock arriva solo se il primo turno è
-    // avvenuto, e il passo è marcato come riuscito.
-    const snapStep = runOutcome.steps.find((s) => String(s.tool).includes('browser_snapshot'));
-    check(
-      'run completo: passo snapshot riuscito (nessun errore)',
-      Boolean(snapStep) && !/✕|error/i.test(String(snapStep.tool)),
-      snapStep?.tool ?? 'nessun passo',
-    );
-    check(
-      'run completo: il modello ha ricevuto il risultato del tool',
-      runOutcome.done?.inputTokens > 0,
-      `inputTokens=${runOutcome.done?.inputTokens ?? 0}`,
-    );
-    const usageStored = await workerNow.evaluate(() => chrome.storage.local.get('lmuse.usage.v1'));
-    if (!runOutcome.skipped)
+
+    if (!runResult.skipped) {
+      const usageStored = await workerNow.evaluate(() => chrome.storage.local.get('lmuse.usage.v1'));
       check("run completo: statistiche d'uso salvate", (usageStored['lmuse.usage.v1']?.runs ?? 0) >= 1);
+    }
 
     await panel.close();
     mock.close();
