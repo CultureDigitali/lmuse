@@ -50,3 +50,5 @@ jobs:
         run: |
           node --input-type=module -e "import {install, Browser} from '@puppeteer/browsers'; import {homedir} from 'node:os'; import {join} from 'node:path'; import {readFileSync} from 'node:fs'; const v = readFileSync('scripts/e2e-smoke.mjs', 'utf8').match(/BROWSER_VERSION = '([^']+)'/)[1]; await install({browser: Browser.CHROME, buildId: v, cacheDir: join(homedir(), '.cache', 'puppeteer')}); console.log('browser', v, 'ok');"
       - run: xvfb-run -a pnpm test:e2e
+        env:
+          LMUSE_E2E_TRACE: '1'
