@@ -482,7 +482,9 @@ async function startRun(task: string): Promise<void> {
           broadcast({
             type: 'STEP',
             index: -1,
-            tool: `${toolName} ✓`,
+            // Un errore del tool non è un passo riuscito: senza questo, ogni
+            // fallimento compariva al pannello come "tool ✓" con corpo vuoto.
+            tool: String(summary).startsWith('ERRORE:') ? `${toolName} ✕` : `${toolName} ✓`,
             input: null,
             result: String(mask(summary)),
           }),

@@ -179,6 +179,9 @@ export default function App() {
         setElapsedMs(0);
         setRunning(false);
         setSteps(0);
+        // Il worker ha aggiornato lastRuns: si rilegge, altrimenti il pannello
+        // continua a mostrare (e a riscrivere) uno stato obsoleto.
+        void loadSettings().then(setSettings);
         playDone();
         taskRef.current?.focus();
         void refreshHistory();
@@ -399,7 +402,9 @@ export default function App() {
   function update(patch: Partial<Settings>) {
     const next = { ...settings, ...patch };
     setSettings(next);
-    void saveSettings(next);
+    // lastRuns/usage li scrive il worker a fine run: usarne la copia in stato
+    // qui la annullerebbe alla prima modifica (perdita del run history).
+    void saveSettings(next).then(() => void loadSettings().then(setSettings));
   }
 
   function onKeyChange(value: string) {

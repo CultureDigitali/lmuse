@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import type { ApprovalPolicy } from './approval';
+import { ACTIVITY_KEY } from './lock';
 import type { Schedule } from './schedules';
 
 export type { ApprovalPolicy };
@@ -722,8 +723,17 @@ export async function clearAllData(): Promise<void> {
   await clearStoredKey();
   await chrome.storage.local.remove(KEY_STORE_V2);
   await chrome.storage.session.remove(KEY_STORE_V2);
-  await chrome.storage.local.remove([SETTINGS_KEY, HISTORY_KEY, USAGE_KEY, ONBOARDED_KEY, MODELS_CACHE_KEY]);
-  await chrome.storage.session.remove([INBOX_KEY, RUN_STATE_KEY, QUEUE_KEY]);
+  // Anche i metadati delle chiavi e il marker di attività: dopo una cancellazione
+  // "tutti i dati" non devono restare orari di salvataggio chiavi.
+  await chrome.storage.local.remove([
+    SETTINGS_KEY,
+    HISTORY_KEY,
+    USAGE_KEY,
+    ONBOARDED_KEY,
+    MODELS_CACHE_KEY,
+    KEYS_META_KEY,
+  ]);
+  await chrome.storage.session.remove([INBOX_KEY, RUN_STATE_KEY, QUEUE_KEY, ACTIVITY_KEY]);
   await chrome.alarms.clearAll().catch(() => undefined);
 }
 

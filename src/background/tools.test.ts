@@ -4,21 +4,41 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserToolConfig } from './tools';
 
 const sendMessage = vi.fn();
+// URL del tab attivo, variabile per testare l'allowlist.
+let activeTabUrl = 'https://esempio.it/pagina';
+const setActiveTabUrl = (u: string) => {
+  activeTabUrl = u;
+};
 const executeScript = vi.fn(async () => []);
 const getTab = vi.fn(async () => ({
   id: 1,
-  url: 'https://esempio.it/pagina',
+  url: activeTabUrl,
   title: 'Pagina',
   status: 'complete',
+  windowId: 1,
 }));
 
 vi.stubGlobal('chrome', {
   runtime: { id: 'lmuse-test', getManifest: () => ({ version: '0.0.0-test' }) },
   tabs: {
-    query: async () => [{ id: 1, url: 'https://esempio.it/pagina', title: 'Pagina' }],
+    query: async (q?: { url?: string }) =>
+      q?.url
+        ? [{ id: 1, url: q.url, title: 'Pagina', status: 'complete', windowId: 1 }]
+        : [
+            {
+              id: 1,
+              url: activeTabUrl,
+              title: 'Pagina',
+              status: 'complete',
+              windowId: 1,
+            },
+          ],
     get: getTab,
     sendMessage,
+    update: vi.fn(async () => {}),
+    captureVisibleTab: vi.fn(async () => 'data:image/png;base64,AAAA'),
   },
+  windows: { getLastFocused: vi.fn(async () => ({ id: 1 })) },
   scripting: { executeScript },
 });
 
@@ -47,6 +67,7 @@ function kindsOf(calls: unknown[][]): string[] {
 }
 
 beforeEach(() => {
+  activeTabUrl = 'https://esempio.it/pagina';
   sendMessage.mockReset();
   executeScript.mockClear();
   getTab.mockClear();
@@ -162,5 +183,75 @@ describe('browser_download', () => {
     const { tools } = createBrowserTools(baseConfig({ policy: 'sensitive', requestApproval }));
     await tools.browser_download.execute({ ref: 0 }, {} as never);
     expect(requestApproval).toHaveBeenCalled();
+  });
+});
+
+describe('confine allowlist su tutti i percorsi (regressione)', () => {
+  // Prima il controllo esisteva solo in browser_navigate: click, digitazione e
+  // le altre azioni operavano su qualunque pagina, quindi l'allowlist scritta
+  // dall'utente non era un confine.
+  const TAB_FUORI = 'https://intranet-banca.example.org/approvazioni';
+
+  it('click su tab fuori allowlist → bloccato', async () => {
+    sendMessage.mockResolvedValue({ ok: true });
+    setActiveTabUrl(TAB_FUORI);
+    const { tools } = createBrowserTools(baseConfig({ allowedDomains: 'esempio.it' }));
+    await expect(
+      tools.browser_click.execute({ ref: 1 }, {} as never) as unknown as Promise<unknown>,
+    ).rejects.toThrow(/allowlist/);
+  });
+
+  it('click su tab in allowlist → consentito', async () => {
+    sendMessage.mockResolvedValue({ ok: true });
+    const { tools } = createBrowserTools(baseConfig({ allowedDomains: 'esempio.it' }));
+    const out = await tools.browser_click.execute({ ref: 1 }, {} as never);
+    expect((out as { observation: string }).observation).toContain('Click');
+  });
+
+  it('allowlist vuota → nessun vincolo (default invariato)', async () => {
+    sendMessage.mockResolvedValue({ ok: true });
+    const { tools } = createBrowserTools(baseConfig({ allowedDomains: '' }));
+    await expect(
+      tools.browser_click.execute({ ref: 1 }, {} as never) as unknown as Promise<unknown>,
+    ).resolves.toBeDefined();
+  });
+});
+
+describe('browser_wait: il timeout del worker segue quello richiesto (regressione)', () => {
+  // Il worker aveva un timeout fisso di 10s mentre lo schema ammette 30s: metà
+  // dei valori ammessi fallivano sempre, e l'errore finiva accusato al provider.
+  // Il timeout passato dal tool deve essere quello dichiarato + margine.
+  it('passa al content script un timeout coerente con la richiesta', async () => {
+    sendMessage.mockResolvedValue({ ok: true, waitedMs: 12_000 });
+    const { tools } = createBrowserTools(baseConfig());
+    await tools.browser_wait.execute({ waitKind: 'text', value: 'x', timeoutMs: 25_000 }, {} as never);
+    const wait = sendMessage.mock.calls
+      .map((c) => c[1] as { kind: string; timeoutMs?: number })
+      .find((m) => m.kind === 'LMUSE_WAIT');
+    expect(wait).toBeDefined();
+    expect(wait?.timeoutMs).toBe(25_000);
+  });
+
+  it('clampa a 30s e non accetta valori assurdi', async () => {
+    sendMessage.mockResolvedValue({ ok: true, waitedMs: 30_000 });
+    const { tools } = createBrowserTools(baseConfig());
+    await tools.browser_wait.execute({ waitKind: 'text', value: 'x', timeoutMs: 99_999 }, {} as never);
+    const wait = sendMessage.mock.calls
+      .map((c) => c[1] as { kind: string; timeoutMs?: number })
+      .find((m) => m.kind === 'LMUSE_WAIT');
+    expect(wait?.timeoutMs).toBe(30_000);
+  });
+});
+
+describe('stopText non viene rimappato come errore provider (regressione)', () => {
+  // checkStop lancia "STOP_TEXT:..." dentro guarded(), che lo passava a
+  // mapProviderError: con una stop-text come "403" o "timeout" il prefisso
+  // veniva perso e il worker leggeva "Chiave API non valida".
+  it('propaga il prefisso STOP_TEXT intatto', async () => {
+    sendMessage.mockResolvedValue({ ok: true, tree: 'Totale 403 EUR' });
+    const { tools } = createBrowserTools(baseConfig({ stopText: '403' }));
+    await expect(
+      tools.browser_snapshot.execute({}, {} as never) as unknown as Promise<unknown>,
+    ).rejects.toThrow(/STOP_TEXT/);
   });
 });

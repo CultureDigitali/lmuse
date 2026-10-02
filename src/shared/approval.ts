@@ -9,6 +9,8 @@ const READONLY_TOOLS = new Set([
   'browser_iframe_snapshot',
   'browser_tabs_list',
   'browser_wait',
+  'browser_screenshot',
+  'browser_screenshot_element',
 ]);
 
 export interface ApprovalContext {
@@ -90,6 +92,9 @@ export function shouldApprove(
   }
   if (toolName === 'browser_download') {
     return { needed: true, reason: 'Download di un file dal sito' };
+  }
+  if (toolName === 'browser_screenshot' || toolName === 'browser_screenshot_element') {
+    return { needed: true, reason: 'Invio di una schermata della pagina al modello' };
   }
   if (toolName === 'browser_clipboard_read') {
     return { needed: true, reason: 'Lettura degli appunti (può contenere dati personali)' };

@@ -2,7 +2,34 @@
 
 ## Non pubblicato
 
-**Difetti bloccanti corretti (rinvenuti da un panel di revisori avversari)**
+**E2E completo: un run reale dell'agente, senza credenziali**
+
+L'e2e ora avvia un run vero (pannello → worker → agente → tool → content script →
+DONE → storage) contro un provider OpenAI-compatibile finto in locale. Prima
+l'e2e non esercitava mai un run: verificava solo che il pannello si disegnasse.
+15 controlli in totale.
+
+**Difetti bloccanti corretti (2° giro di revisione avversariale)**
+
+- **Gli errori dei tool non arrivavano mai all'utente.** `JSON.stringify(new Error())`
+  vale `{}` e ogni passo fallito compariva come "tool ✓" con corpo vuoto.
+- **`browser_wait` con timeout >10s falliva sempre** e l'errore accusava il
+  provider, mentre lo schema ammette 30s. Ora il timeout segue la richiesta.
+- **Il run history veniva perso** a ogni modifica di impostazioni: il pannello
+  riscriveva le impostazioni con `lastRuns` obsoleto.
+- **L'allowlist non era un confine.** Era controllata solo in `browser_navigate`:
+  click, digitazione, cambio scheda e le altre 21 azioni operavano su qualunque
+  pagina. Ora ogni tool verifica il tab su cui agisce, anche il tab di
+  destinazione di focus/duplicazione; l'elenco tab marca quelli fuori perimetro.
+- **Le schermate andavano al provider senza conferma** con la policy predefinita,
+  e le schermate finivano dalla finestra sbagliata (`getLastFocused`). Ora
+  chiedono conferma e catturano la finestra del tab su cui si lavora.
+- **Lo stop-text veniva rimappato come errore del provider**: con una condizione
+  come "403" o "timeout" l'utente leggeva "Chiave API non valida".
+- **"Cancella tutti i dati"** non cancellava i metadati delle chiavi né il marker
+  di attività.
+
+**Difetti bloccanti corretti (1° giro)**
 
 - **Il prodotto non funzionava.** `dist/content.js` era un modulo ES, ma
   `chrome.scripting.executeScript({files})` inietta script classici: il listener

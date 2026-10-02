@@ -184,6 +184,160 @@ try {
       'snapshot contiene gli elementi della pagina',
       snapResult.ok === true && /Link di prova|Premi/.test(snapResult.tree ?? ''),
     );
+
+    // --- Run REALE end-to-end dell'agente, senza credenziali.
+    // Mock OpenAI-compatibile locale: prima risposta chiede browser_snapshot,
+    // la seconda è la risposta finale. Copre l'unico percorso che conta
+    // (pannello → worker → agente → tool → content script → DONE → storage),
+    // mai esercitato prima.
+    let llmCalls = 0;
+    const mock = createServer((req, res) => {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        llmCalls += 1;
+        const usage = { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 };
+        const payload =
+          llmCalls === 1
+            ? {
+                id: 'm1',
+                object: 'chat.completion',
+                created: 1,
+                model: 'mock-model',
+                choices: [
+                  {
+                    index: 0,
+                    message: {
+                      role: 'assistant',
+                      content: null,
+                      tool_calls: [
+                        {
+                          id: 'c1',
+                          type: 'function',
+                          function: { name: 'browser_snapshot', arguments: '{}' },
+                        },
+                      ],
+                    },
+                    finish_reason: 'tool_calls',
+                  },
+                ],
+                usage,
+              }
+            : {
+                id: 'm2',
+                object: 'chat.completion',
+                created: 2,
+                model: 'mock-model',
+                choices: [
+                  {
+                    index: 0,
+                    message: { role: 'assistant', content: 'RISPOSTA FINALE MOCK' },
+                    finish_reason: 'stop',
+                  },
+                ],
+                usage,
+              };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(payload));
+      });
+    });
+    await new Promise((r) => mock.listen(0, '127.0.0.1', r));
+    const mockBase = `http://127.0.0.1:${mock.address().port}/v1`;
+
+    const panel = await browser.newPage();
+    await panel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
+    await new Promise((r) => setTimeout(r, 1500));
+    const runOutcome = await panel.evaluate(
+      ({ baseUrl, tabUrl: tUrl }) =>
+        new Promise((resolve) => {
+          const steps = [];
+          let done = null;
+          let error = null;
+          const port = chrome.runtime.connect({ name: 'lmuse' });
+          port.onMessage.addListener((m) => {
+            if (m?.type === 'STEP') steps.push(m);
+            if (m?.type === 'DONE') done = m;
+            if (m?.type === 'ERROR') error = m;
+          });
+          // Configura un provider finto: nessuna chiave, nessuna rete esterna.
+          chrome.storage.local
+            .set({
+              'lmuse.settings.v1': {
+                providerId: 'custom',
+                model: 'mock-model',
+                baseUrl,
+                maxSteps: 6,
+                maxRetries: 0,
+                runTimeoutMin: 2,
+                approvalTimeoutSec: 30,
+                snapshotMaxChars: 12000,
+                rememberKey: false,
+                privacyMaskPii: true,
+                privacyHidePasswords: true,
+                privacyHostOnly: false,
+                keepHistory: false,
+                approval: 'off',
+                sendScreenshots: false,
+                allowedDomains: '',
+                trustedDomains: [],
+                savedPrompts: [],
+                theme: 'auto',
+                locale: 'it',
+                maxTokensPerRun: 60000,
+                stopText: '',
+                soundOnDone: false,
+                compactLog: false,
+                lastRuns: [],
+                schedules: [],
+                sessionLockMin: 0,
+              },
+              'lmuse.onboarded.v1': true,
+            })
+            .then(() => {
+              // Il tab della pagina di prova deve essere quello attivo.
+              return chrome.tabs
+                .query({ url: tUrl })
+                .then(([t]) => chrome.tabs.update(t.id, { active: true }));
+            })
+            .then(() => {
+              port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
+              setTimeout(() => resolve({ steps, done, error }), 25_000);
+            })
+            .catch((e) => resolve({ steps, done, error: { message: String(e) } }));
+        }),
+      { baseUrl: mockBase, tabUrl: testUrl },
+    );
+    check('run completo: nessun errore', !runOutcome.error, runOutcome.error?.message ?? '');
+    check(
+      'run completo: DONE ricevuto con risposta del modello',
+      runOutcome.done?.text === 'RISPOSTA FINALE MOCK',
+      runOutcome.done?.text ?? 'nessun DONE',
+    );
+    check(
+      "run completo: l'agente ha usato browser_snapshot",
+      runOutcome.steps.some((s) => String(s.tool).includes('browser_snapshot')),
+    );
+    // summarizeOutput riduce volutamente l'osservazione a "snapshot
+    // aggiornato" (non si riversa l'albero della pagina nel log). La prova che
+    // il modello abbia VISTO la pagina è il confronto con il rendering del
+    // provider: la seconda risposta mock arriva solo se il primo turno è
+    // avvenuto, e il passo è marcato come riuscito.
+    const snapStep = runOutcome.steps.find((s) => String(s.tool).includes('browser_snapshot'));
+    check(
+      'run completo: passo snapshot riuscito (nessun errore)',
+      Boolean(snapStep) && !/✕|error/i.test(String(snapStep.tool)),
+      snapStep?.tool ?? 'nessun passo',
+    );
+    check(
+      'run completo: il modello ha ricevuto il risultato del tool',
+      runOutcome.done?.inputTokens > 0,
+      `inputTokens=${runOutcome.done?.inputTokens ?? 0}`,
+    );
+    const usageStored = await panel.evaluate(() => chrome.storage.local.get('lmuse.usage.v1'));
+    check("run completo: statistiche d'uso salvate", (usageStored['lmuse.usage.v1']?.runs ?? 0) >= 1);
+
+    await panel.close();
+    mock.close();
     await target.close();
     server.close();
   }

@@ -103,6 +103,31 @@ async function getActiveTab(): Promise<chrome.tabs.Tab> {
 }
 
 /**
+ * Applica il confine "Domini consentiti" al tab su cui si va ad agire.
+ *
+ * Prima era controllato solo in browser_navigate: click, digitazione, cambio
+ * scheda e le altre azioni operavano senza guardare l'allowlist, quindi il
+ * confine che l'utente scriveva non esisteva. allowlist vuota = nessun
+ * vincolo (comportamento predefinito invariato).
+ */
+function assertTabAllowed(tab: chrome.tabs.Tab, allowedDomains: string): void {
+  if (!allowedDomains.trim()) return;
+  const url = tab.url ?? '';
+  if (!/^https?:/i.test(url)) return; // pagine non navigabili: fuori perimetro
+  if (isAllowedHost(url, allowedDomains)) return;
+  throw new Error(
+    `Tab fuori dall'allowlist utente (${allowedDomains}). Chiedi all'utente di aggiornare "Domini consentiti" o di cambiare scheda.`,
+  );
+}
+
+/** getActiveTab + controllo allowlist: usato da ogni tool che agisce sul tab. */
+async function getActiveTabAllowed(allowedDomains: string): Promise<chrome.tabs.Tab> {
+  const tab = await getActiveTab();
+  assertTabAllowed(tab, allowedDomains);
+  return tab;
+}
+
+/**
  * Iniezione on-demand (S102): niente content script statico nel manifest.
  * Solo file locali via `files:` (mai `func:` con stringhe) e solo su
  * http/https — altrove chrome.scripting rigetta e mappiamo in chiaro.
@@ -118,14 +143,30 @@ async function injectContentScript(tabId: number): Promise<void> {
   }
 }
 
-/** Invia al content script con timeout; distingue "non raggiungibile" da errore della pagina. */
-async function rawSendToTab<T>(tabId: number, message: unknown): Promise<T> {
+/**
+ * Invia al content script con timeout; distingue "non raggiungibile" da errore
+ * della pagina.
+ *
+ * Il timeout dipende dall'operazione: `browser_wait` ammette attese fino a 30s,
+ * quindi un unico timeout globale di 10s rendeva impossibili metà dei valori
+ * ammessi dallo schema (e l'errore veniva rimappato come "timeout del provider").
+ * Il timer viene sempre ripulito.
+ */
+async function rawSendToTab<T>(
+  tabId: number,
+  message: unknown,
+  timeoutMs = TAB_REPLY_TIMEOUT_MS,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
       chrome.tabs.sendMessage(tabId, message),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout risposta content script (10s).')), TAB_REPLY_TIMEOUT_MS),
-      ),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`Timeout risposta content script (${Math.round(timeoutMs / 1000)}s).`)),
+          timeoutMs,
+        );
+      }),
     ]);
     return result as T;
   } catch (error) {
@@ -135,6 +176,8 @@ async function rawSendToTab<T>(tabId: number, message: unknown): Promise<T> {
       `${UNREACHABLE_PREFIX} in questo tab. Cause possibili: pagina chrome:// o Web Store (lmuse non opera lì), tab ricaricato da poco, o estensione da ricaricare.`,
       { cause: error },
     );
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -229,14 +272,14 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
   }
 
   /** Invia al tab iniettando on-demand al primo uso + un retry dopo navigazioni. */
-  async function sendToTab<T>(tabId: number, message: unknown): Promise<T> {
+  async function sendToTab<T>(tabId: number, message: unknown, timeoutMs?: number): Promise<T> {
     try {
-      return await rawSendToTab<T>(tabId, message);
+      return await rawSendToTab<T>(tabId, message, timeoutMs);
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error);
       if (!raw.startsWith(UNREACHABLE_PREFIX)) throw error;
       await injectContentScript(tabId);
-      return rawSendToTab<T>(tabId, message);
+      return rawSendToTab<T>(tabId, message, timeoutMs);
     }
   }
 
@@ -254,6 +297,10 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       return out;
     } catch (error) {
       circuit.recordFailure();
+      // Lo stop-text è un esito previsto, non un errore: non va rimappato come
+      // "timeout/chiave/quota del provider" (il worker lo riconosce dal prefisso).
+      const raw = error instanceof Error ? error.message : String(error);
+      if (raw.startsWith(STOP_TEXT_PREFIX)) throw error;
       throw new Error(mapProviderError(error), { cause: error });
     }
   }
@@ -310,7 +357,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       inputSchema: z.object({}),
       execute: async () =>
         guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           return { observation: checkStop(await snapshotTab(tab.id, snapOpts, sendToTab)) };
         }),
@@ -336,7 +383,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
               `Dominio fuori dall'allowlist utente (${cfg.allowedDomains}). Chiedi all'utente di aggiornare "Domini consentiti".`,
             );
           }
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           await chrome.tabs.update(tab.id, { url: target });
           await waitForTabComplete(tab.id);
@@ -373,7 +420,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async () => {
         await approved('browser_back', {}, 'Torna indietro');
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           await chrome.tabs.goBack(tab.id);
           await waitForTabComplete(tab.id);
@@ -388,7 +435,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async () => {
         await approved('browser_forward', {}, 'Vai avanti');
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           await chrome.tabs.goForward(tab.id);
           await waitForTabComplete(tab.id);
@@ -403,7 +450,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async () => {
         await approved('browser_reload', {}, 'Ricarica pagina');
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           await chrome.tabs.reload(tab.id);
           await waitForTabComplete(tab.id);
@@ -419,7 +466,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async ({ ref }: { ref: number }) => {
         await approved('browser_click', { ref }, `Click su [${ref}]`);
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_CLICK', ref });
           if (!res.ok) {
@@ -451,7 +498,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           `Digita in [${ref}]${submit ? ' + Invio' : ''}`,
         );
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, {
             kind: 'LMUSE_TYPE',
@@ -477,7 +524,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async ({ ref }: { ref: number }) => {
         await approved('browser_hover', { ref }, `Hover su [${ref}]`);
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_HOVER', ref });
           if (!res.ok) throw new Error(res.error ?? 'Hover fallito.');
@@ -495,7 +542,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async ({ text }: { text: string }) => {
         await approved('browser_clipboard_write', { text: `${text.slice(0, 80)}…` }, 'Scrive negli appunti');
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_CLIPBOARD_WRITE', text });
           if (!res.ok) throw new Error(res.error ?? 'Scrittura appunti fallita (permesso?).');
@@ -510,7 +557,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async () => {
         await approved('browser_clipboard_read', {}, 'Legge gli appunti (dato sensibile)');
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_CLIPBOARD_READ' });
           if (!res.ok) throw new Error(res.error ?? 'Lettura appunti fallita (permesso?).');
@@ -527,7 +574,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       }),
       execute: async ({ index }: { index?: number }) =>
         guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, {
             kind: 'LMUSE_IFRAME_SNAPSHOT',
@@ -549,7 +596,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async ({ ref }: { ref: number }) => {
         await approved('browser_download', { ref }, `Download da [${ref}]`);
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_DOWNLOAD', ref });
           if (!res.ok) {
@@ -573,7 +620,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async ({ ref, value }: { ref: number; value: string }) => {
         await approved('browser_select', { ref, value }, `Seleziona "${value}" in [${ref}]`);
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_SELECT', ref, value });
           if (!res.ok) {
@@ -605,14 +652,16 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         timeoutMs?: number;
       }) =>
         guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
-          const res = await sendToTab<SnapshotResult>(tab.id, {
-            kind: 'LMUSE_WAIT',
-            waitKind,
-            value,
-            timeoutMs: timeoutMs ?? 10_000,
-          });
+          // Il timeout del worker deve superare l'attesa richiesta, altrimenti
+          // il tool muore prima del timeout che l'utente ha chiesto.
+          const waitMs = Math.min(Math.max(timeoutMs ?? 10_000, 500), 30_000);
+          const res = await sendToTab<SnapshotResult>(
+            tab.id,
+            { kind: 'LMUSE_WAIT', waitKind, value, timeoutMs: waitMs },
+            waitMs + 5_000,
+          );
           if (!res.ok) throw new Error(res.error ?? 'Attesa fallita.');
           return acted(tab.id, `Trovato dopo ${res.waitedMs ?? '?'}ms.`);
         }),
@@ -626,7 +675,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async ({ key }: { key: string }) => {
         await approved('browser_press', { key }, `Tasto ${key}`);
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_PRESS', key });
           if (!res.ok) throw new Error(res.error ?? 'Pressione tasto fallita.');
@@ -648,7 +697,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async ({ direction, ref }: { direction: 'up' | 'down' | 'top' | 'bottom'; ref?: number }) => {
         await approved('browser_scroll', { direction, ref }, `Scroll ${direction}`);
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_SCROLL', direction, ref });
           if (!res.ok) {
@@ -673,9 +722,13 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           if (!cfg.sendScreenshots) {
             throw new Error('Screenshot disattivato dalla privacy di lmuse (impostazioni ⚙).');
           }
-          const win = await chrome.windows.getLastFocused();
-          if (win.id == null) throw new Error('Finestra non trovata.');
-          const dataUrl = (await chrome.tabs.captureVisibleTab(win.id, { format: 'png' })) as string;
+          // Si cattura la finestra DEL TAB SU CUI SI STA LAVORANDO, non
+          // l'ultima in primo piano: altrimenti finestre altrui (posta, banca)
+          // finivano nel modello spacciate per la pagina corrente.
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
+          const winId = tab.windowId;
+          if (winId == null) throw new Error('Finestra del tab non trovata.');
+          const dataUrl = (await chrome.tabs.captureVisibleTab(winId, { format: 'png' })) as string;
           lastScreenshot = dataUrl.replace(/^data:image\/png;base64,/, '');
           return { captured: true };
         });
@@ -704,7 +757,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           if (!cfg.sendScreenshots) {
             throw new Error('Screenshot disattivato dalla privacy di lmuse (impostazioni ⚙).');
           }
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_RECT', ref });
           if (!res.ok || !res.rect) {
@@ -713,9 +766,13 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
             }
             throw new Error(res.error ?? 'Misura elemento fallita.');
           }
-          const win = await chrome.windows.getLastFocused();
-          if (win.id == null) throw new Error('Finestra non trovata.');
-          const dataUrl = (await chrome.tabs.captureVisibleTab(win.id, { format: 'png' })) as string;
+          // Stessa finestra del tab attivo (vedi browser_screenshot): ritagliare
+          // un rettangolo misurato su una pagina sui pixel di un'altra dà immagini
+          // arbitrarie e espone dati estranei.
+          const snapTab = await getActiveTabAllowed(cfg.allowedDomains);
+          const winId2 = snapTab.windowId;
+          if (winId2 == null) throw new Error('Finestra del tab non trovata.');
+          const dataUrl = (await chrome.tabs.captureVisibleTab(winId2, { format: 'png' })) as string;
           lastScreenshot = await cropPng(dataUrl, res.rect);
           return { captured: true };
         });
@@ -743,7 +800,11 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           const lines = tabs.map((t) => {
             const title = (t.title ?? '').slice(0, 60);
             const url = maskUrlTokens(t.url ?? '');
-            return cfg.maskPii ? `#${t.id} "${maskPii(title)}" ${url}` : `#${t.id} "${title}" ${url}`;
+            const base = `#${t.id} "${cfg.maskPii ? maskPii(title) : title}" ${url}`;
+            // Con allowlist impostata, i tab fuori perimetro restano elencati ma
+            // marcati: il modello deve sapere che non può agirci.
+            const out = cfg.allowedDomains.trim() && !isAllowedHost(t.url ?? '', cfg.allowedDomains);
+            return out ? `${base} [FUORI ALLOWLIST: non agire]` : base;
           });
           return { observation: truncate(lines.join('\n') || 'Nessun tab.', 2000) };
         }),
@@ -767,6 +828,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           } catch (error) {
             throw new Error(mapTabError(error), { cause: error });
           }
+          // L'allowlist vale anche sul tab di destinazione: portare in primo piano
+          // una pagina fuori allowlist la mette sotto il controllo dell'agente.
+          assertTabAllowed(tab, cfg.allowedDomains);
           trackDomain(tab.url);
           await waitForTabComplete(tabId, 5_000);
           try {
@@ -785,7 +849,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async () => {
         await approved('browser_tab_duplicate', {}, 'Duplica tab');
         return guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           let dup: chrome.tabs.Tab | undefined;
           try {
@@ -814,7 +878,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       }),
       execute: async ({ mode }: { mode?: 'full' | 'main' }) =>
         guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, {
             kind: 'LMUSE_TEXT',
@@ -832,7 +896,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       inputSchema: z.object({}),
       execute: async () =>
         guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_LINKS', max: 200 });
           if (!res.ok) throw new Error(res.error ?? 'Lettura link fallita.');
@@ -853,7 +917,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       }),
       execute: async ({ text, index }: { text: string; index?: number }) =>
         guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, {
             kind: 'LMUSE_FIND',
@@ -870,7 +934,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       inputSchema: z.object({ ref: z.number().int().describe('Ref numerico dallo snapshot') }),
       execute: async ({ ref }: { ref: number }) =>
         guarded(async () => {
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_TABLE', ref });
           if (!res.ok) {
@@ -893,7 +957,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async ({ selector, max }: { selector: string; max?: number }) =>
         guarded(async () => {
           if (!selector.trim()) throw new Error('Selettore vuoto.');
-          const tab = await getActiveTab();
+          const tab = await getActiveTabAllowed(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const res = await sendToTab<SnapshotResult>(tab.id, {
             kind: 'LMUSE_QUERY',

@@ -38,7 +38,21 @@ export interface AgentRunResult {
   outputTokens: number;
 }
 
-function summarizeOutput(toolName: string, output: unknown): string {
+/**
+ * Riassume l'esito di un tool per il log del pannello.
+ * `isError` distingue il fallimento: senza, un Error serializzato diventava
+ * `{}` e ogni errore veniva mostrato come passo riuscito con il ✓.
+ */
+export function summarizeOutput(toolName: string, output: unknown, isError = false): string {
+  if (isError) {
+    const msg =
+      output instanceof Error
+        ? output.message
+        : typeof output === 'string'
+          ? output
+          : (safeStringify(output) ?? 'errore');
+    return `ERRORE: ${msg.slice(0, 300)}`;
+  }
   if (output == null) return 'ok';
   if (typeof output === 'string') return output.slice(0, 300);
   try {
@@ -47,6 +61,14 @@ function summarizeOutput(toolName: string, output: unknown): string {
     return JSON.stringify(output).slice(0, 300);
   } catch {
     return 'ok';
+  }
+}
+
+function safeStringify(value: unknown): string | null {
+  try {
+    return JSON.stringify(value) ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -143,8 +165,9 @@ export async function runTask(
         callbacks.onToolStart(toolCall.toolName, toolCall.input);
       },
       onToolExecutionEnd: async ({ toolCall, toolOutput }) => {
-        const output = toolOutput.type === 'tool-result' ? toolOutput.output : toolOutput.error;
-        callbacks.onToolEnd(toolCall.toolName, summarizeOutput(toolCall.toolName, output));
+        const failed = toolOutput.type !== 'tool-result';
+        const output = failed ? toolOutput.error : toolOutput.output;
+        callbacks.onToolEnd(toolCall.toolName, summarizeOutput(toolCall.toolName, output, failed));
       },
     });
     for await (const delta of stream.textStream) {
