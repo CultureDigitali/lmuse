@@ -247,8 +247,53 @@ try {
     const panel = await browser.newPage();
     await panel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
     await new Promise((r) => setTimeout(r, 1500));
+
+    // Il pilotaggio del run avviene dal service worker (non dal pannello): è il
+    // contesto dell'estensione che ha chrome.tabs e gestisce RUN/Port.
+    const swNow = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
+    const workerNow = await swNow?.worker();
+    // Storage e Port sono pilotati in due contesti distinti, per un motivo
+    // preciso: la Port la gestisce il lato UI (pannello), mentre le impostazioni
+    // e la lettura delle statistiche le scrive/legge il worker. Una Port aperta
+    // dal worker viene subito disconnessa dal suo stesso listener.
+    await workerNow.evaluate((baseUrl) => {
+      const settings = {
+        providerId: 'custom',
+        model: 'mock-model',
+        baseUrl,
+        maxSteps: 6,
+        maxRetries: 0,
+        runTimeoutMin: 2,
+        approvalTimeoutSec: 30,
+        snapshotMaxChars: 12000,
+        rememberKey: false,
+        privacyMaskPii: true,
+        privacyHidePasswords: true,
+        privacyHostOnly: false,
+        keepHistory: false,
+        approval: 'off',
+        sendScreenshots: false,
+        allowedDomains: '',
+        trustedDomains: [],
+        savedPrompts: [],
+        theme: 'auto',
+        locale: 'it',
+        maxTokensPerRun: 60000,
+        stopText: '',
+        soundOnDone: false,
+        compactLog: false,
+        lastRuns: [],
+        schedules: [],
+        sessionLockMin: 0,
+      };
+      return chrome.storage.local.set({
+        'lmuse.settings.v1': settings,
+        'lmuse.onboarded.v1': true,
+      });
+    }, mockBase);
+
     const runOutcome = await panel.evaluate(
-      ({ baseUrl, tabUrl: tUrl }) =>
+      () =>
         new Promise((resolve) => {
           const steps = [];
           let done = null;
@@ -259,53 +304,9 @@ try {
             if (m?.type === 'DONE') done = m;
             if (m?.type === 'ERROR') error = m;
           });
-          // Configura un provider finto: nessuna chiave, nessuna rete esterna.
-          chrome.storage.local
-            .set({
-              'lmuse.settings.v1': {
-                providerId: 'custom',
-                model: 'mock-model',
-                baseUrl,
-                maxSteps: 6,
-                maxRetries: 0,
-                runTimeoutMin: 2,
-                approvalTimeoutSec: 30,
-                snapshotMaxChars: 12000,
-                rememberKey: false,
-                privacyMaskPii: true,
-                privacyHidePasswords: true,
-                privacyHostOnly: false,
-                keepHistory: false,
-                approval: 'off',
-                sendScreenshots: false,
-                allowedDomains: '',
-                trustedDomains: [],
-                savedPrompts: [],
-                theme: 'auto',
-                locale: 'it',
-                maxTokensPerRun: 60000,
-                stopText: '',
-                soundOnDone: false,
-                compactLog: false,
-                lastRuns: [],
-                schedules: [],
-                sessionLockMin: 0,
-              },
-              'lmuse.onboarded.v1': true,
-            })
-            .then(() => {
-              // Il tab della pagina di prova deve essere quello attivo.
-              return chrome.tabs
-                .query({ url: tUrl })
-                .then(([t]) => chrome.tabs.update(t.id, { active: true }));
-            })
-            .then(() => {
-              port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
-              setTimeout(() => resolve({ steps, done, error }), 25_000);
-            })
-            .catch((e) => resolve({ steps, done, error: { message: String(e) } }));
+          port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
+          setTimeout(() => resolve({ steps, done, error }), 25_000);
         }),
-      { baseUrl: mockBase, tabUrl: testUrl },
     );
     check('run completo: nessun errore', !runOutcome.error, runOutcome.error?.message ?? '');
     check(
@@ -333,7 +334,7 @@ try {
       runOutcome.done?.inputTokens > 0,
       `inputTokens=${runOutcome.done?.inputTokens ?? 0}`,
     );
-    const usageStored = await panel.evaluate(() => chrome.storage.local.get('lmuse.usage.v1'));
+    const usageStored = await workerNow.evaluate(() => chrome.storage.local.get('lmuse.usage.v1'));
     check("run completo: statistiche d'uso salvate", (usageStored['lmuse.usage.v1']?.runs ?? 0) >= 1);
 
     await panel.close();
