@@ -323,20 +323,27 @@ try {
     // delle funzioni fallisce con "document is not defined" quando la pagina non
     // è un frame di documento (in CI capita). La forma a stringa è già usata più
     // sotto per axe e funziona in ogni contesto.
+    // Si imposta il listener in-page (stringa: forma già usata per axe e
+    // verificata anche in CI), poi si ATTENDE il risultato con waitForFunction,
+    // che è il meccanismo supportato per l'asincrono: page.evaluate con una
+    // stringa non attende un Promise e falliva in CI.
+    await panel.evaluate(`(() => {
+      window.__lmuseRun = { steps: [], done: null, error: null };
+      const port = chrome.runtime.connect({ name: 'lmuse' });
+      port.onMessage.addListener((m) => {
+        if (m && m.type === 'STEP') window.__lmuseRun.steps.push(m);
+        if (m && m.type === 'DONE') window.__lmuseRun.done = m;
+        if (m && m.type === 'ERROR') window.__lmuseRun.error = m;
+      });
+      port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
+    })()`);
     const runOutcome = JSON.parse(
-      await panel.evaluate(`new Promise((resolve) => {
-        const steps = [];
-        let done = null;
-        let error = null;
-        const port = chrome.runtime.connect({ name: 'lmuse' });
-        port.onMessage.addListener((m) => {
-          if (m && m.type === 'STEP') steps.push(m);
-          if (m && m.type === 'DONE') done = m;
-          if (m && m.type === 'ERROR') error = m;
-        });
-        port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
-        setTimeout(() => resolve(JSON.stringify({ steps, done, error })), 25000);
-      })`),
+      await panel
+        .waitForFunction(
+          `(() => { const r = window.__lmuseRun; return r.done || r.error ? JSON.stringify(r) : null; })()`,
+          { timeout: 30_000, polling: 250 },
+        )
+        .then((h) => h.jsonValue()),
     );
     check('run completo: nessun errore', !runOutcome.error, runOutcome.error?.message ?? '');
     check(
