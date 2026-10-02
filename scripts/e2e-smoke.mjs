@@ -343,17 +343,6 @@ try {
     // verificata anche in CI), poi si ATTENDE il risultato con waitForFunction,
     // che è il meccanismo supportato per l'asincrono: page.evaluate con una
     // stringa non attende un Promise e falliva in CI.
-    // Prima del RUN il tab di prova DEVE essere quello attivo: i tool agiscono
-    // sul tab attivo e, in CI, il tab in primo piano è quello dell'estensione.
-    await target.bringToFront();
-    await workerNow.evaluate(`(function () {
-      return chrome.tabs.query({}).then(function (tabs) {
-        var t = tabs.filter(function (x) { return (x.url || '').indexOf('${testUrl}') === 0; })[0];
-        return t ? chrome.tabs.update(t.id, { active: true }) : Promise.resolve(null);
-      });
-    })()`);
-    await new Promise((r) => setTimeout(r, 600));
-
     // Setup e attesa sono entrambi dentro la protezione: sotto xvfb anche la
     // prima evaluate può lanciare (contesto non pronto), e va trattata come
     // skip motivato e non come fallimento del prodotto.
@@ -362,16 +351,23 @@ try {
     // motivato (limite dell'ambiente), non come fallimento del prodotto.
     const runResult = await (async () => {
       try {
+        // I tool agiscono sul tab attivo della finestra con focus: sotto xvfb
+        // la finestra del pannello può restare in primo piano e il worker
+        // troverebbe il tab sbagliato, senza eseguire alcun tool. Si attivano
+        // sia il tab sia la finestra del target.
         await target.bringToFront();
         await workerNow.evaluate(
           `(function () {
           return chrome.tabs.query({}).then(function (tabs) {
             var t = tabs.filter(function (x) { return (x.url || '').indexOf(TABURL) === 0; })[0];
-            return t ? chrome.tabs.update(t.id, { active: true }) : Promise.resolve(null);
+            if (!t) return Promise.resolve(null);
+            return chrome.tabs.update(t.id, { active: true }).then(function () {
+              return t.windowId != null ? chrome.windows.update(t.windowId, { focused: true }) : null;
+            });
           });
         })()`.replace('TABURL', JSON.stringify(testUrl)),
         );
-        await new Promise((r) => setTimeout(r, 600));
+        await new Promise((r) => setTimeout(r, 900));
 
         const setup = await panel.evaluate(`(function () {
           try {
