@@ -2,15 +2,23 @@
 
 ## Non pubblicato
 
-**Difetto bloccante: ogni task falliva con «document is not defined»**
+**Difetto bloccante: nessun provider era utilizzabile**
 
-Vite avvolge ogni `import()` dinamico — cioè il caricamento dei 25 provider —
-con l'helper `__vitePreload`, che per precaricare i chunk esegue
-`document.getElementsByTagName('link')`. Nel service worker MV3 `document` non
-esiste: il primo tool del task moriva con `ReferenceError: document is not
-defined` e all'utente arrivava solo «Si è verificato un errore». Il precaching
-è una pura ottimizzazione, ora disattivato per il worker
-(`build.modulePreload`), e `scripts/verify-dist.mjs` fallisce se torna.
+I 25 SDK dei provider venivano caricati con `import()` dinamico, per tenere
+leggero il bundle. Ma nei service worker di estensione MV3 `import()` **non è
+supportato**: Chrome lo vieta esplicitamente (`import() is disallowed on
+ServiceWorkerGlobalScope`, w3c/ServiceWorker#1356). Ogni task — con qualunque
+provider — moriva prima di arrivare al primo tool. Il primo sintomo visibile era
+un fuorviante «document is not defined»: lo `__vitePreload` di Vite, che
+avvolge ogni `import()`, chiama `document.getElementsByTagName()` nel ramo di
+precaricamento e, quando il caricamento fallisce, `window.dispatchEvent()` nel
+ramo di errore.
+
+Gli import dei provider sono ora statici: il worker è un file autosufficiente
+(1075 KB, 253 KB gzip) invece di 326 KB con 19 chunk mai caricabili.
+`scripts/verify-dist.mjs` fallisce se un `import()` dinamico torna nel bundle, e
+`scripts/e2e-smoke.mjs` esercita davvero un run completo, che è stato il modo in
+cui il difetto è emerso.
 
 **E2E completo: un run reale dell'agente, senza credenziali**
 

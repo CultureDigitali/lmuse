@@ -357,15 +357,6 @@ try {
     // motivato (limite dell'ambiente), non come fallimento del prodotto.
     const runResult = await (async () => {
       try {
-        const probe = await workerNow.evaluate(async () => {
-          try {
-            const m = await import(chrome.runtime.getURL('chunks/dist-C799Ys0E.js'));
-            return 'import ok: ' + Object.keys(m).join(',');
-          } catch (e) {
-            return 'import ERR: ' + String(e && e.message);
-          }
-        });
-        console.log('PROBE worker:', probe);
         await target.bringToFront();
         await workerNow.evaluate(
           `(function () {
@@ -426,24 +417,6 @@ try {
 
     if (runResult.skipped) {
       console.log(`SKIP e2e: run completo non eseguito — ${runResult.motivo}`);
-    } else if (process.env.LMUSE_E2E_TRACE === '1') {
-      console.log('TRACE error completo:', JSON.stringify(runResult.error));
-      console.log(
-        'TRACE stack:',
-        String(runResult.error?.trace ?? '')
-          .split('\n')
-          .slice(0, 8)
-          .join('\n'),
-      );
-      console.log(
-        'TRACE stack:',
-        String(runResult.error?.trace ?? '')
-          .split('\n')
-          .slice(0, 12)
-          .join('\n'),
-      );
-      console.log('TRACE done:', JSON.stringify(runResult.done));
-      console.log('TRACE step:', JSON.stringify((runResult.steps ?? []).slice(0, 3)));
     } else {
       check('run completo: nessun errore', !runResult.error, runResult.error?.message ?? '');
       check(

@@ -1,41 +1,61 @@
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createAzure } from '@ai-sdk/azure';
+import { createCerebras } from '@ai-sdk/cerebras';
+import { createCohere } from '@ai-sdk/cohere';
+import { createDeepInfra } from '@ai-sdk/deepinfra';
+import { createDeepSeek } from '@ai-sdk/deepseek';
+import { createFireworks } from '@ai-sdk/fireworks';
+import { createGateway } from '@ai-sdk/gateway';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createGroq } from '@ai-sdk/groq';
+import { createHuggingFace } from '@ai-sdk/huggingface';
+import { createMistral } from '@ai-sdk/mistral';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { createPerplexity } from '@ai-sdk/perplexity';
+import { createTogetherAI } from '@ai-sdk/togetherai';
+import { createXai } from '@ai-sdk/xai';
 import type { LanguageModel } from 'ai';
 import type { Settings } from '../shared/settings';
 
 /**
  * Crea il modello AI SDK v7 corrispondente alle impostazioni utente.
- * Ogni package provider è importato dinamicamente: il service worker carica
- * SOLO il chunk del provider configurato (avvio più leggero, bundle minore).
- * Provider OpenAI-compatibili (OpenRouter, NVIDIA, OpenCode Zen, GitHub,
- * Baseten, SambaNova, Ollama, LM Studio, custom) passano da
- * createOpenAICompatible con baseURL configurabile.
- * La chiave non vive nelle settings: arriva come parametro dedicato.
+ *
+ * Gli import sono STATICI e non dinamici, per una ragione che non è una scelta
+ * di gusto: nei service worker di estensione MV3 `import()` non è supportato
+ * (Chrome lo vieta esplicitamente, cfr. w3c/ServiceWorker#1356). Con
+ * l'import dinamico ogni provider — quindi ogni task — moriva con
+ * "import() is disallowed on ServiceWorkerGlobalScope". I provider OpenAI-
+ * compatibili (OpenRouter, NVIDIA, OpenCode Zen, GitHub, Baseten, SambaNova,
+ * Ollama, LM Studio, custom) passano da createOpenAICompatible con baseURL
+ * configurabile. La chiave non vive nelle settings: arriva come parametro.
  */
 export async function createModel(settings: Settings, apiKey: string): Promise<LanguageModel> {
   const { providerId, model, baseUrl } = settings;
   if (!model) throw new Error('Specifica il nome del modello nelle impostazioni.');
 
-  const factories: Partial<Record<Settings['providerId'], () => Promise<LanguageModel>>> = {
-    openai: async () => (await import('@ai-sdk/openai')).createOpenAI({ apiKey })(model),
-    anthropic: async () => (await import('@ai-sdk/anthropic')).createAnthropic({ apiKey })(model),
-    google: async () => (await import('@ai-sdk/google')).createGoogleGenerativeAI({ apiKey })(model),
-    xai: async () => (await import('@ai-sdk/xai')).createXai({ apiKey })(model),
-    groq: async () => (await import('@ai-sdk/groq')).createGroq({ apiKey })(model),
-    deepseek: async () => (await import('@ai-sdk/deepseek')).createDeepSeek({ apiKey })(model),
-    cerebras: async () => (await import('@ai-sdk/cerebras')).createCerebras({ apiKey })(model),
-    mistral: async () => (await import('@ai-sdk/mistral')).createMistral({ apiKey })(model),
-    cohere: async () => (await import('@ai-sdk/cohere')).createCohere({ apiKey })(model),
-    deepinfra: async () => (await import('@ai-sdk/deepinfra')).createDeepInfra({ apiKey })(model),
-    fireworks: async () => (await import('@ai-sdk/fireworks')).createFireworks({ apiKey })(model),
-    perplexity: async () => (await import('@ai-sdk/perplexity')).createPerplexity({ apiKey })(model),
-    togetherai: async () => (await import('@ai-sdk/togetherai')).createTogetherAI({ apiKey })(model),
-    huggingface: async () => (await import('@ai-sdk/huggingface')).createHuggingFace({ apiKey })(model),
-    gateway: async () => (await import('@ai-sdk/gateway')).createGateway({ apiKey })(model),
+  const factories: Record<string, () => Promise<LanguageModel>> = {
+    openai: async () => createOpenAI({ apiKey })(model),
+    anthropic: async () => createAnthropic({ apiKey })(model),
+    google: async () => createGoogleGenerativeAI({ apiKey })(model),
+    xai: async () => createXai({ apiKey })(model),
+    groq: async () => createGroq({ apiKey })(model),
+    deepseek: async () => createDeepSeek({ apiKey })(model),
+    cerebras: async () => createCerebras({ apiKey })(model),
+    mistral: async () => createMistral({ apiKey })(model),
+    cohere: async () => createCohere({ apiKey })(model),
+    deepinfra: async () => createDeepInfra({ apiKey })(model),
+    fireworks: async () => createFireworks({ apiKey })(model),
+    perplexity: async () => createPerplexity({ apiKey })(model),
+    togetherai: async () => createTogetherAI({ apiKey })(model),
+    huggingface: async () => createHuggingFace({ apiKey })(model),
+    gateway: async () => createGateway({ apiKey })(model),
     azure: async () => {
       if (!baseUrl) throw new Error('Azure OpenAI richiede il base URL (endpoint risorsa).');
-      return (await import('@ai-sdk/azure')).createAzure({ apiKey, baseURL: baseUrl })(model);
+      return createAzure({ apiKey, baseURL: baseUrl })(model);
     },
     openrouter: async () =>
-      (await import('@ai-sdk/openai-compatible')).createOpenAICompatible({
+      createOpenAICompatible({
         name: 'openrouter',
         apiKey,
         baseURL: baseUrl || 'https://openrouter.ai/api/v1',
@@ -43,51 +63,51 @@ export async function createModel(settings: Settings, apiKey: string): Promise<L
         headers: { 'X-Title': 'lmuse' },
       })(model),
     nvidia: async () =>
-      (await import('@ai-sdk/openai-compatible')).createOpenAICompatible({
+      createOpenAICompatible({
         name: 'nvidia',
         apiKey,
         baseURL: baseUrl || 'https://integrate.api.nvidia.com/v1',
       })(model),
     opencode: async () =>
-      (await import('@ai-sdk/openai-compatible')).createOpenAICompatible({
+      createOpenAICompatible({
         name: 'opencode',
         apiKey,
         baseURL: baseUrl || 'https://opencode.ai/zen/v1',
         headers: { 'X-Title': 'lmuse' },
       })(model),
     github: async () =>
-      (await import('@ai-sdk/openai-compatible')).createOpenAICompatible({
+      createOpenAICompatible({
         name: 'github',
         apiKey,
         baseURL: baseUrl || 'https://models.github.ai/inference',
       })(model),
     baseten: async () =>
-      (await import('@ai-sdk/openai-compatible')).createOpenAICompatible({
+      createOpenAICompatible({
         name: 'baseten',
         apiKey,
         baseURL: baseUrl || 'https://inference.baseten.co/v1',
       })(model),
     sambanova: async () =>
-      (await import('@ai-sdk/openai-compatible')).createOpenAICompatible({
+      createOpenAICompatible({
         name: 'sambanova',
         apiKey,
         baseURL: baseUrl || 'https://api.sambanova.ai/v1',
       })(model),
     ollama: async () =>
-      (await import('@ai-sdk/openai-compatible')).createOpenAICompatible({
+      createOpenAICompatible({
         name: 'ollama',
         baseURL: baseUrl || 'http://localhost:11434/v1',
         apiKey: apiKey || 'ollama',
       })(model),
     lmstudio: async () =>
-      (await import('@ai-sdk/openai-compatible')).createOpenAICompatible({
+      createOpenAICompatible({
         name: 'lmstudio',
         baseURL: baseUrl || 'http://localhost:1234/v1',
         apiKey: apiKey || 'lm-studio',
       })(model),
     custom: async () => {
       if (!baseUrl) throw new Error('Il provider custom richiede il base URL.');
-      return (await import('@ai-sdk/openai-compatible')).createOpenAICompatible({
+      return createOpenAICompatible({
         name: 'custom',
         apiKey: apiKey || undefined,
         baseURL: baseUrl,

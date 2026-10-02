@@ -41,24 +41,30 @@ try {
   if (error?.code !== 'ENOENT') throw error;
 }
 
-// L'helper __vitePreload di Vite avvolge ogni import() dinamico (i 25 provider)
-// e, se gli viene passata una lista di dipendenze, esegue
-// `document.getElementsByTagName('link')`: in un service worker MV3 `document`
-// non esiste e il task muore con "document is not defined". Il codice dell'helper
-// resta nel bundle anche quando è innocuo, quindi si verifica il comportamento
-// reale: nessuna chiamata all'helper può ricevere una lista di dipendenze.
+// Nei service worker di estensione MV3 `import()` NON è supportato (Chrome lo
+// vieta: w3c/ServiceWorker#1356). Se nel bundle del worker ricompare un import
+// dinamico, ogni task muore con "import() is disallowed on
+// ServiceWorkerGlobalScope": il modello non viene mai creato. Gli import dei
+// provider devono quindi restare statici e il worker deve essere un file solo.
+const backgroundJs = join(root, 'dist', 'background.js');
 try {
-  const src = readFileSync(join(root, 'dist', 'background.js'), 'utf8');
-  const preloadCalls = [...src.matchAll(/(?<![A-Za-z0-9_$])__vitePreload\(|Z\(async\(\)=>\{/g)];
-  if (preloadCalls.length > 0) {
-    const withDeps = [...src.matchAll(/__vite__mapDeps\(\[(?!\])([^\]]*)\]/g)];
-    if (withDeps.length > 0) {
-      fail(
-        'dist/background.js precarica chunk nei dynamic import: nel service worker ' +
-          "l'helper usa `document` e il task fallisce. Configura " +
-          'build.modulePreload con polyfill:false e resolveDependencies:()=>[].',
-      );
-    }
+  const src = readFileSync(backgroundJs, 'utf8');
+  if (/(?<![A-Za-z0-9_$.])import\s*\(/.test(src)) {
+    fail(
+      'dist/background.js contiene import() dinamico: non è supportato nei service ' +
+        'worker MV3 e ogni task fallisce. Usare import statici in src/background/.',
+    );
+  }
+  // Gli import statici da chunk sono leciti (il module worker li carica all
+  // avvio). Ciò che è vietato è il caricamento a runtime: nessun import()
+  // dinamico può citare un chunk, perché il worker non lo può raggiungere.
+  const dynamicImports = [...src.matchAll(/import\s*\(\s*["'`]([^"'`]+)["'`]/g)].map((m) => m[1]);
+  if (dynamicImports.length > 0) {
+    fail(
+      `dist/background.js contiene ${dynamicImports.length} import() dinamici ` +
+        `(${dynamicImports.slice(0, 3).join(', ')}): non sono supportati nei service ` +
+        'worker MV3. Usare import statici in src/background/.',
+    );
   }
 } catch (error) {
   if (error?.code !== 'ENOENT') throw error;

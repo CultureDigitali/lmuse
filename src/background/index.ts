@@ -542,13 +542,6 @@ async function startRun(task: string): Promise<void> {
     broadcast({
       type: 'ERROR',
       message: settings ? String(maskForPanel(settings, message)) : message,
-      trace: error instanceof Error ? String(error.stack ?? '').slice(0, 900) : '',
-      payload: (error as { payload?: unknown })?.payload
-        ? JSON.stringify({
-            message: (error as Error).message,
-            payload: (error as { payload: unknown }).payload,
-          }).slice(0, 400)
-        : '',
     });
     if (ports.size === 0) void chrome.action.setBadgeText({ text: '✓' });
   } finally {
