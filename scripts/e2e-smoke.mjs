@@ -453,11 +453,13 @@ try {
     }
 
     if (!runResult.skipped) {
-      // La scrittura delle statistiche avviene poco prima del DONE, ma la
-      // lettura può precedere la propagazione su chrome.storage: si attende.
+      // Si legge dal contesto della PAGINA, non dal worker: in CI il service
+      // worker può essere un'istanza diversa da quella che ha salvato (restart
+      // MV3), mentre chrome.storage.local è condiviso per estensione. Si attende
+      // anche la propagazione della scrittura.
       let runs = 0;
       for (let i = 0; i < 10; i += 1) {
-        const stored = await workerNow.evaluate(() => chrome.storage.local.get('lmuse.usage.v1'));
+        const stored = await panel.evaluate(() => chrome.storage.local.get('lmuse.usage.v1'));
         runs = stored['lmuse.usage.v1']?.runs ?? 0;
         if (runs >= 1) break;
         await new Promise((r) => setTimeout(r, 300));
