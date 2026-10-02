@@ -348,14 +348,30 @@ try {
       });
       port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
     })()`);
-    const runOutcome = JSON.parse(
-      await panel
-        .waitForFunction(
-          `(() => { const r = window.__lmuseRun; return r.done || r.error ? JSON.stringify(r) : null; })()`,
-          { timeout: 30_000, polling: 250 },
+    // Causa del fallimento in CI: se window.__lmuseRun è undefined, `r.done`
+    // genera in-page un errore che Puppeteer riporta come "document is not
+    // defined" (il nome della variabile della closure). Da qui la necessità di
+    // controllare l'esistenza prima di leggerne i campi.
+    let runOutcome;
+    try {
+      const handle = await panel.waitForFunction(
+        `(() => {
+          const r = window.__lmuseRun;
+          if (!r) return null;
+          return r.done || r.error ? JSON.stringify(r) : null;
+        })()`,
+        { timeout: 25_000, polling: 250 },
+      );
+      runOutcome = JSON.parse(await handle.jsonValue());
+    } catch (e) {
+      const dump = await panel
+        .evaluate(
+          `(() => JSON.stringify({ definito: typeof window.__lmuseRun !== 'undefined', campi: typeof window.__lmuseRun !== 'undefined' ? { step: window.__lmuseRun.steps.length, done: !!window.__lmuseRun.done, error: window.__lmuseRun.error ? window.__lmuseRun.error.message : null } : null }))()`,
         )
-        .then((h) => h.jsonValue()),
-    );
+        .catch((x) => 'dump fallito: ' + String(x && x.message));
+      check('run completo: diagnostica', false, String(e && e.message).slice(0, 90) + ' | stato: ' + dump);
+      runOutcome = { steps: [], done: null, error: { message: 'timeout in attesa del run' } };
+    }
     check('run completo: nessun errore', !runOutcome.error, runOutcome.error?.message ?? '');
     check(
       'run completo: DONE ricevuto con risposta del modello',
