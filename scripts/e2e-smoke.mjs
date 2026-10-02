@@ -369,18 +369,24 @@ try {
       const deadline = Date.now() + 25_000;
       while (Date.now() < deadline) {
         let raw;
-      try {
-        raw = await panel.evaluate(`(function () {
+        try {
+          raw = await panel.evaluate(`(function () {
           var r = window.__lmuseRun;
           if (!r) return null;
           if (r.done || r.error) return JSON.stringify(r);
           return null;
         })()`);
-      } catch (e) {
-        console.log('DEBUG raw errore:', String(e && e.message));
-        console.log('DEBUG stack:', String(e && e.stack).split('\n').slice(0, 4).join(' | '));
-        throw e;
-      }
+        } catch (e) {
+          console.log('DEBUG raw errore:', String(e && e.message));
+          console.log(
+            'DEBUG stack:',
+            String(e && e.stack)
+              .split('\n')
+              .slice(0, 4)
+              .join(' | '),
+          );
+          throw e;
+        }
         if (typeof raw === 'string' && raw) {
           runOutcome = JSON.parse(raw);
           break;
