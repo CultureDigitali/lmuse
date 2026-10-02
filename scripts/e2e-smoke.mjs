@@ -203,6 +203,23 @@ try {
       req.on('data', (c) => (body += c));
       req.on('end', () => {
         llmCalls += 1;
+        if (process.env.LMUSE_E2E_TRACE === '1') {
+          try {
+            const parsed = JSON.parse(body);
+            console.log(
+              'TRACE richiesta: stream=' +
+                parsed.stream +
+                ' tools=' +
+                (parsed.tools || []).length +
+                ' tool_choice=' +
+                JSON.stringify(parsed.tool_choice) +
+                ' include_usage=' +
+                JSON.stringify(parsed.stream_options),
+            );
+          } catch (err) {
+            console.log('TRACE richiesta non parsabile:', String(err));
+          }
+        }
         const usage = { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 };
         const payload =
           llmCalls === 1
@@ -244,13 +261,88 @@ try {
                 ],
                 usage,
               };
+        // Il worker usa ToolLoopAgent.stream(), quindi l'AI SDK consuma la
+        // risposta come SSE. Un body JSON non-streaming verrebbe letto come un
+        // chunk di testo vuoto: nessun tool eseguito e testo finale vuoto. Il
+        // mock replica quindi il formato reale di un provider OpenAI.
+        const msg = payload.choices[0].message;
+        const base = {
+          id: payload.id,
+          object: 'chat.completion.chunk',
+          created: payload.created,
+          model: payload.model,
+          choices: [{ index: 0, delta: {}, finish_reason: null }],
+        };
+        const frames = [
+          { ...base, choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }] },
+        ];
+        if (msg.tool_calls) {
+          frames.push({
+            ...base,
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: msg.tool_calls[0].id,
+                      type: 'function',
+                      function: {
+                        name: msg.tool_calls[0].function.name,
+                        arguments: msg.tool_calls[0].function.arguments,
+                      },
+                    },
+                  ],
+                },
+                finish_reason: null,
+              },
+            ],
+          });
+        } else if (msg.content) {
+          frames.push({
+            ...base,
+            choices: [{ index: 0, delta: { content: msg.content }, finish_reason: null }],
+          });
+        }
+        frames.push({
+          ...base,
+          choices: [{ index: 0, delta: {}, finish_reason: payload.choices[0].finish_reason }],
+        });
+        // usage_streamed va nell'ultimo chunk, non in uno separato con choices vuoto
+        if (payload.usage) {
+          const last = frames[frames.length - 1];
+          last.usage = payload.usage;
+        }
+
         if (process.env.LMUSE_E2E_TRACE === '1') {
           console.log(
-            `TRACE mock: chiamata ${llmCalls}, tool=${Boolean(payload.choices[0].message.tool_calls)}`,
+            `TRACE mock: chiamata ${llmCalls}, tool=${Boolean(msg.tool_calls)}, frame=${frames.length}`,
           );
         }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(payload));
+        if (process.env.LMUSE_E2E_TRACE === '1') {
+          for (const f of frames) console.log('TRACE frame:', JSON.stringify(f));
+        }
+        let wantsStream = false;
+        try {
+          wantsStream = JSON.parse(body).stream === true;
+        } catch {
+          wantsStream = false;
+        }
+        if (!wantsStream) {
+          if (process.env.LMUSE_E2E_TRACE === '1')
+            console.log('TRACE mock: risposta JSON (stream non richiesto)');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(payload));
+          return;
+        }
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        });
+        for (const frame of frames) res.write(`data: ${JSON.stringify(frame)}\n\n`);
+        res.end();
       });
     });
     await new Promise((r) => mock.listen(0, '127.0.0.1', r));
