@@ -338,7 +338,7 @@ try {
     // verificata anche in CI), poi si ATTENDE il risultato con waitForFunction,
     // che è il meccanismo supportato per l'asincrono: page.evaluate con una
     // stringa non attende un Promise e falliva in CI.
-    await panel.evaluate(`(() => {
+    const setupOutcome = await panel.evaluate(`(() => { try {
       window.__lmuseRun = { steps: [], done: null, error: null };
       const port = chrome.runtime.connect({ name: 'lmuse' });
       port.onMessage.addListener((m) => {
@@ -347,7 +347,9 @@ try {
         if (m && m.type === 'ERROR') window.__lmuseRun.error = m;
       });
       port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
-    })()`);
+      return 'ok';
+    } catch (e) { return 'ERR ' + String(e && e.message) + ' @ ' + String(e && e.stack).slice(0,120); } })()`);
+    check('run completo: pilotaggio avviato', setupOutcome === 'ok', setupOutcome);
     // Causa del fallimento in CI: se window.__lmuseRun è undefined, `r.done`
     // genera in-page un errore che Puppeteer riporta come "document is not
     // defined" (il nome della variabile della closure). Da qui la necessità di
