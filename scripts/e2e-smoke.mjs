@@ -357,6 +357,15 @@ try {
     // motivato (limite dell'ambiente), non come fallimento del prodotto.
     const runResult = await (async () => {
       try {
+        const probe = await workerNow.evaluate(async () => {
+          try {
+            const m = await import(chrome.runtime.getURL('chunks/dist-C799Ys0E.js'));
+            return 'import ok: ' + Object.keys(m).join(',');
+          } catch (e) {
+            return 'import ERR: ' + String(e && e.message);
+          }
+        });
+        console.log('PROBE worker:', probe);
         await target.bringToFront();
         await workerNow.evaluate(
           `(function () {
