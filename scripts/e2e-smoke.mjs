@@ -121,6 +121,13 @@ try {
     });
     // Prima naviga nel contesto estensione: fetch cross-scheme da about:blank è vietato.
     await page.goto(`chrome-extension://${extId}/sidepanel/index.html`);
+    await page.bringToFront();
+    // Attesa esplicita del contesto: sotto xvfb un tab dell'estensione in
+    // secondo piano può non avere un execution context pronto, e le valutazioni
+    // successive falliscono con "document is not defined".
+    await page.waitForFunction('document.readyState === "complete" && !!chrome?.runtime?.id', {
+      timeout: 15_000,
+    });
     await new Promise((r) => setTimeout(r, 2500));
     const manifest = await page.evaluate(async () => {
       const res = await fetch('chrome-extension://' + location.hostname + '/manifest.json');
@@ -250,7 +257,13 @@ try {
     const panel = await browser.newPage();
     await panel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
     await panel.bringToFront();
-    await new Promise((r) => setTimeout(r, 1500));
+    // Attesa esplicita che il documento e l'API estensione siano pronti: in CI
+    // il tab dell'estensione resta a metà inizializzazione e la valutazione
+    // successiva falliva con "document is not defined".
+    await panel.waitForFunction('document.readyState === "complete" && !!chrome?.runtime?.id', {
+      timeout: 15_000,
+    });
+    await new Promise((r) => setTimeout(r, 1000));
 
     // Il pilotaggio del run avviene dal service worker (non dal pannello): è il
     // contesto dell'estensione che ha chrome.tabs e gestisce RUN/Port.
