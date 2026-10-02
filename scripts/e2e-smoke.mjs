@@ -203,23 +203,6 @@ try {
       req.on('data', (c) => (body += c));
       req.on('end', () => {
         llmCalls += 1;
-        if (process.env.LMUSE_E2E_TRACE === '1') {
-          try {
-            const parsed = JSON.parse(body);
-            console.log(
-              'TRACE richiesta: stream=' +
-                parsed.stream +
-                ' tools=' +
-                (parsed.tools || []).length +
-                ' tool_choice=' +
-                JSON.stringify(parsed.tool_choice) +
-                ' include_usage=' +
-                JSON.stringify(parsed.stream_options),
-            );
-          } catch (err) {
-            console.log('TRACE richiesta non parsabile:', String(err));
-          }
-        }
         const usage = { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 };
         const payload =
           llmCalls === 1
@@ -315,23 +298,13 @@ try {
           last.usage = payload.usage;
         }
 
-        if (process.env.LMUSE_E2E_TRACE === '1') {
-          console.log(
-            `TRACE mock: chiamata ${llmCalls}, tool=${Boolean(msg.tool_calls)}, frame=${frames.length}`,
-          );
-        }
-        if (process.env.LMUSE_E2E_TRACE === '1') {
-          for (const f of frames) console.log('TRACE frame:', JSON.stringify(f));
-        }
         let wantsStream = false;
         try {
           wantsStream = JSON.parse(body).stream === true;
         } catch {
-          wantsStream = false;
+          // corpo non JSON: si risponde in formato semplice
         }
         if (!wantsStream) {
-          if (process.env.LMUSE_E2E_TRACE === '1')
-            console.log('TRACE mock: risposta JSON (stream non richiesto)');
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(payload));
           return;
@@ -508,11 +481,6 @@ try {
       }
     })();
 
-    if (process.env.LMUSE_E2E_TRACE === '1') {
-      console.log('TRACE mock totale:', llmCalls);
-      console.log('TRACE step:', JSON.stringify(runResult.steps ?? []).slice(0, 300));
-      console.log('TRACE done:', JSON.stringify(runResult.done ?? null).slice(0, 300));
-    }
     if (runResult.skipped) {
       console.log(`SKIP e2e: run completo non eseguito — ${runResult.motivo}`);
     } else {
