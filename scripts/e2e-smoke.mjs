@@ -423,6 +423,13 @@ try {
         'TRACE stack:',
         String(runResult.error?.trace ?? '')
           .split('\n')
+          .slice(0, 8)
+          .join('\n'),
+      );
+      console.log(
+        'TRACE stack:',
+        String(runResult.error?.trace ?? '')
+          .split('\n')
           .slice(0, 12)
           .join('\n'),
       );
