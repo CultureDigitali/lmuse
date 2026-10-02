@@ -7,3 +7,4 @@ reference/
 *.local
 .DS_Store
 .test-profile/
+.pnpm-store/
