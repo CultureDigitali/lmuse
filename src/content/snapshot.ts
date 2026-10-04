@@ -10,8 +10,28 @@ import { maskPii } from '../shared/pii';
 const MAX_NODES = 250;
 const MAX_NAME_CHARS = 80;
 
-let refCounter = 0;
-let refMap = new Map<number, Element>();
+// I ref devono restare validi per il documento a cui appartengono. Una mappa
+// unica condivisa era un difetto: uno snapshot di un iframe azzerava il
+// contatore e la mappa, quindi i ref del documento principale puntavano agli
+// elementi dell'iframe (o a null) e ogni click successivo colpiva l'elemento
+// sbagliato. Una mappa per Document mantiene i due spazi separati.
+const refMaps = new WeakMap<Document, Map<number, Element>>();
+
+function mapFor(doc: Document): Map<number, Element> {
+  let map = refMaps.get(doc);
+  if (!map) {
+    map = new Map<number, Element>();
+    refMaps.set(doc, map);
+  }
+  return map;
+}
+
+/** Prossimo ref libero per il documento dato. */
+function nextRef(doc: Document): number {
+  let n = 0;
+  while (mapFor(doc).has(n)) n += 1;
+  return n;
+}
 
 const INTERACTIVE_SELECTOR = [
   'a[href]',
@@ -94,12 +114,13 @@ function collectInteractive(root: Document | ShadowRoot): Element[] {
   return found;
 }
 
-/** Registra elementi extra (es. da browser_query) nella mappa ref corrente. */
+/** Registra elementi extra (es. da browser_query) nella mappa del documento. */
 export function registerElements(els: Element[]): number[] {
   const refs: number[] = [];
   for (const el of els) {
-    const ref = refCounter++;
-    refMap.set(ref, el);
+    const doc = el.ownerDocument ?? document;
+    const ref = nextRef(doc);
+    mapFor(doc).set(ref, el);
     refs.push(ref);
   }
   return refs;
@@ -107,8 +128,8 @@ export function registerElements(els: Element[]): number[] {
 
 /** Costruisce lo snapshot testuale della pagina (o di un iframe stesso-origin). */
 export function buildSnapshot(maskPiiEnabled = true, doc: Document = document): string {
-  refCounter = 0;
-  refMap = new Map();
+  const map = mapFor(doc);
+  map.clear();
   const lines: string[] = [];
   const found = collectInteractive(doc);
 
@@ -121,8 +142,8 @@ export function buildSnapshot(maskPiiEnabled = true, doc: Document = document): 
     const tag = el.tagName.toLowerCase();
     const name = elementName(el);
     if (!name && tag !== 'input') continue;
-    const ref = refCounter++;
-    refMap.set(ref, el);
+    const ref = nextRef(doc);
+    map.set(ref, el);
     lines.push(`[${ref}] ${tag} "${name}"${describeExtra(el)}`);
   }
 
@@ -147,6 +168,11 @@ export function buildSnapshot(maskPiiEnabled = true, doc: Document = document): 
   return maskPiiEnabled ? maskPii(text) : text;
 }
 
-export function getElement(ref: number): Element | null {
-  return refMap.get(ref) ?? null;
+/**
+ * Risolve un ref nel documento indicato (default: documento principale).
+ * Senza questo parametro un ref emesso da uno snapshot di iframe non sarebbe
+ * distinguibile da uno del documento principale, perché entrambi partono da 0.
+ */
+export function getElement(ref: number, doc: Document = document): Element | null {
+  return mapFor(doc).get(ref) ?? null;
 }

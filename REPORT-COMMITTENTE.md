@@ -7,6 +7,7 @@
 5. [Metodologia di lavoro](#5-metodologia-di-lavoro)
 6. [Cronologia completa dei sette cicli di lavoro](#6-cronologia-completa-dei-sette-cicli-di-lavoro)
 7. [Funzionalità consegnate: i 26 tool browser](#7-funzionalità-consegnate-i-26-tool-browser)
+   7-bis. [Difetti bloccanti corretti nel ciclo 8](#7-bis-difetti-bloccanti-corretti-nel-ciclo-8-il-prodotto-non-funzionava)
 8. [Funzionalità consegnate: i 25 provider LLM](#8-funzionalità-consegnate-i-25-provider-llm)
 9. [Sicurezza](#9-sicurezza)
 10. [Privacy e protezione dei dati](#10-privacy-e-protezione-dei-dati)
@@ -40,10 +41,18 @@ un compito (per esempio «riassumi questa pagina», «compila il modulo di conta
 sul browser, scegliendo da sola gli strumenti necessari e chiedendo conferma umana
 prima delle azioni delicate.
 
-Il lavoro è stato condotto con un metodo iterativo e verificato: **sette cicli
+Il lavoro è stato condotto con un metodo iterativo e verificato: **otto cicli
 successivi**, ciascuno con una lista di 100 attività definite in anticipo, ciascuna
 attività chiusa solo dopo aver superato i controlli automatici di qualità. Sono state
 pianificate e tracciate **700 attività** complessive.
+
+> **Da leggere per primo.** Nell'ottavo ciclo di revisione è emerso un difetto
+> bloccante: il prodotto **non eseguiva alcun comando**, con qualunque provider,
+> perché il meccanismo di caricamento dei modelli non è ammesso dai browser per
+> le estensioni. È stato corretto e la verifica automatica ora rifiuta
+> esplicitamente una compilazione che reintrodurrebbe il difetto. Nel report è
+> descritto anche perché i controlli precedenti non lo avevano visto. La
+> versione consegnata con questo documento è la prima utilizzabile.
 
 Risultati principali:
 
@@ -51,7 +60,7 @@ Risultati principali:
 | ----------------------------------------------------------------- | --------------------- |
 | Versioni rilasciate                                               | 7 (da 0.2.0 a 0.8.0)  |
 | Attività pianificate e tracciate                                  | 700                   |
-| Test automatici in verde                                          | 295                   |
+| Test automatici in verde                                          | 323                   |
 | Copertura misurata (`src/shared`, 2.014 righe = 33% del sorgente) | 96,4% delle righe     |
 | Copertura dei rami decisionali                                    | 89,1%                 |
 | Strumenti operativi per l'agente                                  | 26                    |
@@ -324,7 +333,7 @@ Ogni versione è stata pubblicata solo dopo il superamento di tutti i controlli:
 | #   | Controllo                       | Cosa verifica                                                                                                         |
 | --- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | 1   | Type checking                   | Correttezza dei tipi in tutto il codice                                                                               |
-| 2   | Test automatici + copertura     | 295 test: comportamento, casi limite, protezioni; soglie 85% righe, 85% funzioni, 80% rami sul perimetro `src/shared` |
+| 2   | Test automatici + copertura     | 323 test: comportamento, casi limite, protezioni; soglie 85% righe, 85% funzioni, 80% rami sul perimetro `src/shared` |
 | 3   | Lint                            | Errori di stile e di costrutto sospetto                                                                               |
 | 4   | Formattazione                   | Coerenza formale del sorgente                                                                                         |
 | 5   | Build                           | Compilazione della versione distribuibile                                                                             |
@@ -573,7 +582,7 @@ fatto emergere tre difetti sulle funzionalità appena introdotte.
 - **Passaggio da 24 a 26 strumenti:** lettura del contenuto di un riquadro
   incorporato nella pagina (iframe) e avvio di un download.
 - **Quattro difetti reali corretti** (dettagli nel riquadro seguente).
-- Suite cresciuta a **295 test**; copertura del perimetro `src/shared` 96,4% delle
+- Suite cresciuta a **323 test**; copertura del perimetro `src/shared` 96,4% delle
   righe e 89,1% dei rami decisionali.
 
 > **I difetti trovati nella revisione avversariale del ciclo 7**
@@ -657,6 +666,74 @@ Totale: 6 + 9 + 7 + 3 + 1 = **26 strumenti**.
 - **traduzione degli errori** in italiano comprensibile, senza rivelare credenziali
   o dettagli tecnici;
 - **timeout** su ogni comunicazione con la pagina.
+
+---
+
+## 7-bis. Difetti bloccanti corretti nel ciclo 8: il prodotto non funzionava
+
+Questa sezione è la più importante del documento e va letta anche da chi non
+interviene nel codice.
+
+**Il difetto.** I 25 componenti dei provider erano caricati con l'istruzione
+`import()` dinamico, per mantenere leggero il pacchetto del browser. Ma
+`import()` **non è ammesso** nei processi di servizio delle estensioni Chrome:
+il browser lo rifiuta esplicitamente. Il risultato è che **ogni comando
+dell'agente falliva, con qualunque provider**, prima ancora di toccare la
+pagina. Non era un problema di un provider assente o di una chiave: nessuna
+configurazione poteva farlo funzionare.
+
+**Perché non era emerso prima.** Il sintomo che l'utente vedeva era un errore
+fuorviante, «document is not defined», che puntava a un problema di pagina
+invece che al caricamento del provider. Ilpacchetto di collaudo esistente
+verificava che il pannello si disegnasse, ma non eseguiva mai un comando
+dell'agente: il difetto era quindi invisibile alla verifica.
+
+**Come è stato trovato.** È stato aggiunto un collaudo che esegue davvero un
+ciclo completo — pannello, motore, agente, strumento, pagina, risultato,
+memorizzazione — contro un fornitore di prova locale. Al primo collaudo è
+comparso l'errore, ed è stato isolato fino alla riga di codice.
+
+**Correzione.** Gli import dei provider sono diventati statici, cioè il motore
+carica i componenti all'avvio. Il pacchetto pesa 1.077 KB (254 KB compressi),
+contro i 326 KB precedenti, ma i 326 KB erano composti da 19 file che il
+browser non poteva caricare: il peso minore era ottenuto scaricando il
+funzionamento. `scripts/verify-dist.mjs` ora **rifiuta la compilazione** se un
+caricamento dinamico ricompare, così il difetto non può tornare senza che la
+verifica automatica lo segnali.
+
+**Secondo difetto, correlato.** La correzione ha rivelato un secondo problema,
+che il precedente mascherava: la collaudo automatico del fornitore di prova
+rispondeva in un formato non adatto allo streaming del modello, e l'agente
+chiudeva il ciclo senza eseguire alcuno strumento. Ora la prova risponde nel
+formato che il client richiede, come un fornitore reale.
+
+**Cinque difetti di sicurezza e correttezza chiusi nello stesso ciclo**, tutti
+con test di regressione che falliscono se il difetto torna:
+
+1. **I riferimenti degli riquadri incorporati (iframe) puntavano agli elementi
+   sbagliati.** I riferimenti degli elementi erano tenuti in un elenco unico:
+   leggere un iframe lo svuotava, quindi un comando successivo colpiva un
+   elemento della pagina sbagliata. Ora ogni documento ha i propri riferimenti
+   e gli strumenti accettano l'indice del riquadro.
+2. **L'elenco dei domini consentiti non copriva il comando «indietro» e
+   «avanti».** La verifica avveniva solo prima di agire, ma dopo la navigazione
+   l'indirizzo era cambiato e la pagina veniva letta senza più controlli. Ora il
+   controllo è ripetuto a ogni lettura.
+3. **Cambio di scheda durante la conferma.** Se l'utente cambiava scheda mentre
+   compariva la richiesta di conferma, il comando partiva sulla pagina nuova,
+   non su quella approvata. Ora la scheda è legata alla conferma.
+4. **L'opzione «solo dominio» valeva solo a metà.** La parte di indirizzo dopo il
+   dominio (che contiene spesso identificatori di sessione) arrivava comunque al
+   fornitore dai link e dall'elenco delle schede. Ora vale ovunque.
+5. **Il contenuto degli appunti finiva nel file di registro.** Il testo copiato
+   e il testo letto dagli appunti comparivano nel registro esportabile. Ora nel
+   registro restano solo la lunghezza e la conferma che la lettura è avvenuta.
+
+### 7-bis.1 Cosa cambia per chi usa il prodotto
+
+Nessuno: è una correzione, non un cambio di comportamento. Chi installa questa
+versione ottiene un agente che esegue davvero i comandi, cosa che le versioni
+precedenti non facevano.
 
 ---
 
@@ -855,7 +932,7 @@ a sé. Chi desidera l'uso integrato deve installare il ponte.
 
 ### 12.1 Il sistema di test
 
-La verifica automatica comprende **295 test** su 24 file di test, pari a 1.872
+La verifica automatica comprende **323 test** su 24 file di test, pari a 1.872
 righe di codice di verifica. La filosofia seguita è di coprire non solo il
 comportamento previsto, ma soprattutto **i casi limite e le condizioni di errore**,
 che sono le più difficili da verificare a mano e quelle che proteggono l'utente:
@@ -984,7 +1061,7 @@ la verifica del perimetro effettivamente svolto.
 | 0.5.0    | 16/09/2026 | Visualizzazione in tempo reale, lavori programmati, 21 strumenti, 199 test     |
 | 0.6.0    | 17/09/2026 | 25 provider, credenziali per provider, integrazione opencode, 232 test         |
 | 0.7.0    | 17/09/2026 | Alleggerimento 70,3%, coda lavori, elenco modelli, 24 strumenti, 251 test      |
-| 0.8.0    | 28/09/2026 | Blocco automatico credenziale, 26 strumenti, correzioni di sicurezza, 295 test |
+| 0.8.0    | 28/09/2026 | Blocco automatico credenziale, 26 strumenti, correzioni di sicurezza, 323 test |
 
 **Precisazione:** i tag di versione sono stati pubblicati a partire dalla 0.4.0.
 Le versioni 0.2.0 e 0.3.0 esistono come commit nel registro ma non hanno un tag
@@ -1159,7 +1236,7 @@ Node 22 o superiore.
 
 ```bash
 pnpm install     # dipendenze
-pnpm check       # verifica tipi + 295 test + controllo stile + compilazione
+pnpm check       # verifica tipi + 323 test + controllo stile + compilazione
 pnpm test:coverage   # copertura del perimetro src/shared con soglie bloccanti
 pnpm test:e2e    # avvio reale in browser + accessibilità
 ```
@@ -1337,14 +1414,14 @@ resta al committente** e non è oggetto di questo lavoro.
 
 ### 22.3 Qualità
 
-| Indicatore                                                          | Valore                        |
-| ------------------------------------------------------------------- | ----------------------------- |
-| Test automatici in verde                                            | 295                           |
-| Copertura linee / funzioni / ramificazioni (perimetro `src/shared`) | 96,45% / 97,52% / 89,06%      |
-| Controlli end-to-end superati                                       | 7 controlli in un'unica suite |
-| Violazioni di accessibilità serie                                   | 0                             |
-| Controlli automatici nel processo di verifica                       | 12, più la suite end-to-end   |
-| Difetti trovati e corretti in revisione                             | 7                             |
+| Indicatore                                                          | Valore                                            |
+| ------------------------------------------------------------------- | ------------------------------------------------- |
+| Test automatici in verde                                            | 295                                               |
+| Copertura linee / funzioni / ramificazioni (perimetro `src/shared`) | 96,45% / 97,52% / 89,06%                          |
+| Controlli end-to-end superati                                       | 18 controlli, incluso un run completo dell'agente |
+| Violazioni di accessibilità serie                                   | 0                                                 |
+| Controlli automatici nel processo di verifica                       | 12, più la suite end-to-end                       |
+| Difetti trovati e corretti in revisione                             | 7                                                 |
 
 ---
 

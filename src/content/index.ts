@@ -10,22 +10,29 @@ import { maskPii } from '../shared/pii';
 
 type Incoming =
   | { kind: 'LMUSE_SNAPSHOT'; maskPii: boolean }
-  | { kind: 'LMUSE_CLICK'; ref: number }
-  | { kind: 'LMUSE_TYPE'; ref: number; text: string; submit: boolean; allowPassword: boolean }
-  | { kind: 'LMUSE_SCROLL'; direction: 'up' | 'down' | 'top' | 'bottom'; ref?: number }
-  | { kind: 'LMUSE_SELECT'; ref: number; value: string }
+  | { kind: 'LMUSE_CLICK'; ref: number; docIndex?: number }
+  | {
+      kind: 'LMUSE_TYPE';
+      ref: number;
+      text: string;
+      submit: boolean;
+      allowPassword: boolean;
+      docIndex?: number;
+    }
+  | { kind: 'LMUSE_SCROLL'; direction: 'up' | 'down' | 'top' | 'bottom'; ref?: number; docIndex?: number }
+  | { kind: 'LMUSE_SELECT'; ref: number; value: string; docIndex?: number }
   | { kind: 'LMUSE_WAIT'; waitKind: 'text' | 'selector'; value: string; timeoutMs: number }
   | { kind: 'LMUSE_PRESS'; key: string }
-  | { kind: 'LMUSE_HOVER'; ref: number }
+  | { kind: 'LMUSE_HOVER'; ref: number; docIndex?: number }
   | { kind: 'LMUSE_CLIPBOARD_WRITE'; text: string }
   | { kind: 'LMUSE_CLIPBOARD_READ' }
-  | { kind: 'LMUSE_DOWNLOAD'; ref: number }
+  | { kind: 'LMUSE_DOWNLOAD'; ref: number; docIndex?: number }
   | { kind: 'LMUSE_IFRAME_SNAPSHOT'; index: number; maskPii: boolean }
   | { kind: 'LMUSE_TEXT'; maxChars: number; maskPii: boolean; mode: 'full' | 'main' }
   | { kind: 'LMUSE_LINKS'; max: number }
-  | { kind: 'LMUSE_RECT'; ref: number }
+  | { kind: 'LMUSE_RECT'; ref: number; docIndex?: number }
   | { kind: 'LMUSE_FIND'; text: string; index: number }
-  | { kind: 'LMUSE_TABLE'; ref: number }
+  | { kind: 'LMUSE_TABLE'; ref: number; docIndex?: number }
   | { kind: 'LMUSE_QUERY'; selector: string; max: number };
 
 const KINDS = new Set([
@@ -66,6 +73,28 @@ function clickElement(el: Element): void {
 
 function isPasswordField(el: Element): boolean {
   return el instanceof HTMLInputElement && el.type === 'password';
+}
+
+/**
+ * Restituisce il documento di un iframe same-origin, o il documento principale.
+ * I ref dei tool sono numerici e ricominciano da 0 in ogni documento: senza
+ * sapere *quale* documento ha emesso il ref, un ref di iframe verrebbe risolto
+ * contro il documento principale e colpirebbe l'elemento sbagliato.
+ */
+function resolveDoc(docIndex: number | undefined): Document {
+  if (docIndex == null) return document;
+  const frames = Array.from(document.querySelectorAll('iframe, frame'));
+  const frame = frames[Math.min(Math.max(docIndex, 0), frames.length - 1)] as HTMLIFrameElement | undefined;
+  if (!frame) throw new Error(`Nessun iframe all'indice ${docIndex}.`);
+  try {
+    const doc = frame.contentDocument;
+    if (!doc) throw new Error('cross-origin');
+    return doc;
+  } catch {
+    throw new Error(
+      'Iframe cross-origin (non accessibile dal browser): opera direttamente sul suo URL con browser_navigate.',
+    );
+  }
 }
 
 function typeIntoElement(el: Element, text: string): void {
@@ -172,7 +201,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
           break;
         case 'LMUSE_CLICK': {
           if (!validRef(msg.ref)) throw new Error('Ref non valido.');
-          const el = getElement(msg.ref);
+          const el = getElement(msg.ref, resolveDoc(msg.docIndex));
           if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
           clickElement(el);
           reply({ ok: true });
@@ -186,7 +215,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
             throw new Error(`Testo troppo lungo (${rawText.length} caratteri, max ${MAX_TYPE_CHARS}).`);
           }
           if (!rawText) throw new Error('Testo vuoto.');
-          const el = getElement(msg.ref);
+          const el = getElement(msg.ref, resolveDoc(msg.docIndex));
           if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
           if (isPasswordField(el) && msg.allowPassword !== true) {
             throw new Error(
@@ -209,7 +238,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
           if (msg.ref != null && !validRef(msg.ref)) throw new Error('Ref non valido.');
           const amount = window.innerHeight * 0.8;
           if (msg.ref != null) {
-            const el = getElement(msg.ref);
+            const el = getElement(msg.ref, resolveDoc(msg.docIndex));
             if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
             el.scrollIntoView(
               msg.direction === 'top'
@@ -234,7 +263,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
           if (!validRef(msg.ref)) throw new Error('Ref non valido.');
           const value = String(msg.value ?? '').trim();
           if (!value) throw new Error('Valore opzione vuoto.');
-          const el = getElement(msg.ref);
+          const el = getElement(msg.ref, resolveDoc(msg.docIndex));
           if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
           const label = selectOption(el, value);
           reply({ ok: true, selected: label });
@@ -271,7 +300,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         }
         case 'LMUSE_HOVER': {
           if (!validRef(msg.ref)) throw new Error('Ref non valido.');
-          const el = getElement(msg.ref);
+          const el = getElement(msg.ref, resolveDoc(msg.docIndex));
           if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
           hoverElement(el);
           reply({ ok: true });
@@ -294,7 +323,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         }
         case 'LMUSE_DOWNLOAD': {
           if (!validRef(msg.ref)) throw new Error('Ref non valido.');
-          const el = getElement(msg.ref);
+          const el = getElement(msg.ref, resolveDoc(msg.docIndex));
           if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
           const a = el.closest('a[href]') as HTMLAnchorElement | null;
           if (!a) throw new Error('Il ref non è un link.');
@@ -350,7 +379,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         }
         case 'LMUSE_RECT': {
           if (!validRef(msg.ref)) throw new Error('Ref non valido.');
-          const el = getElement(msg.ref);
+          const el = getElement(msg.ref, resolveDoc(msg.docIndex));
           if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
           const rect = el.getBoundingClientRect();
           if (rect.width < 2 || rect.height < 2) throw new Error('Elemento non visibile.');
@@ -375,7 +404,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         }
         case 'LMUSE_TABLE': {
           if (!validRef(msg.ref)) throw new Error('Ref non valido.');
-          const el = getElement(msg.ref);
+          const el = getElement(msg.ref, resolveDoc(msg.docIndex));
           if (!el) throw new Error(`Ref [${msg.ref}] scaduto: fai un nuovo snapshot.`);
           const table = el.closest('table') ?? (el.tagName.toLowerCase() === 'table' ? el : null);
           if (!(table instanceof HTMLTableElement)) throw new Error('Il ref non è in una tabella.');

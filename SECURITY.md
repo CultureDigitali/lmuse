@@ -53,6 +53,26 @@ introdotto (audit diff manifest).
   messaggi che non espongono la chiave.
 - Cooldown 5s tra RUN; chiavi < 8 caratteri rifiutate; CI con `pnpm audit` e secret-scan.
 
+### Il confine «Domini consentiti» è applicato davvero
+
+L'allowlist è un controllo centrale, non una promessa:
+
+- ogni **lettura di contenuto** ricontrolla il dominio, non solo l'azione che la
+  precede. Senza questo, un back/forward o un reindirizzamento portavano a una
+  pagina fuori allowlist che veniva letta e mandata al provider;
+- `browser_tab_focus` verifica il dominio **prima** di portare la scheda in
+  primo piano: fallire dopo avrebbe lasciato il browser su una pagina non
+  autorizzata;
+- l'allowlist vuota resta senza vincoli (comportamento predefinito).
+
+### La conferma vale per la pagina che l'utente stava vedendo
+
+Tra la richiesta di conferma e l'esecuzione passa del tempo, e l'utente può
+cambiare scheda. La scheda attiva al momento della conferma viene **vincolata**:
+se l'utente cambia scheda nel frattempo l'azione non parte e viene chiesto di
+ripetere il comando. Senza il vincolo l'azione partiva sulla pagina nuova, che
+l'utente non aveva approvato.
+
 ## Minacce note (limiti onesti)
 
 - **Prompt injection dalle pagine**: lo snapshot contiene testo di siti terzi che può

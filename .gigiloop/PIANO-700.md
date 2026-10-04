@@ -142,3 +142,37 @@ Baseline: HEAD f9cda22, 251 test verdi, `pnpm check` verde.
 98. CHANGELOG 0.8.0 + bump versione package/manifest/tooltip.
 99. AGENTS.md aggiornato se serve.
 100.  Commit + tag v0.8.0 + GitHub release.
+
+---
+
+## Chiusura ciclo 8 (addendum, 02/10/2026)
+
+Il ciclo 8 non ha aggiunto funzioni: ha chiuso difetti. Chiusi con test di
+regressione che falliscono se il difetto torna:
+
+1. **Import dinamico dei provider vietato nei service worker.** Chrome non
+   ammette `import()` in un processo di servizio di estensione, quindi ogni
+   task falliva con qualunque provider. Import resi statici; `verify-dist`
+   rifiuta la build se un `import()` ricompare nel bundle del worker.
+   _Conseguenza accettata:_ il worker passa da 326 KB a 1.077 KB (254 KB gzip).
+   I 326 KB erano 19 file che il browser non poteva caricare.
+2. **Collaudo del provider finto nel formato sbagliato.** Rispondeva in JSON
+   non-streaming mentre il motore usa lo streaming: l'agente chiudeva il ciclo
+   senza eseguire strumenti. Ora risponde nel formato richiesto dal client.
+3. **refMap condivisa fra documento principale e iframe.** Uno snapshot di
+   iframe azzerava i ref della pagina: i click colpivano l'elemento sbagliato.
+   Mappa per documento + parametro `docIndex` nei tool che agiscono su un ref.
+4. **Allowlist non riapplicata dopo back/forward.** Riapplicata a ogni lettura
+   di contenuto in `snapshotTab`; `browser_tab_focus` controlla prima di attivare.
+5. **TOCTOU cambio scheda durante la conferma.** La scheda attiva al momento
+   della conferma viene vincolata; se cambia, l'azione non parte.
+6. **«Solo dominio» solo a metà.** Esteso a link, tab e iframe tramite
+   `displayUrl` in `src/shared/header.ts`.
+7. **Appunti nel log esportabile.** `browser_clipboard_write` registra la
+   lunghezza, `browser_clipboard_read` registra solo che la lettura è avvenuta.
+
+**Stato al 02/10/2026:** 323 test verdi su 24 file, 18 controlli e2e verdi,
+`pnpm check` verde su entrambi i repo. Il punto 90 della lista originale
+(check-size con background < 500 KB) non è più applicabile per il motivo
+indicato al punto 1: la soglia è stata portata a 1.200 KB con la motivazione
+documentata in `scripts/check-size.mjs`.

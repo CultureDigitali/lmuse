@@ -2,6 +2,31 @@
 
 ## Non pubblicato
 
+**Cinque difetti di sicurezza e correttezza chiusi (3° giro di revisione)**
+
+- **I ref degli iframe sovrascrivevano quelli della pagina.** La mappa dei ref era
+  unica e globale: uno snapshot di un iframe la azzerava, quindi un `[0]`
+  emesso dalla pagina principale finiva per indicare un elemento dell'iframe e
+  ogni click successivo colpiva il bersaglio sbagliato. Ora la mappa è per
+  documento e i tool che agiscono su un ref accettano `docIndex`.
+- **L'allowlist non copriva la navigazione indietro/avanti.** Veniva controllata
+  solo _prima_ di agire: dopo un back o un forward l'URL era cambiato e lo
+  snapshot successivo leggeva la nuova pagina senza più ricontrollare. Il
+  confine è ora riapplicato a ogni lettura di contenuto.
+- **Cambio di scheda durante la conferma (TOCTOU).** Tra la richiesta di
+  conferma e l'esecuzione l'utente poteva cambiare scheda, e l'azione partiva
+  sulla pagina nuova, non su quella approvata. La scheda è ora vincolata
+  all'approvazione.
+- **«Solo dominio» valeva solo per l'header dello snapshot.** La query string
+  degli href (`browser_links`) e degli URL dei tab (`browser_tabs_list`) e
+  dell'iframe arrivava comunque al modello, con i suoi identificatori di
+  sessione. Ora ogni percorso che mostra un URL passa dalla stessa funzione.
+- **Il contenuto degli appunti finiva nel log esportabile.** Il testo passato a
+  `browser_clipboard_write` compariva negli argomenti della conferma, e il
+  testo letto da `browser_clipboard_read` finiva nel log dei passi, che
+  l'utente può esportare come `.md`. Ora nel log ci sono lunghezza e conferma
+  di lettura, mai il contenuto.
+
 **Difetto bloccante: nessun provider era utilizzabile**
 
 I 25 SDK dei provider venivano caricati con `import()` dinamico, per tenere

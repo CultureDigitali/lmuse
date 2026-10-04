@@ -27,7 +27,27 @@ numeri di telefono e sequenze di 7+ cifre → `[numero]`, token/secret nei query
 URL → `[redatto]` (questi ultimi sempre, anche con redazione OFF). I valori dei campi
 password **non escono mai** dalla pagina (solo marker `[password]`). Puoi disattivare la
 redazione nelle impostazioni, ma è sconsigliato: un banner te lo ricorda finché è OFF.
-Con `privacyHostOnly` l'URL inviato è solo origin+path (niente query string).
+
+### «Solo dominio» vale davunque ovunque
+
+Con `privacyHostOnly` l'URL inviato è **solo origin+path**, senza query string: si
+levano così i parametri che spesso contengono identificatori di sessione. La
+regola si applica a **tutti** i percorsi che mostrano un URL al modello, non solo
+all'intestazione dello snapshot: href dei link, URL dei tab aperti, URL dell'iframe.
+Prima la valeva solo nell'intestazione, e le query string degli href e dei tab
+arrivavano comunque al provider.
+
+### Gli appunti non finiscono nel log
+
+Gli appunti della pagina sono un dato sensibile, e restano tali anche quando
+l'utente autorizza una lettura:
+
+- il testo passato a `browser_clipboard_write` **non** viene registrato nei
+  passi del task: nel log finisce solo quanti caratteri sono stati copiati;
+- il testo letto con `browser_clipboard_read` **non** finisce nel log dei passi
+  né nel file `.md` che esporti: nel log c'è solo la conferma che la lettura è
+  avvenuta. Il contenuto arriva al modello solo nella risposta del tool, che è
+  ciò che serve per decidere il passo successivo.
 
 ## Dove finiscono i tuoi dati (solo locale)
 

@@ -185,6 +185,15 @@ Tre dettagli che contano:
 `browser_download` avvia il download di un link. Il download chiede conferma con
 la policy "Azioni sensibili"; lo snapshot iframe è sola lettura.
 
+I ref degli iframe sono **separati** da quelli della pagina: ogni documento ha
+i propri ref che ricominciano da 0. Perciò quando usi un ref che viene da
+`browser_iframe_snapshot`, passa anche `docIndex` con l'indice dell'iframe
+(0-based) al tool che lo usa — `browser_click`, `browser_type`, `browser_select`,
+`browser_hover`, `browser_table`, `browser_rect`, `browser_scroll`,
+`browser_download`. Ogni snapshot iframe ricorda l'indice nel testo restituito.
+Senza `docIndex` il ref viene cercato nella pagina principale e il click
+colpisce l'elemento sbagliato.
+
 ## Cosa vede il modello
 
 Per ogni passo: testo del task, snapshot testuale della pagina (URL, titolo, elementi

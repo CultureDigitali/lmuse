@@ -9,7 +9,13 @@ export interface HeaderOptions {
   hostOnly: boolean;
 }
 
-function displayUrl(rawUrl: string | undefined, opts: HeaderOptions): string {
+/**
+ * URL mostrato all'agente secondo le impostazioni di privacy.
+ * Esportata perché `hostOnly` (via "solo dominio") deve valere su OGNI
+ * percorso che mostra un URL, non solo sull'intestazione dello snapshot:
+ * un href completo in browser_links o in tabs_list lo renderebbe inutile.
+ */
+export function displayUrl(rawUrl: string | undefined, opts: HeaderOptions): string {
   if (!rawUrl) return '(sconosciuto)';
   try {
     const parsed = new URL(rawUrl);

@@ -21,7 +21,8 @@ const getTab = vi.fn(async () => ({
 vi.stubGlobal('chrome', {
   runtime: { id: 'lmuse-test', getManifest: () => ({ version: '0.0.0-test' }) },
   tabs: {
-    query: async (q?: { url?: string }) =>
+    // vi.fn perché i test di regressione devono poter cambiare scheda/URL.
+    query: vi.fn(async (q?: { url?: string }) =>
       q?.url
         ? [{ id: 1, url: q.url, title: 'Pagina', status: 'complete', windowId: 1 }]
         : [
@@ -33,6 +34,7 @@ vi.stubGlobal('chrome', {
               windowId: 1,
             },
           ],
+    ),
     get: getTab,
     sendMessage,
     update: vi.fn(async () => {}),
@@ -253,5 +255,168 @@ describe('stopText non viene rimappato come errore provider (regressione)', () =
     await expect(
       tools.browser_snapshot.execute({}, {} as never) as unknown as Promise<unknown>,
     ).rejects.toThrow(/STOP_TEXT/);
+  });
+});
+
+describe('allowlist riapplicata dopo la navigazione (regressione)', () => {
+  // Difetto: l'allowlist veniva controllata solo PRIMA di back/forward. Dopo la
+  // navigazione l'URL poteva cambiare e lo snapshot successivo leggeva la nuova
+  // pagina senza più ricontrollare: contenuto fuori dai domini consentiti.
+  const tabs = (chrome.tabs as unknown as { query: ReturnType<typeof vi.fn> }).query;
+
+  beforeEach(() => {
+    sendMessage.mockResolvedValue({ ok: true, tree: 'Albero' });
+    setActiveTabUrl('https://esempio.it/area');
+    tabs.mockImplementation(async (q?: { url?: string }) => [
+      {
+        id: 1,
+        url: activeTabUrl,
+        title: 'Pagina',
+        status: 'complete',
+        windowId: 1,
+        ...(q?.url ? {} : {}),
+      },
+    ]);
+  });
+
+  it('back verso una pagina fuori allowlist → il contenuto non viene letto', async () => {
+    const goBack = vi.fn(async () => {
+      // La navigazione porta fuori dai domini consentiti.
+      setActiveTabUrl('https://intranet-banca.example.org/approvazioni');
+      return null;
+    });
+    (chrome.tabs as unknown as { goBack: unknown }).goBack = goBack;
+    const { tools } = createBrowserTools(baseConfig({ allowedDomains: 'esempio.it' }));
+    await expect(tools.browser_back.execute({}, {} as never) as unknown as Promise<unknown>).rejects.toThrow(
+      /allowlist/,
+    );
+  });
+
+  it('forward verso una pagina fuori allowlist → il contenuto non viene letto', async () => {
+    const goForward = vi.fn(async () => {
+      setActiveTabUrl('https://intranet-banca.example.org/approvazioni');
+      return null;
+    });
+    (chrome.tabs as unknown as { goForward: unknown }).goForward = goForward;
+    const { tools } = createBrowserTools(baseConfig({ allowedDomains: 'esempio.it' }));
+    await expect(
+      tools.browser_forward.execute({}, {} as never) as unknown as Promise<unknown>,
+    ).rejects.toThrow(/allowlist/);
+  });
+
+  it('back dentro l’allowlist → consentito', async () => {
+    const goBack = vi.fn(async () => {
+      setActiveTabUrl('https://esempio.it/altra');
+      return null;
+    });
+    (chrome.tabs as unknown as { goBack: unknown }).goBack = goBack;
+    const { tools } = createBrowserTools(baseConfig({ allowedDomains: 'esempio.it' }));
+    const out = await tools.browser_back.execute({}, {} as never);
+    expect((out as { observation: string }).observation).toContain('Tornato indietro');
+  });
+});
+
+describe('TOCTOU: cambio di scheda durante la conferma (regressione)', () => {
+  // Difetto: tra la richiesta di conferma e l'esecuzione l'utente poteva
+  // cambiare scheda, e l'azione finiva sulla pagina nuova, non su quella
+  // approvata. Ora la scheda è vincolata all'approvazione.
+  const tabs = (chrome.tabs as unknown as { query: ReturnType<typeof vi.fn> }).query;
+  let activeId = 1;
+
+  beforeEach(() => {
+    activeId = 1;
+    sendMessage.mockResolvedValue({ ok: true, tree: 'Albero' });
+    setActiveTabUrl('https://esempio.it/pagina');
+    tabs.mockImplementation(async () => [
+      { id: activeId, url: activeTabUrl, title: 'Pagina', status: 'complete', windowId: 1 },
+    ]);
+    (chrome.tabs as unknown as { get: unknown }).get = vi.fn(async () => ({
+      id: activeId,
+      url: activeTabUrl,
+      title: 'Pagina',
+      status: 'complete',
+      windowId: 1,
+    }));
+  });
+
+  it('cambio scheda durante la conferma → azione bloccata', async () => {
+    // L'utente approva, poi cambia scheda prima che l'azione parta.
+    const requestApproval = vi.fn(async () => {
+      activeId = 7;
+      setActiveTabUrl('https://altro.example.net/riservato');
+      return true;
+    });
+    const { tools } = createBrowserTools(baseConfig({ policy: 'all', requestApproval, allowedDomains: '' }));
+    await expect(
+      tools.browser_click.execute({ ref: 1 }, {} as never) as unknown as Promise<unknown>,
+    ).rejects.toThrow(/cambiato scheda|cambiato scheda|scheda/);
+  });
+
+  it('nessun cambio scheda → azione eseguita normalmente', async () => {
+    const requestApproval = vi.fn(async () => true);
+    const { tools } = createBrowserTools(baseConfig({ policy: 'all', requestApproval, allowedDomains: '' }));
+    const out = await tools.browser_click.execute({ ref: 1 }, {} as never);
+    expect((out as { observation: string }).observation).toContain('Click');
+  });
+});
+
+describe('hostOnly vale su ogni percorso che mostra un URL (regressione)', () => {
+  // Difetto: "solo dominio" (privacyHostOnly) era applicato solo all'header
+  // dello snapshot. Un href completo in browser_links o l'URL di un tab in
+  // tabs_list portavano al modello la query string, cioè identificatori di
+  // sessione, rendendo l'impostazione privata solo parziale.
+  const SEGRETO = 'https://esempio.it/pagina?sessione=SEGRETO&token=ABC123';
+
+  it('browser_links riduce l’href a origin+path con hostOnly', async () => {
+    sendMessage.mockResolvedValue({
+      ok: true,
+      links: [{ text: 'Vai', href: SEGRETO }],
+    });
+    setActiveTabUrl('https://esempio.it/');
+    const { tools } = createBrowserTools(baseConfig({ hostOnly: true, maskPii: false }));
+    const out = await tools.browser_links.execute({}, {} as never);
+    const obs = (out as { observation: string }).observation;
+    expect(obs).toContain('https://esempio.it/pagina');
+    expect(obs).not.toContain('SEGRETO');
+    expect(obs).not.toContain('ABC123');
+  });
+
+  it('browser_tabs_list riduce l’URL del tab con hostOnly', async () => {
+    const tabs = (chrome.tabs as unknown as { query: ReturnType<typeof vi.fn> }).query;
+    tabs.mockImplementation(async () => [
+      { id: 3, url: SEGRETO, title: 'Riservata', status: 'complete', windowId: 1 },
+    ]);
+    const { tools } = createBrowserTools(baseConfig({ hostOnly: true, maskPii: false }));
+    const out = await tools.browser_tabs_list.execute({}, {} as never);
+    const obs = (out as { observation: string }).observation;
+    expect(obs).toContain('https://esempio.it/pagina');
+    expect(obs).not.toContain('SEGRETO');
+  });
+
+  it('senza hostOnly la redazione dei token resta comunque applicata', async () => {
+    sendMessage.mockResolvedValue({ ok: true, links: [{ text: 'Vai', href: SEGRETO }] });
+    setActiveTabUrl('https://esempio.it/');
+    const { tools } = createBrowserTools(baseConfig({ hostOnly: false, maskPii: false }));
+    const out = await tools.browser_links.execute({}, {} as never);
+    const obs = (out as { observation: string }).observation;
+    // I token restano redatti anche senza hostOnly (comportamento preesistente).
+    expect(obs).not.toContain('ABC123');
+  });
+});
+
+describe('il testo copiato negli appunti non finisce nel log (regressione)', () => {
+  // Difetto: il contenuto passato a browser_clipboard_write compariva negli
+  // argomenti della richiesta di conferma, che il pannello registra come passo
+  // del log esportabile. Poteva essere una password o un segreto.
+  it('la conferma riporta la lunghezza, non il testo', async () => {
+    const SEGRETO = 'password-ultrasegreta-123';
+    sendMessage.mockResolvedValue({ ok: true, tree: 'Albero' });
+    setActiveTabUrl('https://esempio.it/');
+    const requestApproval = vi.fn(async () => true);
+    const { tools } = createBrowserTools(baseConfig({ policy: 'all', requestApproval }));
+    await tools.browser_clipboard_write.execute({ text: SEGRETO }, {} as never);
+    const descritto = requestApproval.mock.calls.map((c) => JSON.stringify(c)).join(' ');
+    expect(descritto).not.toContain(SEGRETO);
+    expect(descritto).toContain('caratteri');
   });
 });

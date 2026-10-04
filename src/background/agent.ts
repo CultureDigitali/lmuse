@@ -58,6 +58,10 @@ export function summarizeOutput(toolName: string, output: unknown, isError = fal
   try {
     if (toolName === 'browser_screenshot') return 'screenshot acquisito';
     if (toolName === 'browser_snapshot') return 'snapshot aggiornato';
+    // Il contenuto degli appunti è un dato sensibile: nel log dei passi va la
+    // conferma che la lettura è avvenuta, non il testo letto, che altrimenti
+    // finiva nel log esportabile e nell'inbox.
+    if (toolName === 'browser_clipboard_read') return 'appunti letti';
     return JSON.stringify(output).slice(0, 300);
   } catch {
     return 'ok';

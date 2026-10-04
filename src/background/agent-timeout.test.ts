@@ -54,3 +54,20 @@ describe('riepilogo esito tool (regressione)', () => {
     expect(summarizeOutput('x', circolare, true)).toContain('ERRORE');
   });
 });
+
+describe('il contenuto degli appunti non finisce nel log', () => {
+  // Difetto: summarizeOutput faceva JSON.stringify dell'output, quindi
+  // l'osservazione di browser_clipboard_read (con il testo degli appunti)
+  // compariva nel log dei passi, che l'utente può esportare come .md.
+  it('browser_clipboard_read registra solo la lettura, non il testo', () => {
+    const out = summarizeOutput('browser_clipboard_read', {
+      observation: 'Appunti: "password segreta-123"',
+    });
+    expect(out).toBe('appunti letti');
+    expect(out).not.toContain('segreta');
+  });
+
+  it('gli altri tool continuano a riassumere l’output', () => {
+    expect(summarizeOutput('browser_click', { observation: 'Click eseguito' })).toContain('Click');
+  });
+});
