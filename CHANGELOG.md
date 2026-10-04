@@ -1,6 +1,6 @@
 # Changelog — lmuse
 
-## Non pubblicato
+## 0.8.1 (2026-10-05)
 
 **Cinque difetti di sicurezza e correttezza chiusi (3° giro di revisione)**
 

@@ -49,8 +49,8 @@ src/shared/urlGuard.ts      Blocco protocolli/host + allowlist (testato)
 src/shared/errors.ts        Errori provider → italiano (testato)
 src/shared/budget.ts        Budget tool-call per run (testato)
 src/shared/i18n.ts          Stringhe UI it/en
-src/background/providers.ts Crea il modello AI SDK (import dinamico per provider:
-                            solo il chunk configurato, SW −71%)
+src/background/providers.ts Crea il modello AI SDK; i provider sono inclusi staticamente
+                            nel worker per compatibilità con service worker MV3
 src/background/tools.ts     26 tool browser (snapshot, navigate, back/forward, reload,
                              click, type, select, wait, press, find, table, query,
                              hover, clipboard×2, iframe_snapshot, download, scroll,
@@ -269,9 +269,9 @@ Requisiti: Node ≥ 22 (`nvm use 22`), pnpm 9.
 ```bash
 pnpm install        # installa dipendenze
 pnpm typecheck      # tsc --noEmit
-pnpm test           # vitest (176 test)
+pnpm test           # vitest (323 test)
 pnpm test:coverage  # coverage v8 (soglie 85/85/80 su src/shared)
-pnpm test:e2e        # smoke su Chromium reale (auto-scaricato in ~/.cache)
+pnpm test:e2e        # e2e su Chrome for Testing con run agente reale
 pnpm check-links     # link relativi nei .md
 pnpm lint           # eslint flat
 pnpm format         # prettier
@@ -284,7 +284,7 @@ pnpm release        # check + verify-dist + zip di dist/ in release/
 
 CI (GitHub Actions): verify (typecheck → coverage → lint → format → build →
 verify-dist → size → links → audit → secret-scan) + job e2e separato
-(Chromium + xvfb), a ogni push/PR.
+(Chrome for Testing + xvfb), a ogni push/PR.
 
 **Caricare l'estensione in Chrome:**
 
@@ -348,7 +348,4 @@ verify-dist → size → links → audit → secret-scan) + job e2e separato
 
 ## Stato onesto
 
-`pnpm check` verde (typecheck + 294 test + lint + build), e2e smoke verde con a11y
-su Chromium, coverage `src/shared` 94%, Prettier verde, CI attiva.
-Il giro completo con chiave reale va provato caricando `dist/` in Chrome: se un provider
-cambia formato risposta, si aggiusta in `providers.ts`.
+`pnpm check` verde (typecheck + 323 test + lint + build); l’e2e su Chrome for Testing esegue un run completo dell’agente contro un provider OpenAI-compatibile finto locale, senza segreti, e include i controlli a11y. La CI verifica inoltre packaging MV3, audit, secret scan e assenza di remote code. Il collaudo con una chiave reale resta una prova manuale controllata.

@@ -6,11 +6,11 @@
 pnpm install
 pnpm check          # typecheck + test + lint + format:check + build +
                     # verify-dist + check-size + check-links (gate prima di ogni commit)
-pnpm test           # vitest (199+ test)
+pnpm test           # vitest (323 test)
 pnpm test:coverage  # coverage v8, soglie 85/85/80 su src/shared
-pnpm test:e2e        # smoke su Chromium reale (auto-scaricato in ~/.cache)
+pnpm test:e2e        # e2e su Chrome for Testing con run agente reale
 pnpm check-links     # link relativi nei .md
-pnpm check-chromium-age  # pin Chromium e2e < 120gg
+pnpm check-chromium-age  # pin Chrome for Testing e2e < 120gg
 pnpm setup:opencode       # registra/rimuove il native bridge opencode (--uninstall)
 pnpm release        # check + verify-dist + zip in release/ (nome dinamico da package.json)
 ```
