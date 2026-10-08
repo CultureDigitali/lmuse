@@ -1081,10 +1081,10 @@ verifica:
 | v0.6.0  | 17/09/2026         | lmuse-0.6.0.zip                |
 | v0.7.0  | 17/09/2026         | lmuse-0.7.0.zip                |
 | v0.8.0  | 28/09/2026         | lmuse-0.8.0.zip (424.711 byte) |
-| v0.8.1  | 08/10/2026         | lmuse-0.8.1.zip (398.563 byte) |
+| v0.8.1  | 08/10/2026         | lmuse-0.8.1.zip (398563 byte) |
 
 L'ultimo pacchetto è identificato dall'impronta crittografica
-`d679972b48ede0c885f1691f5aeff460728b23698f35491a46235d20b1fba682`, che il
+`5bf603919fc03e1e2be378e4cdd6a38c3fdb301912ea4d0b41c29b7d9f7a0d91`, che il
 committente può ricalcolare per accertare l'integrità del file ricevuto.
 
 ---
