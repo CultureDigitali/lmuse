@@ -1081,7 +1081,7 @@ verifica:
 | v0.6.0  | 17/09/2026         | lmuse-0.6.0.zip                |
 | v0.7.0  | 17/09/2026         | lmuse-0.7.0.zip                |
 | v0.8.0  | 28/09/2026         | lmuse-0.8.0.zip (424.711 byte) |
-| v0.8.1  | 08/10/2026         | lmuse-0.8.1.zip (398563 byte) |
+| v0.8.1  | 08/10/2026         | lmuse-0.8.1.zip (398563 byte)  |
 
 L'ultimo pacchetto è identificato dall'impronta crittografica
 `5bf603919fc03e1e2be378e4cdd6a38c3fdb301912ea4d0b41c29b7d9f7a0d91`, che il
