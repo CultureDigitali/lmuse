@@ -21,7 +21,7 @@ qualsiasi endpoint OpenAI-compatibile.
 - Streaming live, stop-text, token-guard, import/export profilo, export log markdown.
 - Service worker −71% (import dinamico per provider: solo il chunk che usi).
 - Sicurezza & privacy verificate: leggi **[PRIVACY.md](PRIVACY.md)** e **[GUIDA.md](GUIDA.md)**.
-- Vedi **[CHANGELOG.md](CHANGELOG.md)** per le novità della 0.8.0.
+- Vedi **[CHANGELOG.md](CHANGELOG.md)** per le novità della 0.8.1.
 
 Permessi (perché servono): `storage` (impostazioni/chiave locali), `scripting`
 (iniezione on-demand solo quando il task agisce), `tabs`+`activeTab` (leggere e

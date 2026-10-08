@@ -58,7 +58,7 @@ Risultati principali:
 
 | Indicatore                                                        | Valore                |
 | ----------------------------------------------------------------- | --------------------- |
-| Versioni rilasciate                                               | 7 (da 0.2.0 a 0.8.0)  |
+| Versioni rilasciate                                               | 8 (da 0.2.0 a 0.8.1)  |
 | Attività pianificate e tracciate                                  | 700                   |
 | Test automatici in verde                                          | 323                   |
 | Copertura misurata (`src/shared`, 2.014 righe = 33% del sorgente) | 96,4% delle righe     |
@@ -1053,15 +1053,16 @@ la verifica del perimetro effettivamente svolto.
 
 ### 15.1 Le versioni pubblicate
 
-| Versione | Data       | Contenuto principale                                                           |
-| -------- | ---------- | ------------------------------------------------------------------------------ |
-| 0.2.0    | 16/09/2026 | Prima versione funzionale, protezioni di base, 47 test                         |
-| 0.3.0    | 16/09/2026 | Conferma umana su tre livelli, iniezione on-demand, 130 test                   |
-| 0.4.0    | 16/09/2026 | 18 strumenti, domini fidati, test end-to-end, 176 test                         |
-| 0.5.0    | 16/09/2026 | Visualizzazione in tempo reale, lavori programmati, 21 strumenti, 199 test     |
-| 0.6.0    | 17/09/2026 | 25 provider, credenziali per provider, integrazione opencode, 232 test         |
-| 0.7.0    | 17/09/2026 | Alleggerimento 70,3%, coda lavori, elenco modelli, 24 strumenti, 251 test      |
-| 0.8.0    | 28/09/2026 | Blocco automatico credenziale, 26 strumenti, correzioni di sicurezza, 323 test |
+| Versione | Data       | Contenuto principale                                                                                    |
+| -------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| 0.2.0    | 16/09/2026 | Prima versione funzionale, protezioni di base, 47 test                                                  |
+| 0.3.0    | 16/09/2026 | Conferma umana su tre livelli, iniezione on-demand, 130 test                                            |
+| 0.4.0    | 16/09/2026 | 18 strumenti, domini fidati, test end-to-end, 176 test                                                  |
+| 0.5.0    | 16/09/2026 | Visualizzazione in tempo reale, lavori programmati, 21 strumenti, 199 test                              |
+| 0.6.0    | 17/09/2026 | 25 provider, credenziali per provider, integrazione opencode, 232 test                                  |
+| 0.7.0    | 17/09/2026 | Alleggerimento 70,3%, coda lavori, elenco modelli, 24 strumenti, 251 test                               |
+| 0.8.0    | 28/09/2026 | Blocco automatico credenziale, 26 strumenti, correzioni di sicurezza, 323 test                          |
+| 0.8.1    | 08/10/2026 | Correzione del difetto bloccante che impediva ogni task; 5 difetti di sicurezza e correttezza; 323 test |
 
 **Precisazione:** i tag di versione sono stati pubblicati a partire dalla 0.4.0.
 Le versioni 0.2.0 e 0.3.0 esistono come commit nel registro ma non hanno un tag
@@ -1070,7 +1071,7 @@ pratica di versionamento che viene qui dichiarata per completezza.
 
 ### 15.2 Le pubblicazioni
 
-Cinque versioni sono state pubblicate con pacchetto firmato dal checksum di
+Sei versioni sono state pubblicate con pacchetto firmato dal checksum di
 verifica:
 
 | Release | Data pubblicazione | Pacchetto                      |
@@ -1080,9 +1081,10 @@ verifica:
 | v0.6.0  | 17/09/2026         | lmuse-0.6.0.zip                |
 | v0.7.0  | 17/09/2026         | lmuse-0.7.0.zip                |
 | v0.8.0  | 28/09/2026         | lmuse-0.8.0.zip (424.711 byte) |
+| v0.8.1  | 08/10/2026         | lmuse-0.8.1.zip (398.563 byte) |
 
 L'ultimo pacchetto è identificato dall'impronta crittografica
-`8e9e286c8065143a4dc5df9c28de68af32fed931e3a70ecde8fc807a156f2175`, che il
+`d679972b48ede0c885f1691f5aeff460728b23698f35491a46235d20b1fba682`, che il
 committente può ricalcolare per accertare l'integrità del file ricevuto.
 
 ---
@@ -1488,13 +1490,14 @@ resta al committente** e non è oggetto di questo lavoro.
 
 ## Appendice C — Elenco dei rilasci
 
-| Release | Data       | Pacchetto       | Contenuto sintetico                                                  |
-| ------- | ---------- | --------------- | -------------------------------------------------------------------- |
-| v0.4.0  | 16/09/2026 | lmuse-0.4.0.zip | 18 strumenti, domini fidati, test end-to-end                         |
-| v0.5.0  | 16/09/2026 | lmuse-0.5.0.zip | Visualizzazione in tempo reale, lavori programmati, 21 strumenti     |
-| v0.6.0  | 17/09/2026 | lmuse-0.6.0.zip | 25 provider, credenziali per provider, integrazione opencode         |
-| v0.7.0  | 17/09/2026 | lmuse-0.7.0.zip | Alleggerimento 70,3%, coda lavori, elenco modelli, 24 strumenti      |
-| v0.8.0  | 28/09/2026 | lmuse-0.8.0.zip | Blocco automatico credenziale, 26 strumenti, correzioni di sicurezza |
+| Release | Data       | Pacchetto       | Contenuto sintetico                                                   |
+| ------- | ---------- | --------------- | --------------------------------------------------------------------- |
+| v0.4.0  | 16/09/2026 | lmuse-0.4.0.zip | 18 strumenti, domini fidati, test end-to-end                          |
+| v0.5.0  | 16/09/2026 | lmuse-0.5.0.zip | Visualizzazione in tempo reale, lavori programmati, 21 strumenti      |
+| v0.6.0  | 17/09/2026 | lmuse-0.6.0.zip | 25 provider, credenziali per provider, integrazione opencode          |
+| v0.7.0  | 17/09/2026 | lmuse-0.7.0.zip | Alleggerimento 70,3%, coda lavori, elenco modelli, 24 strumenti       |
+| v0.8.0  | 28/09/2026 | lmuse-0.8.0.zip | Blocco automatico credenziale, 26 strumenti, correzioni di sicurezza  |
+| v0.8.1  | 08/10/2026 | lmuse-0.8.1.zip | Correzione del difetto bloccante nei provider; 5 difetti di sicurezza |
 
 ---
 
