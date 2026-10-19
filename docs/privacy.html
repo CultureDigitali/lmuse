@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lmuse — Privacy Policy</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; background: #0b0d14; color: #e8ebf7; font: 16px/1.65 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      main { max-width: 760px; margin: 0 auto; padding: 56px 24px 80px; }
+      h1 { font-size: 34px; letter-spacing: -0.5px; margin: 0 0 6px; }
+      h2 { font-size: 20px; margin: 34px 0 10px; color: #c9d2ff; }
+      p, li { color: #b9c1dd; }
+      a { color: #8ea0ff; }
+      .muted { color: #6d7699; font-size: 14px; }
+      code { background: #161a2a; padding: 2px 6px; border-radius: 6px; font-size: 14px; }
+      hr { border: 0; border-top: 1px solid #232842; margin: 34px 0; }
+      ul { padding-left: 22px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>lmuse — Privacy Policy</h1>
+      <p class="muted">Ultimo aggiornamento: 19 ottobre 2026 · <a href="./index.html">lmuse</a></p>
+
+      <p>
+        lmuse è un'estensione Chrome che esegue task nel browser tramite un modello linguistico
+        scelto dall'utente, con la propria chiave API (BYOK). Questa pagina descrive quali dati
+        tratta e dove restano.
+      </p>
+
+      <h2>Nessun server nostro, nessuna telemetria</h2>
+      <p>
+        Lo sviluppatore non gestisce server, non raccoglie statistiche d'uso, non vende dati e non
+        include tracker o pubblicità. Non esiste alcun invio di dati a infrastrutture del progetto.
+      </p>
+
+      <h2>Dati salvati sul dispositivo</h2>
+      <ul>
+        <li>Impostazioni (provider, modello, policy di approvazione, domini fidati, template).</li>
+        <li>Chiavi API, in un record separato per provider, in <code>chrome.storage.local</code> o
+          <code>chrome.storage.session</code> (cancellate alla chiusura del browser in quest'ultimo caso).</li>
+        <li>Cronologia degli ultimi task, conteggi d'uso (run e token) e risultato dell'ultimo run
+          (quest'ultimo solo in memoria di sessione).</li>
+        <li>Cache locale della lista modelli letta dal provider scelto, se usi il pulsante di aggiornamento.</li>
+      </ul>
+
+      <h2>A chi vengono inviati i dati</h2>
+      <p>
+        Durante un task, lmuse invia al provider LLM che hai configurato: il testo del task, lo
+        snapshot della pagina (con redazione di email, IBAN, carte, numeri e token URL se attiva) e,
+        se abilitati, screenshot. Questi dati vanno esclusivamente al provider scelto, secondo la sua
+        informativa. lmuse non li invia ad altri soggetti.
+      </p>
+
+      <h2>Permessi e perché servono</h2>
+      <ul>
+        <li><strong>storage</strong>: impostazioni e chiavi solo locali.</li>
+        <li><strong>scripting</strong>: analisi della pagina solo quando un task la richiede (iniezione on-demand).</li>
+        <li><strong>tabs / activeTab</strong>: leggere e operare sul tab attivo, elencare le schede.</li>
+        <li><strong>sidePanel</strong>: mostrare l'interfaccia nel pannello laterale.</li>
+        <li><strong>alarms</strong>: task programmati locali.</li>
+        <li><strong>nativeMessaging</strong>: solo per il bridge opencode opzionale, installato
+          separatamente dall'utente; il bridge legge <code>auth.json</code> di opencode in locale e non
+          usa la rete.</li>
+        <li><strong>host su tutti i siti</strong>: l'agente deve poter operare dove l'utente lo chiede;
+          è disponibile un elenco di domini consentiti per restringere il perimetro.</li>
+      </ul>
+
+      <h2>Controllo e cancellazione</h2>
+      <p>
+        “Cancella tutti i dati” nelle impostazioni elimina chiavi, impostazioni, cronologia, coda,
+        statistiche e flag di onboarding. La disinstallazione dell'estensione rimuove i dati locali
+        secondo le regole di Chrome.
+      </p>
+
+      <h2>Contatti</h2>
+      <p>
+        Per domande o richieste:
+        <a href="https://github.com/CultureDigitali/lmuse/issues">github.com/CultureDigitali/lmuse/issues</a>.
+      </p>
+
+      <hr />
+      <h2 id="en">English summary</h2>
+      <p>
+        lmuse is a Chrome extension that performs browser tasks using a language model of your choice
+        and your own API key. The developer runs no servers, collects no telemetry and sells no data.
+        Settings and API keys are stored locally in <code>chrome.storage</code>. During a task, the
+        task text, a redacted page snapshot and optional screenshots are sent only to the LLM provider
+        you configured. The optional opencode bridge runs locally, reads opencode's
+        <code>auth.json</code> and makes no network requests. Use “Cancella tutti i dati” to delete
+        everything stored locally.
+      </p>
+      <p class="muted">Contact: <a href="https://github.com/CultureDigitali/lmuse/issues">GitHub Issues</a>.</p>
+    </main>
+  </body>
+</html>
