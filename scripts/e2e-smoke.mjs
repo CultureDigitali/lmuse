@@ -135,6 +135,13 @@ try {
       return res.json();
     });
     check('manifest leggibile e versione coerente', manifest?.version === pkg.version, manifest?.version);
+    check(
+      'installazione senza permessi host globali obbligatori',
+      !(manifest.host_permissions ?? []).includes('<all_urls>') &&
+        (manifest.host_permissions ?? []).length === 0 &&
+        (manifest.optional_host_permissions ?? []).includes('https://*/*') &&
+        (manifest.optional_host_permissions ?? []).includes('http://*/*'),
+    );
     const hasRoot = await page.evaluate(() => !!document.getElementById('root')?.childElementCount);
     check('sidepanel renderizzato', hasRoot);
     const hasSettings = await page.evaluate(() =>
@@ -609,6 +616,32 @@ try {
       }
       check("run completo: statistiche d'uso salvate", runs >= 1, `runs=${runs}`);
     }
+
+    // Revoca reale dopo l'uso: il permesso Chrome sparisce, senza toccare
+    // gli altri host e senza degradare i test di concessione/Privacy Gateway.
+    const revokeResult = await panel.evaluate(async (sourceUrl) => {
+      const origin = new URL(sourceUrl);
+      const pattern = origin.protocol + '//' + origin.hostname + '/*';
+      const before = await chrome.permissions.contains({ origins: [pattern] });
+      const removed = await chrome.permissions.remove({ origins: [pattern] });
+      const after = await chrome.permissions.contains({ origins: [pattern] });
+      return { before, removed, after };
+    }, testUrl);
+    check(
+      'revoca Chrome elimina il permesso host',
+      revokeResult.before && revokeResult.removed && !revokeResult.after,
+      JSON.stringify(revokeResult),
+    );
+    const deniedAfterRevoke = await workerNow.evaluate(async (tabUrl) => {
+      const [tab] = await chrome.tabs.query({ url: tabUrl });
+      try {
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+        return false;
+      } catch {
+        return true;
+      }
+    }, testUrl);
+    check('Chrome blocca nuove iniezioni dopo la revoca', deniedAfterRevoke);
 
     await panel.close();
     mock.close();
