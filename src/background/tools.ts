@@ -348,7 +348,17 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       if (raw.startsWith(STOP_TEXT_PREFIX)) throw error;
       const message = mapProviderError(error);
       const safeMessage = privacyActive ? cfg.privacyGateway!.protectText(message) : message;
-      throw new Error(safeMessage, { cause: privacyActive ? new Error(safeMessage) : error });
+      const wrapped = new Error(safeMessage, { cause: error });
+      if (privacyActive) {
+        // Preserve verifier causality at construction, but never expose the
+        // original Error/cause containing page text or secrets to the LLM.
+        Object.defineProperty(wrapped, 'cause', {
+          value: new Error(safeMessage),
+          enumerable: false,
+          configurable: true,
+        });
+      }
+      throw wrapped;
     } finally {
       // L'approvazione vale soltanto per UNA operazione, mai per i tool successivi.
       approvedTabId = null;
