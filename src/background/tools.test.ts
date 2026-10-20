@@ -605,14 +605,14 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
     const requestApproval = vi.fn(async () => true);
     sendMessage.mockResolvedValue({
       ok: true,
-      tree: 'URL pagina corrente: https://esempio.it/iframe\\n[0] link "mario@example.it"',
+      tree: 'URL pagina corrente: https://esempio.it/iframe\n[0] link "mario@example.it"',
     });
     const { tools } = createBrowserTools(baseConfig({
       privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
     }));
     const out = (await tools.browser_iframe_snapshot.execute({ index: 0 }, {} as never)) as { observation: string };
     expect(out.observation).not.toContain('mario@example.it');
-    const token = out.observation.match(/\\[LMUSE_EMAIL_[a-p]{24}\\]/)?.[0];
+    const token = out.observation.match(/\[LMUSE_EMAIL_[a-p]{24}\]/)?.[0];
     expect(token).toBeDefined();
     expect(gateway.restoreForPage(token!, 'https://esempio.it/iframe')).toBe('mario@example.it');
     expect((sendMessage.mock.calls[0][1] as { maskPii?: boolean }).maskPii).toBe(false);
