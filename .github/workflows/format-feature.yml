@@ -1,4 +1,4 @@
-# Final one-shot formatting pass for isolated 0.9.0 beta
+# Final formatting pass after tool security and documentation changes
 name: Temporary feature branch format
 on:
   push:
