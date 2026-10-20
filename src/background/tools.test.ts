@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserToolConfig } from './tools';
 import { PrivacyGateway } from '../shared/privacy-gateway';
+import { HOST_GRANTS_KEY } from '../shared/hostAccess';
 
 const sendMessage = vi.fn();
 // URL del tab attivo, variabile per testare l'allowlist.
@@ -21,6 +22,33 @@ const getTab = vi.fn(async () => ({
 
 vi.stubGlobal('chrome', {
   runtime: { id: 'lmuse-test', getManifest: () => ({ version: '0.0.0-test' }) },
+  permissions: { contains: vi.fn(async () => true) },
+  storage: {
+    local: {
+      get: vi.fn(async () => {
+        // I test dei tool coprono la semantica delle azioni; il registry Chrome
+        // è isolato in hostAccess.test.ts con casi di diniego, porte e scopi.
+        const origins = [
+          'https://esempio.it',
+          'https://evil.example.com',
+          'https://mail.altro.test',
+          'https://posta.privata.test',
+        ];
+        try {
+          origins.push(new URL(activeTabUrl).origin);
+        } catch {
+          // URL non web: il guard lo bloccherà autonomamente.
+        }
+        return {
+          [HOST_GRANTS_KEY]: [...new Set(origins)].map((origin) => ({
+            origin,
+            purpose: 'site',
+            grantedAt: 1,
+          })),
+        };
+      }),
+    },
+  },
   tabs: {
     // vi.fn perché i test di regressione devono poter cambiare scheda/URL.
     query: vi.fn(async (q?: { url?: string }) =>
@@ -177,6 +205,19 @@ describe('browser_navigate — conferma di dominio (regressione)', () => {
     );
     await runTool(tools.browser_navigate.execute({ url: 'https://evil.example.com/' }, {} as never));
     expect(requestApproval).not.toHaveBeenCalled();
+  });
+
+  it('redirect verso origin non autorizzato: errore esplicito e nessuna lettura', async () => {
+    sendMessage.mockResolvedValue({ ok: true, tree: 'Contenuto riservato' });
+    const update = chrome.tabs.update as ReturnType<typeof vi.fn>;
+    update.mockImplementationOnce(async () => {
+      setActiveTabUrl('https://esterna.example.org/riservata');
+    });
+    const { tools } = createBrowserTools(baseConfig({ allowedDomains: 'esempio.it' }));
+    await expect(
+      tools.browser_navigate.execute({ url: 'https://esempio.it/redirect' }, {} as never),
+    ).rejects.toThrow(/allowlist|non autorizzato/);
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -658,5 +699,25 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
     expect(result.observation).not.toContain('SEGRETO');
     expect(result.observation).not.toContain('Clienti molto riservati');
     expect(result.observation).not.toContain('mail.altro.test');
+  });
+
+  it('non rivela titoli e URL dei tab fuori allowlist neppure con privacy non rigorosa', async () => {
+    const tabs = (chrome.tabs as unknown as { query: ReturnType<typeof vi.fn> }).query;
+    tabs.mockImplementationOnce(async () => [
+      { id: 11, url: 'https://posta.privata.test/inbox?cliente=ALFA', title: 'Contratti società segreta' },
+      { id: 12, url: 'https://esempio.it/pubblico', title: 'Pagina pubblica' },
+    ]);
+    const { tools } = createBrowserTools(
+      baseConfig({
+        allowedDomains: 'esempio.it',
+        privacyGateway: new PrivacyGateway('pseudonymize'),
+      }),
+    );
+    const result = (await tools.browser_tabs_list.execute({}, {} as never)) as { observation: string };
+    expect(result.observation).toContain('#11 [fuori dai domini consentiti]');
+    expect(result.observation).not.toContain('Contratti società segreta');
+    expect(result.observation).not.toContain('posta.privata.test');
+    expect(result.observation).not.toContain('ALFA');
+    expect(result.observation).toContain('Pagina pubblica');
   });
 });

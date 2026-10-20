@@ -8,7 +8,7 @@
 - Screenshot sempre bloccati in modalità protetta; input di upload e label associate bloccati nel content script.
 - Default prudenziale: domini consentiti obbligatori in modalità rigorosa, chiave di sessione, screenshot OFF, cronologia OFF, conferme complete.
 
-**Non è garanzia di anonimato assoluto:** testi liberi, nomi e file complessi non sono anonimizzati in modo universale; il contesto può permettere reidentificazione. Il manifest continua a richiedere accesso a tutti i siti e il provider LLM conosce la chiave API usata per autenticarsi. Leggere **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)** prima dell'uso con dati reali.
+**Non è garanzia di anonimato assoluto:** testi liberi, nomi e file complessi non sono anonimizzati in modo universale; il contesto può permettere reidentificazione. Dal lavoro LM-001 il manifest non chiede più accesso globale obbligatorio ai siti: il pannello richiede un consenso Chrome distinto per il sito e per il provider, e il worker verifica il permesso prima delle operazioni. Il provider LLM continua a conoscere la chiave API usata per autenticarsi. Leggere **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)** prima dell'uso con dati reali.
 
 ## Superficie d'attacco (volutamente piccola)
 
@@ -26,16 +26,26 @@
 
 ## Rationale permessi
 
-| Permesso          | Uso                                              | Alternativa valutata                           |
-| ----------------- | ------------------------------------------------ | ---------------------------------------------- |
-| `storage`         | settings/chiave/cronologia locali                | nessuna (serve persistenza)                    |
-| `scripting`       | inject on-demand di `content.js` (solo `files:`) | content script statico (peggio: sempre attivo) |
-| `tabs`            | leggere URL/titolo, elencare e fokusare tab      | `activeTab` solo (insufficiente per multi-tab) |
-| `activeTab`       | agire sul tab attivo senza prompt                | —                                              |
-| `sidePanel`       | pannello laterale                                | popup (peggiore per task lunghi)               |
-| `alarms`          | cadenza task programmati (solo locali)           | polling dal panel (richiede panel aperto)      |
-| `nativeMessaging` | bridge opencode (host registrato dall'utente)    | nessuna; senza bridge il canale è chiuso       |
-| host `<all_urls>` | operare dove l'utente chiede                     | `optional_host_permissions` per-sito (roadmap) |
+| Permesso                    | Uso                                                  | Alternativa valutata                           |
+| --------------------------- | ---------------------------------------------------- | ---------------------------------------------- |
+| `storage`                   | settings/chiave/cronologia locali                    | nessuna (serve persistenza)                    |
+| `scripting`                 | inject on-demand di `content.js` (solo `files:`)     | content script statico (peggio: sempre attivo) |
+| `tabs`                      | leggere URL/titolo, elencare e fokusare tab          | `activeTab` solo (insufficiente per multi-tab) |
+| `activeTab`                 | agire sul tab attivo senza prompt                    | —                                              |
+| `sidePanel`                 | pannello laterale                                    | popup (peggiore per task lunghi)               |
+| `alarms`                    | cadenza task programmati (solo locali)               | polling dal panel (richiede panel aperto)      |
+| `nativeMessaging`           | bridge opencode (host registrato dall'utente)        | nessuna; senza bridge il canale è chiuso       |
+| `optional_host_permissions` | Accesso al dominio solo dopo gesto e conferma Chrome | Nessun host globale install-time               |
+
+### LM-001: autorizzazione Chrome distinta dall'allowlist
+
+- Il campo **Domini consentiti** è soltanto un limite ulteriore impostato dall'utente; non conferisce permessi Chrome.
+- In **Privacy** inserire l'URL completo del sito, premere **Autorizza questo sito in Chrome**, quindi autorizzare l'API del provider con il pulsante separato.
+- Le match pattern Chrome includono solo schema e hostname e **ignorano la porta**. Per questo ogni concessione viene anche registrata localmente in `lmuse.hostGrants.v1` con **origin completo, porta e ruolo** (`site` oppure `provider`); i ruoli e le porte non sono intercambiabili.
+- Prima delle operazioni l'agente verifica sia il registro app sia `chrome.permissions.contains`. Concedere un provider su `http://localhost:11434` non consente di leggere il sito `http://localhost:3000`, né lo stesso endpoint in ruolo `site`.
+- I pulsanti **Revoca permesso sito** e **Revoca API del provider** eliminano il rispettivo ruolo locale. La match pattern Chrome viene rimossa soltanto quando nessun ruolo sullo stesso hostname la richiede; **Cancella tutto** rimuove anche i grant gestiti. La revoca non ritira dati già trasmessi.
+- Dopo redirect, back/forward o click l'URL deve essere nuovamente autorizzato prima di leggerne il DOM. Un redirect può già aver avviato richieste di rete verso il sito di arrivo: l'estensione **non può garantire di impedirle**, ma rifiuta la lettura e segnala il confine violato anziché simulare uno snapshot riuscito.
+- **Limitazione LM-002:** manca ancora un inventario visuale completo di tutte le autorizzazioni con revoca granulare da una lista. Non usare su profili produttivi finché il collaudo manuale non è chiuso.
 
 ### Bridge opencode — superficie d'attacco
 

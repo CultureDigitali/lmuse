@@ -1,6 +1,7 @@
 import { ToolLoopAgent, isStepCount } from 'ai';
 import { createModel } from './providers';
 import { createBrowserTools } from './tools';
+import { providerEndpoint, requireHostAccess } from '../shared/hostAccess';
 import { PrivacyGateway } from '../shared/privacy-gateway';
 import type { Settings } from '../shared/settings';
 import { MAX_TASK_CHARS } from '../shared/settings';
@@ -125,6 +126,9 @@ export async function runTask(
   if (settings.privacyMode === 'strict' && !settings.allowedDomains.trim()) {
     throw new Error('Privacy rigorosa: imposta almeno un dominio consentito prima di avviare il task.');
   }
+  const endpoint = providerEndpoint(settings);
+  if (!endpoint) throw new Error('Configura un endpoint provider valido prima di avviare il task.');
+  await requireHostAccess(endpoint, 'provider');
   const gateway = new PrivacyGateway(settings.privacyMode);
   const protectedPrompt = gateway.protectText(trimmed);
   const model = await createModel(settings, apiKey);

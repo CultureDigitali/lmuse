@@ -4,6 +4,7 @@
 // Su CI linux girare sotto xvfb-run.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import puppeteer from 'puppeteer-core';
@@ -88,6 +89,39 @@ const check = (name, ok, detail = '') => {
   if (!ok) errors.push(name);
 };
 
+/** Clic reale sul bottone del pannello, senza invocare il relativo handler in JS. */
+async function clickPanelButton(page, labels) {
+  const buttons = await page.$$('button');
+  for (const button of buttons) {
+    const label = await button.evaluate((element) => element.textContent ?? '');
+    if (labels.some((text) => label.includes(text))) {
+      await button.click();
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hostRolePresent(page, origin, purpose) {
+  return page.evaluate(
+    async ({ origin, purpose }) => {
+      const stored = await chrome.storage.local.get('lmuse.hostGrants.v1');
+      return (stored['lmuse.hostGrants.v1'] ?? []).some(
+        (entry) => entry.origin === origin && entry.purpose === purpose,
+      );
+    },
+    { origin, purpose },
+  );
+}
+
+async function waitForHostRole(page, origin, purpose, expected) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    if ((await hostRolePresent(page, origin, purpose)) === expected) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+}
+
 const browser = await puppeteer.launch({
   executablePath,
   headless: false,
@@ -134,6 +168,13 @@ try {
       return res.json();
     });
     check('manifest leggibile e versione coerente', manifest?.version === pkg.version, manifest?.version);
+    check(
+      'installazione senza permessi host globali obbligatori',
+      !(manifest.host_permissions ?? []).includes('<all_urls>') &&
+        (manifest.host_permissions ?? []).length === 0 &&
+        (manifest.optional_host_permissions ?? []).includes('https://*/*') &&
+        (manifest.optional_host_permissions ?? []).includes('http://*/*'),
+    );
     const hasRoot = await page.evaluate(() => !!document.getElementById('root')?.childElementCount);
     check('sidepanel renderizzato', hasRoot);
     const hasSettings = await page.evaluate(() =>
@@ -168,11 +209,90 @@ try {
     const testUrl = `http://127.0.0.1:${server.address().port}/prova.html`;
     const target = await browser.newPage();
     await target.goto(testUrl, { waitUntil: 'domcontentloaded' });
+    // Exercita il percorso reale: un utente immette l'URL e concede il
+    // permesso dal pannello. L'allowlist testuale NON autorizza Chrome.
+    const permissionPanel = await browser.newPage();
+    await permissionPanel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
+    await permissionPanel.bringToFront();
+    await permissionPanel.waitForFunction('document.readyState === "complete" && !!chrome?.runtime?.id', {
+      timeout: 15_000,
+    });
+    await new Promise((r) => setTimeout(r, 1000));
+    await permissionPanel.waitForSelector('button[aria-label="Impostazioni"],button[aria-label="Settings"]', {
+      timeout: 15_000,
+    });
+    // Al primo avvio, l'assenza della chiave apre già le impostazioni:
+    // cliccare sempre il toggle le chiude e rende impossibile il grant.
+    const sitePermissionSelector = 'input[aria-label="URL sito per permesso Chrome"]';
+    if (!(await permissionPanel.$(sitePermissionSelector))) {
+      await permissionPanel.click('button[aria-label="Impostazioni"],button[aria-label="Settings"]');
+    }
+    await permissionPanel.waitForSelector(sitePermissionSelector, { timeout: 15_000 });
+    await permissionPanel.type('input[aria-label="URL sito per permesso Chrome"]', testUrl);
     const swTarget = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
     const worker = await swTarget?.worker();
+    const checkHostPermission = async (url) =>
+      worker.evaluate(async (sourceUrl) => {
+        const origin = new URL(sourceUrl);
+        return chrome.permissions.contains({ origins: [origin.protocol + '//' + origin.hostname + '/*'] });
+      }, url);
+    check('site permission absent before user grant', !(await checkHostPermission(testUrl)));
+    const grantButton = await permissionPanel.$$('button');
+    let grantClicked = false;
+    for (const button of grantButton) {
+      const title = await button.evaluate((node) => node.textContent ?? '');
+      if (
+        title.includes('Autorizza questo sito in Chrome') ||
+        title.includes('Allow this website in Chrome')
+      ) {
+        await button.click();
+        grantClicked = true;
+        break;
+      }
+    }
+    check('pulsante grant sito disponibile', grantClicked);
+    // Chromium presenta la conferma in UI browser (fuori dal DOM del panel).
+    // Il runner Xvfb invia UNA conferma reale via X11, mai via API/fixture bypass.
+    if (process.env.LMUSE_E2E_NATIVE_GRANT === '1') {
+      try {
+        await new Promise((r) => setTimeout(r, 600));
+        console.log(
+          'e2e Chrome native active window:',
+          execFileSync('xdotool', ['getactivewindow', 'getwindowname'], { encoding: 'utf8' }).trim(),
+        );
+        execFileSync('xdotool', ['key', '--clearmodifiers', 'Tab']);
+        await new Promise((r) => setTimeout(r, 250));
+        execFileSync('xdotool', ['key', '--clearmodifiers', 'Return']);
+      } catch (error) {
+        check('native UI confirmation via X11', false, String(error));
+      }
+    }
+    let grantedOrigin = false;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      grantedOrigin = await checkHostPermission(testUrl);
+      if (grantedOrigin) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    const permissionStatus = await permissionPanel
+      .evaluate(() =>
+        [...document.querySelectorAll('[role="status"]')].map((node) => node.textContent?.trim()),
+      )
+      .catch(() => ['(no UI status)']);
+    check('permesso host esplicito concesso dopo gesto UI', grantedOrigin, permissionStatus);
+    check('other hostname is NOT granted', !(await checkHostPermission('http://localhost:9999/prova')));
+    check(
+      'site grant saved with exact port and role',
+      await waitForHostRole(permissionPanel, new URL(testUrl).origin, 'site', true),
+    );
+    if (!grantedOrigin)
+      throw new Error('Permesso host non concesso dalla finestra Chrome: ' + permissionStatus);
+    await permissionPanel.close();
+    await target.bringToFront();
     const snapResult = await worker.evaluate(async (tabUrl) => {
       const [tab] = await chrome.tabs.query({ url: tabUrl });
       if (!tab?.id) return { ok: false, error: 'tab non trovato' };
+      // In CI, permission grants must come from an explicit extension UI gesture.
+      // No implicit grant from the service worker.
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
       await new Promise((r) => setTimeout(r, 400));
       try {
@@ -405,6 +525,31 @@ try {
       });
     }, mockBase);
 
+    // Lo stesso hostname con una porta diversa e il ruolo provider NON
+    // eredita automaticamente il grant sito. L'utente deve autorizzarlo
+    // esplicitamente anche se Chrome considera già autorizzato il pattern.
+    const providerOrigin = new URL(mockBase).origin;
+    const preProvider = !(await hostRolePresent(panel, providerOrigin, 'provider'));
+    check('provider on another port is not automatically authorized', preProvider);
+    await panel.reload({ waitUntil: 'domcontentloaded' });
+    await panel.bringToFront();
+    await panel.waitForFunction('document.readyState === "complete" && !!chrome?.runtime?.id', {
+      timeout: 15_000,
+    });
+    await new Promise((r) => setTimeout(r, 1100));
+    if (!(await panel.$(sitePermissionSelector))) {
+      await panel.click('button[aria-label="Impostazioni"],button[aria-label="Settings"]');
+    }
+    await panel.waitForSelector(sitePermissionSelector, { timeout: 15_000 });
+    const providerGrantClicked = await clickPanelButton(panel, [
+      'Autorizza API del provider',
+      'Allow AI provider API',
+    ]);
+    check('provider role request comes from a real panel click', providerGrantClicked);
+    const savedProvider = await waitForHostRole(panel, providerOrigin, 'provider', true);
+    check('provider permission persisted with exact port and purpose', savedProvider);
+    if (!savedProvider) throw new Error('Il pannello non ha registrato la concessione API provider.');
+
     // Si passa una STRINGA, non una funzione: il serializzatore di Puppeteer
     // delle funzioni fallisce con "document is not defined" quando la pagina non
     // è un frame di documento (in CI capita). La forma a stringa è già usata più
@@ -533,6 +678,59 @@ try {
       }
       check("run completo: statistiche d'uso salvate", runs >= 1, `runs=${runs}`);
     }
+
+    // Revoca del solo SITO tramite UI: il permesso Chrome non può sparire
+    // finché un provider sullo stesso hostname ha ancora una capability valida.
+    await panel.bringToFront();
+    if (!(await panel.$(sitePermissionSelector))) {
+      await panel.click('button[aria-label="Impostazioni"],button[aria-label="Settings"]');
+    }
+    await panel.waitForSelector(sitePermissionSelector, { timeout: 15_000 });
+    await panel.type(sitePermissionSelector, testUrl);
+    check(
+      'pulsante revoca sito disponibile',
+      await clickPanelButton(panel, ['Revoca permesso sito', 'Revoke website permission']),
+    );
+    const siteRoleRevoked = await waitForHostRole(panel, new URL(testUrl).origin, 'site', false);
+    check('site permission revoked in LMuse role registry', siteRoleRevoked);
+    check(
+      'provider grant retained after site revoke',
+      await hostRolePresent(panel, providerOrigin, 'provider'),
+    );
+    const stillPermittedByChrome = await checkHostPermission(testUrl);
+    check('Chrome hostname permission shared with still-authorized provider', stillPermittedByChrome);
+    check(
+      'pulsante revoca API disponibile',
+      await clickPanelButton(panel, ['Revoca API del provider', 'Revoke AI provider API']),
+    );
+    check(
+      'provider role revoked in LMuse registry',
+      await waitForHostRole(panel, providerOrigin, 'provider', false),
+    );
+    const revokeResult = await panel.evaluate(async (url) => {
+      const origin = new URL(url);
+      const pattern = origin.protocol + '//' + origin.hostname + '/*';
+      const all = await chrome.storage.local.get('lmuse.hostGrants.v1');
+      return {
+        roles: all['lmuse.hostGrants.v1'] ?? [],
+        chromeGranted: await chrome.permissions.contains({ origins: [pattern] }),
+      };
+    }, testUrl);
+    check(
+      'after last role revoke Chrome eliminates the host permission',
+      !revokeResult.chromeGranted && revokeResult.roles.length === 0,
+      JSON.stringify(revokeResult),
+    );
+    const deniedAfterRevoke = await workerNow.evaluate(async (tabUrl) => {
+      const [tab] = await chrome.tabs.query({ url: tabUrl });
+      try {
+        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+        return false;
+      } catch {
+        return true;
+      }
+    }, testUrl);
+    check('Chrome blocca nuove iniezioni dopo la revoca', deniedAfterRevoke);
 
     await panel.close();
     mock.close();

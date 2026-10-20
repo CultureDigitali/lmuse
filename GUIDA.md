@@ -1,5 +1,7 @@
 ## Privacy Gateway v0.9.0 — beta
 
+**Permessi Chrome per sito e provider (LM-001).** Nelle impostazioni Privacy indica l'URL del sito e premi **Autorizza questo sito in Chrome**, poi premi **Autorizza API del provider** per la connessione del modello. I due pulsanti salvano due autorizzazioni distinte; nessuna concessione avviene semplicemente scrivendo una allowlist. Puoi usare **Revoca permesso sito** e **Revoca API del provider** separatamente. Lo stesso hostname su porte diverse richiede un nuovo permesso locale: Chrome può non mostrare una seconda finestra di conferma poiché il suo permesso è già valido per tutte le porte, ma LMuse conserva il controllo per origin. La funzione **Cancella tutto** elimina anche i permessi applicativi conosciuti.
+
 Apri le impostazioni del pannello e seleziona **Privacy Gateway sul dispositivo**. La modalità **Rigorosa** richiede un elenco di domini consentiti, conferma la prima lettura di ogni origin e chiede approvazione per tutte le azioni operative. Screenshot disattivati. I segnaposto riconosciuti vengono risolti solo sul sito d'origine; il risultato finale viene ripristinato localmente. In assenza di certezza sulla protezione di un documento, non usarlo con dati reali. Per rischi e limiti consulta **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)**.
 
 # lmuse — Guida al progetto
@@ -356,3 +358,7 @@ verify-dist → size → links → audit → secret-scan) + job e2e separato
 su Chromium, coverage `src/shared` 94%, Prettier verde, CI attiva.
 Il giro completo con chiave reale va provato caricando `dist/` in Chrome: se un provider
 cambia formato risposta, si aggiusta in `providers.ts`.
+
+# LM-001 — primo avvio con permessi per sito
+
+Per utilizzare un sito aprire **Impostazioni → Privacy**, indicare l'URL completo nel campo **URL sito da autorizzare in Chrome** e premere **Autorizza questo sito in Chrome**. Accettare l'eventuale richiesta di Chrome. Premere **Autorizza API del provider** per abilitare anche il dominio del fornitore del modello. Inserire il dominio nella lista **Domini consentiti** quando la modalità rigorosa lo richiede. In qualsiasi momento premere **Revoca permesso sito** per impedirne ulteriori letture/azioni. Le concessioni sono limitate al protocollo e all'hostname, non alla porta.

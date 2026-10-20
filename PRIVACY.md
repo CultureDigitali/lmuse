@@ -2,6 +2,10 @@
 
 ## Privacy Gateway v0.9.0 (beta)
 
+## LM-001 — accessi host per scopo, porta e origin
+
+I permessi Chrome alle pagine sono opzionali. Oltre alla conferma nativa, LMuse richiede una concessione locale con origin **comprensivo di porta** e scopo distinto (`site` per pagine, `provider` per API LLM). Un provider locale su porta 11434 non abilita la lettura di un sito su porta 3000, anche se Chrome raggruppa entrambe sotto `http://localhost/*`. I due permessi possono essere revocati separatamente dal pannello. I reindirizzamenti non autorizzati non vengono letti, ma la navigazione HTTP può avere già provocato richieste di rete prima del rilevamento. I siti approvati possono comunque inviare dati al provider in forma non completamente anonimizzata.
+
 Nella modalità **rigorosa** predefinita, l'utente imposta i domini consentiti e autorizza la prima lettura di ogni origin in ciascun run. Il service worker sostituisce email, telefoni, IBAN, carte, alcuni token e parametri segreti degli URL con segnaposto casuali prima di trasmettere i risultati dei tool al modello. La mappa reversibile rimane **solo in RAM durante il run**, senza export o persistenza: le risposte finali sono ripristinate localmente. Un token può essere risolto dentro la pagina soltanto nello stesso origin in cui è stato osservato e dopo l'approvazione dell'azione.
 
 Screenshot disattivati nelle modalità protette, chiavi di sessione e cronologia disattivata per impostazione predefinita, task non presidiati bloccati in modalità rigorosa. La chiave di accesso al provider resta comunque visibile **al provider scelto** per l'autenticazione. Il testo libero, i nomi e altri dati non riconosciuti possono essere inviati o dedotti; pseudonimizzazione non significa anonimato garantito. Non esiste attualmente parsing anonimo di PDF/DOCX/XLSX o OCR integrato. Per perimetro e limiti consulta **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)**.
@@ -140,3 +144,7 @@ dei provider che lmuse supporta. Nulla viene inviato a terzi; permesso richiesto
 ## Esportazione
 
 "Esporta impostazioni" copia negli appunti un JSON **senza chiave API**.
+
+# LM-001 — permessi host opzionali
+
+L'accesso alle pagine web e alle API dei fornitori di modelli è ora richiesto per dominio dal pannello tramite il consenso nativo di Chrome; l'installazione non richiede più il permesso globale `<all_urls>`. Il semplice inserimento di un dominio nella whitelist non conferisce un permesso. Si può revocare il sito dal pannello; la revoca non ritira dati già inviati al provider.
