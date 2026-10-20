@@ -1,5 +1,8 @@
 # lmuse
 
+> **Beta 0.9.0 in sviluppo su branch dedicato.** Ultima release GitHub stabile: v0.8.1. Non installare la beta sul profilo con account di produzione prima del collaudo.
+
+
 Estensione Chrome (MV3): un agente AI che usa il browser per svolgere task,
 con la tua chiave LLM — **25 provider** supportati: OpenAI, Anthropic, Google,
 xAI, Azure, DeepSeek, Groq, Cerebras, Mistral, Cohere, Together AI, Fireworks,
@@ -11,7 +14,7 @@ qualsiasi endpoint OpenAI-compatibile.
   (keystore **per-provider**, migrazione automatica dalla 0.5.x).
 - **Integrazione opencode**: rileva le credenziali già configurate in opencode
   (auth.json) e le importa con un click, via native bridge (`pnpm setup:opencode`).
-- Conferma umana per le azioni sensibili (navigazione, invio form, cambio tab, download).
+- Conferma esplicita per click e digitazione; in modalità rigorosa, consenso anche prima della lettura di ogni sito.
 - **Blocco automatico chiave** opzionale: si cancella dopo N minuti di inattività.
 - **26 tool browser**: snapshot, click, digitazione, select, wait, press, find, table,
   query, hover, clipboard, iframe, download, scroll, screenshot (anche ritagliato),
@@ -19,8 +22,8 @@ qualsiasi endpoint OpenAI-compatibile.
 - Template task, preset Veloce/Preciso/Locale, task programmati, coda task,
   model discovery live, health-check integrato.
 - Streaming live, stop-text, token-guard, import/export profilo, export log markdown.
-- Service worker −71% (import dinamico per provider: solo il chunk che usi).
-- Sicurezza & privacy verificate: leggi **[PRIVACY.md](PRIVACY.md)** e **[GUIDA.md](GUIDA.md)**.
+- Service worker MV3 con import statici (gli import dinamici causavano un blocco dell'esecuzione).
+- **Privacy Gateway v0.9.0**: sostituzione reversibile in RAM per email, telefoni, IBAN, carte e token riconosciuti; ripristino solo sul sito originale. Screenshot e upload automatici bloccati nelle modalità protette. Vedi **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)**, **[PRIVACY.md](PRIVACY.md)** e **[SECURITY.md](SECURITY.md)**.
 - Vedi **[CHANGELOG.md](CHANGELOG.md)** per le novità della 0.8.1.
 
 Permessi (perché servono): `storage` (impostazioni/chiave locali), `scripting`
@@ -36,6 +39,4 @@ pnpm setup:opencode          # opzionale: bridge per importare chiavi da opencod
 ```
 
 Leggi **[GUIDA.md](GUIDA.md)** per architettura, setup, scorciatoie e roadmap.
-Stato CI: `pnpm check` verde (typecheck + 294 test vitest + lint + build), e2e smoke
-con a11y, coverage `src/shared` > 90%, audit + secret-scan + size + links attivi.
-Contribuire: vedi **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+Per validare il branch: eseguire `pnpm check`, `pnpm test:e2e` e la CI sull'ultimo SHA prima di creare un pacchetto beta. La pseudonimizzazione non copre automaticamente nomi, testi liberi e file binari.
