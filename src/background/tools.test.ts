@@ -21,6 +21,7 @@ const getTab = vi.fn(async () => ({
 
 vi.stubGlobal('chrome', {
   runtime: { id: 'lmuse-test', getManifest: () => ({ version: '0.0.0-test' }) },
+  permissions: { contains: vi.fn(async () => true) },
   tabs: {
     // vi.fn perché i test di regressione devono poter cambiare scheda/URL.
     query: vi.fn(async (q?: { url?: string }) =>

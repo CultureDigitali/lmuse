@@ -140,3 +140,7 @@ dei provider che lmuse supporta. Nulla viene inviato a terzi; permesso richiesto
 ## Esportazione
 
 "Esporta impostazioni" copia negli appunti un JSON **senza chiave API**.
+
+# LM-001 — permessi host opzionali
+
+L'accesso alle pagine web e alle API dei fornitori di modelli è ora richiesto per dominio dal pannello tramite il consenso nativo di Chrome; l'installazione non richiede più il permesso globale `<all_urls>`. Il semplice inserimento di un dominio nella whitelist non conferisce un permesso. Si può revocare il sito dal pannello; la revoca non ritira dati già inviati al provider.

@@ -41,6 +41,7 @@ import { formatElapsed } from '../shared/approval';
 import { estimateTokens, tokenEstimateHigh } from '../shared/budget';
 import { t, type Lang } from '../shared/i18n';
 import { mapBridgeCredentials, matchBridgeProviders } from '../shared/opencode';
+import { hostPattern, providerEndpoint } from '../shared/hostAccess';
 
 interface LogEntry {
   id: number;
@@ -108,6 +109,8 @@ export default function App() {
   const [logSearch, setLogSearch] = useState('');
   const [activeHost, setActiveHost] = useState('');
   const [testing, setTesting] = useState(false);
+  const [accessMessage, setAccessMessage] = useState('');
+  const [siteUrlToAuthorize, setSiteUrlToAuthorize] = useState('');
   const [rememberDomain, setRememberDomain] = useState(false);
   const [streamText, setStreamText] = useState('');
   const [scheduleInterval, setScheduleInterval] = useState(1440);
@@ -591,6 +594,51 @@ export default function App() {
     }
     startTask(trimmed);
     setTask('');
+  }
+
+  async function grantCurrentSite() {
+    try {
+      const firstAllowed = settings.allowedDomains.split(',')[0]?.trim() ?? '';
+      const url =
+        siteUrlToAuthorize.trim() ||
+        (firstAllowed.startsWith('http') ? firstAllowed : 'https://' + firstAllowed);
+      const origin = hostPattern(url);
+      if (!origin) throw new Error('Inserisci l’URL HTTP(S) del sito da autorizzare.');
+      const granted = await chrome.permissions.request({ origins: [origin] });
+      if (!granted) throw new Error('Permesso rifiutato.');
+      setAccessMessage('Accesso Chrome autorizzato per ' + new URL(url).hostname);
+    } catch (err) {
+      setAccessMessage(String((err as Error).message));
+    }
+  }
+
+  async function revokeCurrentSite() {
+    try {
+      const url = siteUrlToAuthorize.trim();
+      const origin = hostPattern(url);
+      if (!origin) throw new Error('Inserisci l’URL del sito da revocare.');
+      const revoked = await chrome.permissions.remove({ origins: [origin] });
+      setAccessMessage(
+        revoked
+          ? 'Accesso Chrome revocato: ' + new URL(url).hostname
+          : 'Nessun permesso revocabile per questo sito.',
+      );
+    } catch (err) {
+      setAccessMessage(String((err as Error).message));
+    }
+  }
+
+  async function grantProvider() {
+    try {
+      const endpoint = providerEndpoint(settings);
+      const origin = endpoint ? hostPattern(endpoint) : null;
+      if (!origin) throw new Error('Imposta prima un URL API provider valido.');
+      const granted = await chrome.permissions.request({ origins: [origin] });
+      if (!granted) throw new Error('Permesso provider rifiutato.');
+      setAccessMessage('Accesso API autorizzato per ' + new URL(endpoint!).hostname);
+    } catch (err) {
+      setAccessMessage(String((err as Error).message));
+    }
   }
 
   function playDone() {
@@ -1194,6 +1242,32 @@ export default function App() {
           </div>
 
           <h3>{t(lang, 'privacy_section')}</h3>
+          <label>
+            {lang === 'en' ? 'Website URL for Chrome permissions' : 'URL sito da autorizzare in Chrome'}
+            <input
+              aria-label="URL sito per permesso Chrome"
+              value={siteUrlToAuthorize}
+              onChange={(event) => setSiteUrlToAuthorize(event.target.value)}
+              placeholder="https://esempio.it/"
+              spellCheck={false}
+            />
+          </label>
+          <div className="btn-row">
+            <button type="button" className="secondary" onClick={() => void grantCurrentSite()}>
+              {lang === 'en' ? 'Allow this website in Chrome' : 'Autorizza questo sito in Chrome'}
+            </button>
+            <button type="button" className="secondary" onClick={() => void revokeCurrentSite()}>
+              {lang === 'en' ? 'Revoke website permission' : 'Revoca permesso sito'}
+            </button>
+            <button type="button" className="secondary" onClick={() => void grantProvider()}>
+              {lang === 'en' ? 'Allow AI provider API' : 'Autorizza API del provider'}
+            </button>
+          </div>
+          {accessMessage && (
+            <p className="muted" role="status">
+              {accessMessage}
+            </p>
+          )}
           <label>
             {lang === 'en' ? 'On-device Privacy Gateway' : 'Privacy Gateway sul dispositivo'}
             <select

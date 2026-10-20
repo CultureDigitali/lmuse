@@ -356,3 +356,7 @@ verify-dist → size → links → audit → secret-scan) + job e2e separato
 su Chromium, coverage `src/shared` 94%, Prettier verde, CI attiva.
 Il giro completo con chiave reale va provato caricando `dist/` in Chrome: se un provider
 cambia formato risposta, si aggiusta in `providers.ts`.
+
+# LM-001 — primo avvio con permessi per sito
+
+Per utilizzare un sito aprire **Impostazioni → Privacy**, indicare l'URL completo nel campo **URL sito da autorizzare in Chrome** e premere **Autorizza questo sito in Chrome**. Accettare l'eventuale richiesta di Chrome. Premere **Autorizza API del provider** per abilitare anche il dominio del fornitore del modello. Inserire il dominio nella lista **Domini consentiti** quando la modalità rigorosa lo richiede. In qualsiasi momento premere **Revoca permesso sito** per impedirne ulteriori letture/azioni. Le concessioni sono limitate al protocollo e all'hostname, non alla porta.

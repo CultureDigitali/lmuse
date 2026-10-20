@@ -332,3 +332,10 @@ resilienza run, trasparenza costi, suite a 112 test.
 ## 0.1.0 — Scaffold iniziale
 
 Estensione MV3 con ToolLoopAgent (AI SDK v7), 9 tool browser, 13 provider, side panel React.
+
+## LM-001 — hardening host permission (candidato, da validare prima del merge)
+
+- Rimosso l'accesso obbligatorio `<all_urls>`; richieste per-sito e per-provider via `optional_host_permissions`.
+- Check centralizzato con `chrome.permissions.contains` su navigazioni, letture, tab, snapshots e provider.
+- Pulsanti espliciti nel pannello per richiedere e revocare un permesso host.
+- Test unitari negativi e smoke e2e sul consenso host (da validare su Chrome for Testing).

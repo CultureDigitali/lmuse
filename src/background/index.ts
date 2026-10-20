@@ -1,4 +1,5 @@
 import { runTask } from './agent';
+import { providerEndpoint, requireHostAccess } from '../shared/hostAccess';
 import { createModel } from './providers';
 import { generateText } from 'ai';
 import {
@@ -236,6 +237,9 @@ function mapOpencodeError(error: unknown): string {
  */
 async function fetchModels(): Promise<string[]> {
   const settings = await loadSettings();
+  const endpoint = providerEndpoint(settings);
+  if (!endpoint) throw new Error('Endpoint provider non valido.');
+  await requireHostAccess(endpoint);
   const def = getProvider(settings.providerId);
   if (!def.defaultBaseUrl && !settings.baseUrl) {
     throw new Error('Questo provider non espone una lista modelli: scrivi il nome a mano.');
@@ -347,6 +351,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 /** Health-check: una chiamata minima al provider (probe "OK", 20s max). */
 async function testConnection(): Promise<void> {
   const settings = await loadSettings();
+  const endpoint = providerEndpoint(settings);
+  if (!endpoint) throw new Error('Endpoint provider non valido.');
+  await requireHostAccess(endpoint);
   const apiKey = await loadApiKey(settings.providerId, settings.rememberKey);
   if (getProvider(settings.providerId).needsKey && !isPlausibleKey(apiKey)) {
     throw new Error('Chiave API mancante o non valida: controllala nelle impostazioni ⚙.');

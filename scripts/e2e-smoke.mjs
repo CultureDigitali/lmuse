@@ -168,11 +168,43 @@ try {
     const testUrl = `http://127.0.0.1:${server.address().port}/prova.html`;
     const target = await browser.newPage();
     await target.goto(testUrl, { waitUntil: 'domcontentloaded' });
+    // Exercita il percorso reale: un utente immette l'URL e concede il
+    // permesso dal pannello. L'allowlist testuale NON autorizza Chrome.
+    const permissionPanel = await browser.newPage();
+    await permissionPanel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
+    await permissionPanel.waitForSelector('button[aria-label="Impostazioni"]', { timeout: 15_000 });
+    await permissionPanel.click('button[aria-label="Impostazioni"]');
+    await permissionPanel.waitForSelector('input[aria-label="URL sito per permesso Chrome"]');
+    await permissionPanel.type('input[aria-label="URL sito per permesso Chrome"]', testUrl);
+    const grantButton = await permissionPanel.$$('button');
+    let grantClicked = false;
+    for (const button of grantButton) {
+      const title = await button.evaluate((node) => node.textContent ?? '');
+      if (
+        title.includes('Autorizza questo sito in Chrome') ||
+        title.includes('Allow this website in Chrome')
+      ) {
+        await button.click();
+        grantClicked = true;
+        break;
+      }
+    }
+    check('pulsante grant sito disponibile', grantClicked);
+    await new Promise((r) => setTimeout(r, 1000));
     const swTarget = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
     const worker = await swTarget?.worker();
+    const grantedOrigin = await worker.evaluate(async (url) => {
+      const origin = new URL(url);
+      return chrome.permissions.contains({ origins: [origin.protocol + '//' + origin.hostname + '/*'] });
+    }, testUrl);
+    check('permesso host esplicito concesso dopo gesto UI', grantedOrigin);
+    await permissionPanel.close();
+    await target.bringToFront();
     const snapResult = await worker.evaluate(async (tabUrl) => {
       const [tab] = await chrome.tabs.query({ url: tabUrl });
       if (!tab?.id) return { ok: false, error: 'tab non trovato' };
+      // In CI, permission grants must come from an explicit extension UI gesture.
+      // No implicit grant from the service worker.
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
       await new Promise((r) => setTimeout(r, 400));
       try {

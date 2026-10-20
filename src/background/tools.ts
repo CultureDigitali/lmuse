@@ -9,6 +9,7 @@ import { displayUrl, formatSnapshotHeader } from '../shared/header';
 import { maskPii, maskUrlTokens } from '../shared/pii';
 import { containsStop } from '../shared/task';
 import type { PrivacyGateway } from '../shared/privacy-gateway';
+import { requireHostAccess } from '../shared/hostAccess';
 
 // ---------------------------------------------------------------------------
 // Strato di accesso al browser: i tool dell'agente parlano con il content
@@ -132,6 +133,7 @@ export function assertTabAllowed(tab: chrome.tabs.Tab, allowedDomains: string): 
 async function getActiveTabAllowed(allowedDomains: string): Promise<chrome.tabs.Tab> {
   const tab = await getActiveTab();
   assertTabAllowed(tab, allowedDomains);
+  await requireHostAccess(tab.url ?? '');
   return tab;
 }
 
@@ -235,18 +237,21 @@ async function snapshotTab(
   // o un reindirizzamento l'URL può essere cambiato, e leggere la pagina senza
   // ricontrollare avrebbe mostrato contenuto fuori dai domini consentiti.
   assertTabAllowed(tab, opts.allowedDomains);
+  await requireHostAccess(tab.url ?? '');
   const initialUrl = tab.url ?? '';
   await opts.approveRead?.(initialUrl);
   // Non associare mai ad un origin approvato il contenuto di una pagina
   // caricata mentre il banner di approvazione era ancora aperto.
   const before = await chrome.tabs.get(tabId);
   assertTabAllowed(before, opts.allowedDomains);
+  await requireHostAccess(before.url ?? '');
   if (before.url !== initialUrl) {
     throw new Error('Privacy Gateway: pagina cambiata durante il consenso di lettura.');
   }
   const res = await send<SnapshotResult>(tabId, { kind: 'LMUSE_SNAPSHOT', maskPii: opts.maskPii });
   const after = await chrome.tabs.get(tabId);
   assertTabAllowed(after, opts.allowedDomains);
+  await requireHostAccess(after.url ?? '');
   if (after.url !== initialUrl) {
     throw new Error('Privacy Gateway: pagina cambiata durante la lettura; risultato scartato.');
   }
@@ -329,12 +334,14 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     await approveRead(initialUrl);
     const before = await chrome.tabs.get(tab.id);
     assertTabAllowed(before, cfg.allowedDomains);
+    await requireHostAccess(before.url ?? '');
     if (before.url !== initialUrl) {
       throw new Error('Privacy Gateway: pagina cambiata durante il consenso di lettura.');
     }
     const output = await fn();
     const after = await chrome.tabs.get(tab.id);
     assertTabAllowed(after, cfg.allowedDomains);
+    await requireHostAccess(after.url ?? '');
     if (after.url !== initialUrl) {
       throw new Error('Privacy Gateway: pagina cambiata durante la lettura; risultato scartato.');
     }
@@ -421,6 +428,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       }
       if (pinned.id != null) {
         assertTabAllowed(pinned, allowedDomains);
+        await requireHostAccess(pinned.url ?? '');
         if (approvedTabUrl != null && pinned.url !== approvedTabUrl) {
           throw new Error('La pagina è cambiata dopo la conferma: ripeti il comando.');
         }
@@ -550,6 +558,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
               `Dominio fuori dall'allowlist utente (${cfg.allowedDomains}). Chiedi all'utente di aggiornare "Domini consentiti".`,
             );
           }
+          await requireHostAccess(target);
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           // Riapertura URL privati ammessa solo sullo stesso origin osservato.
@@ -1069,26 +1078,36 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       execute: async () =>
         guarded(async () => {
           const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
-          const lines = tabs.map((t) => {
-            if (privacyActive && cfg.privacyGateway!.mode === 'strict') {
-              const allowed = /^https?:/i.test(t.url ?? '') && isAllowedHost(t.url ?? '', cfg.allowedDomains);
-              return allowed
-                ? '#' + t.id + ' ' + (extractDomain(t.url ?? '') ?? '(sconosciuto)') + ' [solo dominio]'
-                : '#' + t.id + ' [fuori perimetro]';
-            }
-            const title = (t.title ?? '').slice(0, 60);
-            // Stessa regola degli altri percorsi: con hostOnly via solo
-            // origin+path, mai la query string.
-            const url = displayUrl(t.url, {
-              maskPiiEnabled: privacyActive ? false : cfg.maskPii,
-              hostOnly: cfg.hostOnly,
-            });
-            const base = `#${t.id} "${privacyActive ? title : cfg.maskPii ? maskPii(title) : title}" ${url}`;
-            // Con allowlist impostata, i tab fuori perimetro restano elencati ma
-            // marcati: il modello deve sapere che non può agirci.
-            const out = cfg.allowedDomains.trim() && !isAllowedHost(t.url ?? '', cfg.allowedDomains);
-            return out ? `${base} [FUORI ALLOWLIST: non agire]` : base;
-          });
+          const lines = await Promise.all(
+            tabs.map(async (t) => {
+              const patternAllowed = t.url
+                ? await requireHostAccess(t.url).then(
+                    () => true,
+                    () => false,
+                  )
+                : false;
+              if (!patternAllowed) return '#' + t.id + ' [senza permesso Chrome]';
+              if (privacyActive && cfg.privacyGateway!.mode === 'strict') {
+                const allowed =
+                  /^https?:/i.test(t.url ?? '') && isAllowedHost(t.url ?? '', cfg.allowedDomains);
+                return allowed
+                  ? '#' + t.id + ' ' + (extractDomain(t.url ?? '') ?? '(sconosciuto)') + ' [solo dominio]'
+                  : '#' + t.id + ' [fuori perimetro]';
+              }
+              const title = (t.title ?? '').slice(0, 60);
+              // Stessa regola degli altri percorsi: con hostOnly via solo
+              // origin+path, mai la query string.
+              const url = displayUrl(t.url, {
+                maskPiiEnabled: privacyActive ? false : cfg.maskPii,
+                hostOnly: cfg.hostOnly,
+              });
+              const base = `#${t.id} "${privacyActive ? title : cfg.maskPii ? maskPii(title) : title}" ${url}`;
+              // Con allowlist impostata, i tab fuori perimetro restano elencati ma
+              // marcati: il modello deve sapere che non può agirci.
+              const out = cfg.allowedDomains.trim() && !isAllowedHost(t.url ?? '', cfg.allowedDomains);
+              return out ? `${base} [FUORI ALLOWLIST: non agire]` : base;
+            }),
+          );
           return { observation: truncate(lines.join('\n') || 'Nessun tab.', 2000) };
         }),
     }),
@@ -1114,6 +1133,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
             throw new Error(mapTabError(error), { cause: error });
           }
           assertTabAllowed(tab, cfg.allowedDomains);
+          await requireHostAccess(tab.url ?? '');
           try {
             await chrome.tabs.update(tabId, { active: true });
           } catch (error) {
