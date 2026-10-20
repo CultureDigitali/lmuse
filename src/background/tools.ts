@@ -742,7 +742,11 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           // punto del tool, ma ogni passaggio successivo lo maschera: il testo
           // non deve finire nel log esportabile né nell'inbox.
           const raw = String(res.text ?? '').slice(0, 400);
-          const shown = privacyActive ? raw : cfg.maskPii ? maskPii(raw) : raw;
+          const shown = privacyActive
+            ? cfg.privacyGateway!.protectText(raw, tab.url)
+            : cfg.maskPii
+              ? maskPii(raw)
+              : raw;
           return acted(tab.id, `Appunti (${String(res.text ?? '').length} caratteri):\n${shown}`);
         });
       },
@@ -1219,7 +1223,10 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
             }
             throw new Error(res.error ?? 'Lettura tabella fallita.');
           }
-          return { observation: checkStop(truncateTo(res.table ?? '(vuota)', 6000)) };
+          const table = privacyActive
+            ? cfg.privacyGateway!.protectText(res.table ?? '(vuota)', tab.url)
+            : res.table ?? '(vuota)';
+          return { observation: checkStop(truncateTo(table, 6000)) };
         }),
     }),
 
@@ -1243,7 +1250,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           });
           if (!res.ok) throw new Error(res.error ?? 'Query fallita.');
           return {
-            observation: `Trovati ${(res.refs ?? []).length} elementi (ref riusabili): ${res.text ?? ''}`,
+            observation: `Trovati ${(res.refs ?? []).length} elementi (ref riusabili): ${privacyActive ? cfg.privacyGateway!.protectText(res.text ?? '', tab.url) : res.text ?? ''}`,
           };
         }),
     }),
