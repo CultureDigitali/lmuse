@@ -1,3 +1,4 @@
+# Final one-shot formatting pass for isolated 0.9.0 beta
 name: Temporary feature branch format
 on:
   push:
