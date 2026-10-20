@@ -2,6 +2,7 @@
 // delle osservazioni restituite, incluse le regressioni sui tool nuovi.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserToolConfig } from './tools';
+import { PrivacyGateway } from '../shared/privacy-gateway';
 
 const sendMessage = vi.fn();
 // URL del tab attivo, variabile per testare l'allowlist.
@@ -428,5 +429,87 @@ describe('il testo copiato negli appunti non finisce nel log (regressione)', () 
     const descritto = requestApproval.mock.calls.map((c) => JSON.stringify(c)).join(' ');
     expect(descritto).not.toContain(SEGRETO);
     expect(descritto).toContain('caratteri');
+  });
+});
+
+
+describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
+  it('senza consenso di lettura non acquisisce né passa lo snapshot al modello', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => false);
+    sendMessage.mockResolvedValue({ ok: true, tree: 'mario@example.it' });
+    const { tools } = createBrowserTools(baseConfig({
+      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
+    }));
+    await expect(tools.browser_snapshot.execute({}, {} as never)).rejects.toThrow();
+    expect(requestApproval).toHaveBeenCalledWith(
+      'browser_data_disclosure', expect.stringContaining('pseudonimizzato'), expect.any(String),
+    );
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('dopo il consenso riceve il token, mai la email grezza', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => true);
+    sendMessage.mockResolvedValue({ ok: true, tree: '[0] link "mario@example.it"' });
+    const { tools } = createBrowserTools(baseConfig({
+      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
+    }));
+    const one = await tools.browser_snapshot.execute({}, {} as never) as { observation: string };
+    const two = await tools.browser_snapshot.execute({}, {} as never) as { observation: string };
+    expect(one.observation).not.toContain('mario@example.it');
+    expect(one.observation).toMatch(/\[LMUSE_EMAIL_[a-p]{24}\]/);
+    expect(two.observation).toBe(one.observation);
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+  });
+
+  it('ripristina email nel form solo sul sito da cui è stata letta', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const token = gateway.protectText('mario@example.it', 'https://esempio.it/pagina');
+    sendMessage.mockResolvedValue({ ok: true, tree: 'Fatto' });
+    const { tools } = createBrowserTools(baseConfig({
+      privacyGateway: gateway, allowedDomains: 'esempio.it',
+    }));
+    await tools.browser_type.execute({ ref: 2, text: token }, {} as never);
+    const payloads = sendMessage.mock.calls.map((x) => x[1] as { kind: string; text?: string });
+    expect(payloads.find((x) => x.kind === 'LMUSE_TYPE')?.text).toBe('mario@example.it');
+  });
+
+  it('rifiuta l inserimento di un token in un sito diverso', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const token = gateway.protectText('mario@example.it', 'https://altro.example.test/');
+    const { tools } = createBrowserTools(baseConfig({
+      privacyGateway: gateway, allowedDomains: 'esempio.it',
+    }));
+    await expect(tools.browser_type.execute({ ref: 2, text: token }, {} as never)).rejects.toThrow();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('non cattura immagini non anonimizzabili nemmeno se flag screenshot è on', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const capture = vi.mocked(chrome.tabs.captureVisibleTab);
+    capture.mockClear();
+    const { tools } = createBrowserTools(baseConfig({
+      privacyGateway: gateway, sendScreenshots: true,
+    }));
+    await expect(tools.browser_screenshot.execute({}, {} as never)).rejects.toThrow(/screenshot/i);
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('elenca solo il dominio, non titoli e query private dei tab', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const tabs = vi.mocked(chrome.tabs.query);
+    tabs.mockResolvedValueOnce([
+      { id: 9, url: 'https://esempio.it/pagina?token=SEGRETO', title: 'Clienti molto riservati' },
+      { id: 10, url: 'https://mail.altro.test/inbox', title: 'Private personal mail' },
+    ] as chrome.tabs.Tab[]);
+    const { tools } = createBrowserTools(baseConfig({
+      privacyGateway: gateway, allowedDomains: 'esempio.it',
+    }));
+    const result = await tools.browser_tabs_list.execute({}, {} as never) as { observation: string };
+    expect(result.observation).toContain('esempio.it');
+    expect(result.observation).not.toContain('SEGRETO');
+    expect(result.observation).not.toContain('Clienti molto riservati');
+    expect(result.observation).not.toContain('mail.altro.test');
   });
 });
