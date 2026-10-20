@@ -362,6 +362,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
    * cambia, l'azione non parte e si chiede una nuova conferma.
    */
   let approvedTabId: number | null = null;
+  let approvedTabUrl: string | null = null;
 
   /** Tab su cui agire: quello congelato dall'approvazione, o l'attivo. */
   async function tabForAction(allowedDomains: string): Promise<chrome.tabs.Tab> {
@@ -374,6 +375,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       }
       if (pinned.id != null) {
         assertTabAllowed(pinned, allowedDomains);
+        if (approvedTabUrl != null && pinned.url !== approvedTabUrl) {
+          throw new Error('La pagina è cambiata dopo la conferma: ripeti il comando.');
+        }
         return pinned;
       }
     }
@@ -388,9 +392,11 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     domain?: string,
   ): Promise<void> {
     // Il tab da congelare è quello attivo al momento della conferma.
+    approvedTabId = null;
+    approvedTabUrl = null;
     const activeAtApproval = await chrome.tabs
       .query({ active: true, lastFocusedWindow: true })
-      .then((t) => t[0]?.id ?? null)
+      .then((t) => t[0] ?? null)
       .catch(() => null);
     const ctx: ApprovalContext = { seenDomains: [...seenDomains], trustedDomains: cfg.trustedDomains };
     const policy = privacyActive ? 'all' : cfg.policy;
@@ -411,7 +417,8 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       );
     }
     // Confermato: l'azione vale per la scheda che l'utente stava vedendo.
-    approvedTabId = activeAtApproval;
+    approvedTabId = activeAtApproval?.id ?? null;
+    approvedTabUrl = activeAtApproval?.url ?? null;
   }
 
   /**
@@ -423,16 +430,15 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     if (approvedTabId == null) return;
     const current = await chrome.tabs
       .query({ active: true, lastFocusedWindow: true })
-      .then((t) => t[0]?.id ?? null)
+      .then((t) => t[0] ?? null)
       .catch(() => null);
-    if (current != null && current !== approvedTabId) {
+    if (!current || current.id !== approvedTabId ||
+        (approvedTabUrl != null && current.url !== approvedTabUrl)) {
       const stale = approvedTabId;
       approvedTabId = null;
-      throw new Error(
-        `Durante la conferma l'utente ha cambiato scheda (era #${stale}, ora #${current}): ` +
-          "l'azione non è stata eseguita per evitare di toccare una pagina diversa da quella approvata. " +
-          'Ripeti il comando.',
-      );
+      approvedTabUrl = null;
+      throw new Error('Durante la conferma è cambiata la scheda o la pagina (#' + stale +
+        '): azione bloccata. Ripeti il comando.');
     }
   }
 
