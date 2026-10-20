@@ -6,7 +6,6 @@ Nella modalità **rigorosa** predefinita, l'utente imposta i domini consentiti e
 
 Screenshot disattivati nelle modalità protette, chiavi di sessione e cronologia disattivata per impostazione predefinita, task non presidiati bloccati in modalità rigorosa. La chiave di accesso al provider resta comunque visibile **al provider scelto** per l'autenticazione. Il testo libero, i nomi e altri dati non riconosciuti possono essere inviati o dedotti; pseudonimizzazione non significa anonimato garantito. Non esiste attualmente parsing anonimo di PDF/DOCX/XLSX o OCR integrato. Per perimetro e limiti consulta **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)**.
 
-
 lmuse è progettata per minimizzare i dati: **nessuna telemetria, nessun server nostro,
 nessun account**. Tutto resta sul tuo PC tranne ciò che invii al provider LLM che scegli.
 

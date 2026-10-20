@@ -10,7 +10,6 @@
 
 **Non è garanzia di anonimato assoluto:** testi liberi, nomi e file complessi non sono anonimizzati in modo universale; il contesto può permettere reidentificazione. Il manifest continua a richiedere accesso a tutti i siti e il provider LLM conosce la chiave API usata per autenticarsi. Leggere **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)** prima dell'uso con dati reali.
 
-
 ## Superficie d'attacco (volutamente piccola)
 
 - Manifest MV3 con `content_security_policy: script-src 'self'; object-src 'self'`.

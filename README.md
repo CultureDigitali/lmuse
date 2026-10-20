@@ -2,7 +2,6 @@
 
 > **Beta 0.9.0 in sviluppo su branch dedicato.** Ultima release GitHub stabile: v0.8.1. Non installare la beta sul profilo con account di produzione prima del collaudo.
 
-
 Estensione Chrome (MV3): un agente AI che usa il browser per svolgere task,
 con la tua chiave LLM — **25 provider** supportati: OpenAI, Anthropic, Google,
 xAI, Azure, DeepSeek, Groq, Cerebras, Mistral, Cohere, Together AI, Fireworks,

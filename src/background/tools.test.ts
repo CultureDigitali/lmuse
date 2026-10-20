@@ -536,10 +536,13 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
   it('elenca solo il dominio, non titoli e query private dei tab', async () => {
     const gateway = new PrivacyGateway('strict');
     const tabs = (chrome.tabs as unknown as { query: ReturnType<typeof vi.fn> }).query;
-    tabs.mockImplementationOnce(async () => [
-      { id: 9, url: 'https://esempio.it/pagina?token=SEGRETO', title: 'Clienti molto riservati' },
-      { id: 10, url: 'https://mail.altro.test/inbox', title: 'Private personal mail' },
-    ] as chrome.tabs.Tab[]);
+    tabs.mockImplementationOnce(
+      async () =>
+        [
+          { id: 9, url: 'https://esempio.it/pagina?token=SEGRETO', title: 'Clienti molto riservati' },
+          { id: 10, url: 'https://mail.altro.test/inbox', title: 'Private personal mail' },
+        ] as chrome.tabs.Tab[],
+    );
     const { tools } = createBrowserTools(
       baseConfig({
         privacyGateway: gateway,

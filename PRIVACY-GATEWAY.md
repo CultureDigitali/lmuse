@@ -17,11 +17,11 @@ Il gateway protegge tutte le stringhe delle risposte dei tool, non solo lo snaps
 
 ## Modalità
 
-| Modalità | Comportamento |
-| --- | --- |
+| Modalità               | Comportamento                                                                                                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Rigorosa** (default) | Domini consentiti obbligatori, consenso per origin prima di leggere e trasmettere, conferma delle azioni operative, screenshot bloccati, task non presidiati vietati |
-| Pseudonimizzazione | Sostituzione reversibile, screenshot bloccati, click e digitazione con conferma, allowlist facoltativa (sconsigliata) |
-| Disattivata | Comportamento legacy: solo redazione configurata, possibile trasmissione in chiaro; compatibilità, non raccomandata |
+| Pseudonimizzazione     | Sostituzione reversibile, screenshot bloccati, click e digitazione con conferma, allowlist facoltativa (sconsigliata)                                                |
+| Disattivata            | Comportamento legacy: solo redazione configurata, possibile trasmissione in chiaro; compatibilità, non raccomandata                                                  |
 
 Le **chiavi API** non vengono pseudonimizzate nel canale di autenticazione al provider scelto: quel provider deve conoscerle. Usare chiavi dedicate, con quota e privilegi limitati. Per privacy elevata, preferire un provider locale con Ollama o LM Studio.
 
