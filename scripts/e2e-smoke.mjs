@@ -448,6 +448,11 @@ try {
               if (m.type === 'STEP') window.__lmuseRun.steps.push(m);
               if (m.type === 'DONE') window.__lmuseRun.done = m;
               if (m.type === 'ERROR') window.__lmuseRun.error = m;
+              // Solo nel test su loopback: simuliamo il consenso esplicito del tester.
+              if (m.type === 'APPROVAL' && m.tool === 'browser_data_disclosure' &&
+                  String(m.description || '').indexOf('127.0.0.1') !== -1) {
+                port.postMessage({ type: 'APPROVE', id: m.id });
+              }
             });
             port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
             return 'ok';
