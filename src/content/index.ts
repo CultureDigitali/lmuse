@@ -1,6 +1,6 @@
 import { buildSnapshot, getElement, registerElements } from './snapshot';
 import { isPressAllowed } from './keys';
-import { describeFocused, selectOption, waitFor, hoverElement } from './actions';
+import { describeFocused, selectOption, waitFor, hoverElement, assertNoFileUploadTarget } from './actions';
 import { findInPage, tableToMarkdown } from './extract';
 import { maskPii } from '../shared/pii';
 
@@ -66,6 +66,7 @@ function clickElement(el: Element): void {
   }
   el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
   el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+  assertNoFileUploadTarget(el);
   (el as HTMLElement).click?.();
 }
 
