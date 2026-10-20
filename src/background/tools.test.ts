@@ -352,6 +352,16 @@ describe('TOCTOU: cambio di scheda durante la conferma (regressione)', () => {
     ).rejects.toThrow(/cambiato scheda|cambiato scheda|scheda/);
   });
 
+  it('stesso tab ma URL cambiato durante la conferma → click bloccato', async () => {
+    const requestApproval = vi.fn(async () => {
+      setActiveTabUrl('https://esempio.it/pagina-differente');
+      return true;
+    });
+    const { tools } = createBrowserTools(baseConfig({ policy: 'all', requestApproval }));
+    await expect(tools.browser_click.execute({ ref: 1 }, {} as never)).rejects.toThrow(/cambiata.*pagina|cambiata.*scheda/);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it('nessun cambio scheda → azione eseguita normalmente', async () => {
     const requestApproval = vi.fn(async () => true);
     const { tools } = createBrowserTools(baseConfig({ policy: 'all', requestApproval, allowedDomains: '' }));
