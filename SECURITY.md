@@ -41,10 +41,11 @@
 
 - Il campo **Domini consentiti** è soltanto un limite ulteriore impostato dall'utente; non conferisce permessi Chrome.
 - In **Privacy** inserire l'URL completo del sito, premere **Autorizza questo sito in Chrome**, quindi autorizzare l'API del provider con il pulsante separato.
-- Gli host sono autorizzati per schema e hostname esatti. Chrome ignora il percorso; le match pattern non limitano le porte, pertanto le API su loopback condividono il medesimo permesso per hostname.
-- Prima dell'iniezione del content script, della lettura o delle navigazioni, l'agente consulta `chrome.permissions.contains` e rifiuta l'azione se il permesso è assente.
-- Il pulsante **Revoca permesso sito** chiama `chrome.permissions.remove`. La revoca vieta le successive azioni; non cancella i dati già trasmessi a un modello remoto.
-- **Limitazione LM-002:** l'interfaccia non mostra ancora un inventario completo dei permessi concessi e la revoca dei permessi provider. Non usare su profili produttivi finché il collaudo manuale non è chiuso.
+- Le match pattern Chrome includono solo schema e hostname e **ignorano la porta**. Per questo ogni concessione viene anche registrata localmente in `lmuse.hostGrants.v1` con **origin completo, porta e ruolo** (`site` oppure `provider`); i ruoli e le porte non sono intercambiabili.
+- Prima delle operazioni l'agente verifica sia il registro app sia `chrome.permissions.contains`. Concedere un provider su `http://localhost:11434` non consente di leggere il sito `http://localhost:3000`, né lo stesso endpoint in ruolo `site`.
+- I pulsanti **Revoca permesso sito** e **Revoca API del provider** eliminano il rispettivo ruolo locale. La match pattern Chrome viene rimossa soltanto quando nessun ruolo sullo stesso hostname la richiede; **Cancella tutto** rimuove anche i grant gestiti. La revoca non ritira dati già trasmessi.
+- Dopo redirect, back/forward o click l'URL deve essere nuovamente autorizzato prima di leggerne il DOM. Un redirect può già aver avviato richieste di rete verso il sito di arrivo: l'estensione **non può garantire di impedirle**, ma rifiuta la lettura e segnala il confine violato anziché simulare uno snapshot riuscito.
+- **Limitazione LM-002:** manca ancora un inventario visuale completo di tutte le autorizzazioni con revoca granulare da una lista. Non usare su profili produttivi finché il collaudo manuale non è chiuso.
 
 ### Bridge opencode — superficie d'attacco
 

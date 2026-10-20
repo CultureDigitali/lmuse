@@ -128,7 +128,7 @@ export async function runTask(
   }
   const endpoint = providerEndpoint(settings);
   if (!endpoint) throw new Error('Configura un endpoint provider valido prima di avviare il task.');
-  await requireHostAccess(endpoint);
+  await requireHostAccess(endpoint, 'provider');
   const gateway = new PrivacyGateway(settings.privacyMode);
   const protectedPrompt = gateway.protectText(trimmed);
   const model = await createModel(settings, apiKey);

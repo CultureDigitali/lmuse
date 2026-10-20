@@ -239,7 +239,7 @@ async function fetchModels(): Promise<string[]> {
   const settings = await loadSettings();
   const endpoint = providerEndpoint(settings);
   if (!endpoint) throw new Error('Endpoint provider non valido.');
-  await requireHostAccess(endpoint);
+  await requireHostAccess(endpoint, 'provider');
   const def = getProvider(settings.providerId);
   if (!def.defaultBaseUrl && !settings.baseUrl) {
     throw new Error('Questo provider non espone una lista modelli: scrivi il nome a mano.');
@@ -353,7 +353,7 @@ async function testConnection(): Promise<void> {
   const settings = await loadSettings();
   const endpoint = providerEndpoint(settings);
   if (!endpoint) throw new Error('Endpoint provider non valido.');
-  await requireHostAccess(endpoint);
+  await requireHostAccess(endpoint, 'provider');
   const apiKey = await loadApiKey(settings.providerId, settings.rememberKey);
   if (getProvider(settings.providerId).needsKey && !isPlausibleKey(apiKey)) {
     throw new Error('Chiave API mancante o non valida: controllala nelle impostazioni ⚙.');

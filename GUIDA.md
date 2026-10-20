@@ -1,5 +1,7 @@
 ## Privacy Gateway v0.9.0 — beta
 
+**Permessi Chrome per sito e provider (LM-001).** Nelle impostazioni Privacy indica l'URL del sito e premi **Autorizza questo sito in Chrome**, poi premi **Autorizza API del provider** per la connessione del modello. I due pulsanti salvano due autorizzazioni distinte; nessuna concessione avviene semplicemente scrivendo una allowlist. Puoi usare **Revoca permesso sito** e **Revoca API del provider** separatamente. Lo stesso hostname su porte diverse richiede un nuovo permesso locale: Chrome può non mostrare una seconda finestra di conferma poiché il suo permesso è già valido per tutte le porte, ma LMuse conserva il controllo per origin. La funzione **Cancella tutto** elimina anche i permessi applicativi conosciuti.
+
 Apri le impostazioni del pannello e seleziona **Privacy Gateway sul dispositivo**. La modalità **Rigorosa** richiede un elenco di domini consentiti, conferma la prima lettura di ogni origin e chiede approvazione per tutte le azioni operative. Screenshot disattivati. I segnaposto riconosciuti vengono risolti solo sul sito d'origine; il risultato finale viene ripristinato localmente. In assenza di certezza sulla protezione di un documento, non usarlo con dati reali. Per rischi e limiti consulta **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)**.
 
 # lmuse — Guida al progetto

@@ -41,7 +41,7 @@ import { formatElapsed } from '../shared/approval';
 import { estimateTokens, tokenEstimateHigh } from '../shared/budget';
 import { t, type Lang } from '../shared/i18n';
 import { mapBridgeCredentials, matchBridgeProviders } from '../shared/opencode';
-import { hostPattern, providerEndpoint } from '../shared/hostAccess';
+import { forgetHostGrant, hostPattern, providerEndpoint, rememberHostGrant } from '../shared/hostAccess';
 
 interface LogEntry {
   id: number;
@@ -606,6 +606,7 @@ export default function App() {
       if (!origin) throw new Error('Inserisci l’URL HTTP(S) del sito da autorizzare.');
       const granted = await chrome.permissions.request({ origins: [origin] });
       if (!granted) throw new Error('Permesso rifiutato.');
+      await rememberHostGrant(url, 'site');
       setAccessMessage('Accesso Chrome autorizzato per ' + new URL(url).hostname);
     } catch (err) {
       setAccessMessage(String((err as Error).message));
@@ -615,13 +616,11 @@ export default function App() {
   async function revokeCurrentSite() {
     try {
       const url = siteUrlToAuthorize.trim();
-      const origin = hostPattern(url);
-      if (!origin) throw new Error('Inserisci l’URL del sito da revocare.');
-      const revoked = await chrome.permissions.remove({ origins: [origin] });
+      const revoked = await forgetHostGrant(url, 'site');
       setAccessMessage(
         revoked
-          ? 'Accesso Chrome revocato: ' + new URL(url).hostname
-          : 'Nessun permesso revocabile per questo sito.',
+          ? 'Accesso al sito revocato: ' + new URL(url).origin
+          : 'Nessun permesso di sito registrato per questo indirizzo.',
       );
     } catch (err) {
       setAccessMessage(String((err as Error).message));
@@ -635,9 +634,25 @@ export default function App() {
       if (!origin) throw new Error('Imposta prima un URL API provider valido.');
       const granted = await chrome.permissions.request({ origins: [origin] });
       if (!granted) throw new Error('Permesso provider rifiutato.');
+      await rememberHostGrant(endpoint!, 'provider');
       setAccessMessage('Accesso API autorizzato per ' + new URL(endpoint!).hostname);
     } catch (err) {
       setAccessMessage(String((err as Error).message));
+    }
+  }
+
+  async function revokeProvider() {
+    try {
+      const endpoint = providerEndpoint(settings);
+      if (!endpoint) throw new Error('Configura un endpoint provider valido.');
+      const removed = await forgetHostGrant(endpoint, 'provider');
+      setAccessMessage(
+        removed
+          ? 'Autorizzazione API revocata per ' + new URL(endpoint).origin
+          : 'Nessuna autorizzazione API registrata per questo endpoint.',
+      );
+    } catch (error) {
+      setAccessMessage(String((error as Error).message));
     }
   }
 
@@ -1261,6 +1276,9 @@ export default function App() {
             </button>
             <button type="button" className="secondary" onClick={() => void grantProvider()}>
               {lang === 'en' ? 'Allow AI provider API' : 'Autorizza API del provider'}
+            </button>
+            <button type="button" className="secondary" onClick={() => void revokeProvider()}>
+              {lang === 'en' ? 'Revoke AI provider API' : 'Revoca API del provider'}
             </button>
           </div>
           {accessMessage && (

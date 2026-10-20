@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { ApprovalPolicy } from './approval';
 import type { PrivacyMode } from './privacy-gateway';
 import { ACTIVITY_KEY } from './lock';
+import { revokeAllHostGrants } from './hostAccess';
 import type { Schedule } from './schedules';
 
 export type { ApprovalPolicy };
@@ -726,6 +727,7 @@ export async function clearStoredKey(): Promise<void> {
 
 /** Cancella TUTTO: chiave, impostazioni, cronologia, inbox, usage, onboarding, alarms. */
 export async function clearAllData(): Promise<void> {
+  await revokeAllHostGrants();
   await clearStoredKey();
   await chrome.storage.local.remove(KEY_STORE_V2);
   await chrome.storage.session.remove(KEY_STORE_V2);

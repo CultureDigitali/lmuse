@@ -1,5 +1,12 @@
 ## 0.9.0 — Candidato beta (non pubblicato)
 
+### LM-001 — restrizione dei privilegi host (PR #9, in review)
+
+- Rimossa la richiesta obbligatoria `<all_urls>` al primo avvio; host permissions HTTP(S) opzionali.
+- UI per concessione/revoca siti e provider con conferma nativa Chrome; registro secondario di scopo e origin esatto, inclusa porta, per impedire escalation tra API locali e altri siti.
+- Autorizzazioni ricontrollate su contenuti, navigazione, tab e provider. Redirect fuori perimetro segnalati senza lettura di DOM non autorizzati; titolo e URL di tab fuori allowlist nascosti anche nelle modalità non rigorose.
+- Test di regressione, E2E Chrome for Testing con concessione nativa, separazione per porta e revoca. Nessuna garanzia contro richieste HTTP già partite a causa di un redirect.
+
 - Gateway di pseudonimizzazione reversibile, mapping solo RAM per run e origin, con test automatici su email, IBAN, carte, telefoni, token e query secret.
 - Protezione all'uscita di tutti i tool e al prompt; ripristino locale finale e scrittura in pagina soltanto verso il sito origine del dato.
 - Consenso per sito prima di trasmettere il contenuto al provider in modalità rigorosa; screenshot e task senza supervisione bloccati.

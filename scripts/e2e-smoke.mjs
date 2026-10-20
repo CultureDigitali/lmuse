@@ -89,6 +89,39 @@ const check = (name, ok, detail = '') => {
   if (!ok) errors.push(name);
 };
 
+/** Clic reale sul bottone del pannello, senza invocare il relativo handler in JS. */
+async function clickPanelButton(page, labels) {
+  const buttons = await page.$$('button');
+  for (const button of buttons) {
+    const label = await button.evaluate((element) => element.textContent ?? '');
+    if (labels.some((text) => label.includes(text))) {
+      await button.click();
+      return true;
+    }
+  }
+  return false;
+}
+
+async function hostRolePresent(page, origin, purpose) {
+  return page.evaluate(
+    async ({ origin, purpose }) => {
+      const stored = await chrome.storage.local.get('lmuse.hostGrants.v1');
+      return (stored['lmuse.hostGrants.v1'] ?? []).some(
+        (entry) => entry.origin === origin && entry.purpose === purpose,
+      );
+    },
+    { origin, purpose },
+  );
+}
+
+async function waitForHostRole(page, origin, purpose, expected) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    if ((await hostRolePresent(page, origin, purpose)) === expected) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+}
+
 const browser = await puppeteer.launch({
   executablePath,
   headless: false,
@@ -247,6 +280,10 @@ try {
       .catch(() => ['(no UI status)']);
     check('permesso host esplicito concesso dopo gesto UI', grantedOrigin, permissionStatus);
     check('other hostname is NOT granted', !(await checkHostPermission('http://localhost:9999/prova')));
+    check(
+      'site grant saved with exact port and role',
+      await waitForHostRole(permissionPanel, new URL(testUrl).origin, 'site', true),
+    );
     if (!grantedOrigin)
       throw new Error('Permesso host non concesso dalla finestra Chrome: ' + permissionStatus);
     await permissionPanel.close();
@@ -488,6 +525,31 @@ try {
       });
     }, mockBase);
 
+    // Lo stesso hostname con una porta diversa e il ruolo provider NON
+    // eredita automaticamente il grant sito. L'utente deve autorizzarlo
+    // esplicitamente anche se Chrome considera già autorizzato il pattern.
+    const providerOrigin = new URL(mockBase).origin;
+    const preProvider = !(await hostRolePresent(panel, providerOrigin, 'provider'));
+    check('provider on another port is not automatically authorized', preProvider);
+    await panel.reload({ waitUntil: 'domcontentloaded' });
+    await panel.bringToFront();
+    await panel.waitForFunction('document.readyState === "complete" && !!chrome?.runtime?.id', {
+      timeout: 15_000,
+    });
+    await new Promise((r) => setTimeout(r, 1100));
+    if (!(await panel.$(sitePermissionSelector))) {
+      await panel.click('button[aria-label="Impostazioni"],button[aria-label="Settings"]');
+    }
+    await panel.waitForSelector(sitePermissionSelector, { timeout: 15_000 });
+    const providerGrantClicked = await clickPanelButton(panel, [
+      'Autorizza API del provider',
+      'Allow AI provider API',
+    ]);
+    check('provider role request comes from a real panel click', providerGrantClicked);
+    const savedProvider = await waitForHostRole(panel, providerOrigin, 'provider', true);
+    check('provider permission persisted with exact port and purpose', savedProvider);
+    if (!savedProvider) throw new Error('Il pannello non ha registrato la concessione API provider.');
+
     // Si passa una STRINGA, non una funzione: il serializzatore di Puppeteer
     // delle funzioni fallisce con "document is not defined" quando la pagina non
     // è un frame di documento (in CI capita). La forma a stringa è già usata più
@@ -617,19 +679,46 @@ try {
       check("run completo: statistiche d'uso salvate", runs >= 1, `runs=${runs}`);
     }
 
-    // Revoca reale dopo l'uso: il permesso Chrome sparisce, senza toccare
-    // gli altri host e senza degradare i test di concessione/Privacy Gateway.
-    const revokeResult = await panel.evaluate(async (sourceUrl) => {
-      const origin = new URL(sourceUrl);
+    // Revoca del solo SITO tramite UI: il permesso Chrome non può sparire
+    // finché un provider sullo stesso hostname ha ancora una capability valida.
+    await panel.bringToFront();
+    if (!(await panel.$(sitePermissionSelector))) {
+      await panel.click('button[aria-label="Impostazioni"],button[aria-label="Settings"]');
+    }
+    await panel.waitForSelector(sitePermissionSelector, { timeout: 15_000 });
+    await panel.type(sitePermissionSelector, testUrl);
+    check(
+      'pulsante revoca sito disponibile',
+      await clickPanelButton(panel, ['Revoca permesso sito', 'Revoke website permission']),
+    );
+    const siteRoleRevoked = await waitForHostRole(panel, new URL(testUrl).origin, 'site', false);
+    check('site permission revoked in LMuse role registry', siteRoleRevoked);
+    check(
+      'provider grant retained after site revoke',
+      await hostRolePresent(panel, providerOrigin, 'provider'),
+    );
+    const stillPermittedByChrome = await checkHostPermission(testUrl);
+    check('Chrome hostname permission shared with still-authorized provider', stillPermittedByChrome);
+    check(
+      'pulsante revoca API disponibile',
+      await clickPanelButton(panel, ['Revoca API del provider', 'Revoke AI provider API']),
+    );
+    check(
+      'provider role revoked in LMuse registry',
+      await waitForHostRole(panel, providerOrigin, 'provider', false),
+    );
+    const revokeResult = await panel.evaluate(async (url) => {
+      const origin = new URL(url);
       const pattern = origin.protocol + '//' + origin.hostname + '/*';
-      const before = await chrome.permissions.contains({ origins: [pattern] });
-      const removed = await chrome.permissions.remove({ origins: [pattern] });
-      const after = await chrome.permissions.contains({ origins: [pattern] });
-      return { before, removed, after };
+      const all = await chrome.storage.local.get('lmuse.hostGrants.v1');
+      return {
+        roles: all['lmuse.hostGrants.v1'] ?? [],
+        chromeGranted: await chrome.permissions.contains({ origins: [pattern] }),
+      };
     }, testUrl);
     check(
-      'revoca Chrome elimina il permesso host',
-      revokeResult.before && revokeResult.removed && !revokeResult.after,
+      'after last role revoke Chrome eliminates the host permission',
+      !revokeResult.chromeGranted && revokeResult.roles.length === 0,
       JSON.stringify(revokeResult),
     );
     const deniedAfterRevoke = await workerNow.evaluate(async (tabUrl) => {

@@ -9,7 +9,7 @@ import { displayUrl, formatSnapshotHeader } from '../shared/header';
 import { maskPii, maskUrlTokens } from '../shared/pii';
 import { containsStop } from '../shared/task';
 import type { PrivacyGateway } from '../shared/privacy-gateway';
-import { requireHostAccess } from '../shared/hostAccess';
+import { HostAccessDenied, requireHostAccess } from '../shared/hostAccess';
 
 // ---------------------------------------------------------------------------
 // Strato di accesso al browser: i tool dell'agente parlano con il content
@@ -107,6 +107,13 @@ async function getActiveTab(): Promise<chrome.tabs.Tab> {
 
 /** Marchio interno: distingue un rifiuto per allowlist da un errore qualsiasi. */
 const ALLOWLIST_PREFIX = 'ALLOWLIST:';
+
+/** Un fallimento del confine host non è un semplice snapshot momentaneamente indisponibile. */
+function isSecurityBoundaryError(error: unknown): boolean {
+  if (error instanceof HostAccessDenied) return true;
+  if (!(error instanceof Error)) return false;
+  return error.message.startsWith(ALLOWLIST_PREFIX) || error.message.startsWith('Privacy Gateway:');
+}
 
 /**
  * Applica il confine "Domini consentiti" al tab su cui si va ad agire.
@@ -511,7 +518,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       if (error instanceof Error && error.message.startsWith(STOP_TEXT_PREFIX)) throw error;
       // Un rifiuto per confine di sicurezza non è un "prova un nuovo snapshot":
       // la pagina è fuori dai domini consentiti e va detto chiaramente all'agente.
-      if (error instanceof Error && error.message.startsWith(ALLOWLIST_PREFIX)) throw error;
+      if (isSecurityBoundaryError(error)) throw error;
       return { observation: `${message} Fai un nuovo snapshot per vedere il risultato.` };
     }
   }
@@ -570,6 +577,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           await waitForTabComplete(tab.id);
           await new Promise((r) => setTimeout(r, 800));
           try {
+            const landed = await chrome.tabs.get(tab.id);
+            assertTabAllowed(landed, cfg.allowedDomains);
+            await requireHostAccess(landed.url ?? '');
             const fresh = await snapshotTab(tab.id, snapOpts, sendToTab);
             trackDomain(target);
             const final = (await chrome.tabs.get(tab.id)).url ?? '';
@@ -586,7 +596,8 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
               })();
             const note = final && !samePath ? ` (redirect: URL finale ${final})` : '';
             return { observation: `Navigato a ${target}${note}.\n\nNuovo snapshot:\n${fresh}` };
-          } catch {
+          } catch (error) {
+            if (isSecurityBoundaryError(error)) throw error;
             return {
               observation: `Navigato a ${target}, ma il content script non è raggiungibile in questa pagina.`,
             };
@@ -1087,6 +1098,12 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
                   )
                 : false;
               if (!patternAllowed) return '#' + t.id + ' [senza permesso Chrome]';
+              // L'allowlist è una seconda barriera indipendente dai permessi
+              // Chrome. Non divulgare URL o titoli fuori lista neppure quando
+              // la modalità Privacy Gateway è pseudonymize oppure off.
+              if (cfg.allowedDomains.trim() && !isAllowedHost(t.url ?? '', cfg.allowedDomains)) {
+                return '#' + t.id + ' [fuori dai domini consentiti]';
+              }
               if (privacyActive && cfg.privacyGateway!.mode === 'strict') {
                 const allowed =
                   /^https?:/i.test(t.url ?? '') && isAllowedHost(t.url ?? '', cfg.allowedDomains);
@@ -1102,10 +1119,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
                 hostOnly: cfg.hostOnly,
               });
               const base = `#${t.id} "${privacyActive ? title : cfg.maskPii ? maskPii(title) : title}" ${url}`;
-              // Con allowlist impostata, i tab fuori perimetro restano elencati ma
-              // marcati: il modello deve sapere che non può agirci.
-              const out = cfg.allowedDomains.trim() && !isAllowedHost(t.url ?? '', cfg.allowedDomains);
-              return out ? `${base} [FUORI ALLOWLIST: non agire]` : base;
+              return base;
             }),
           );
           return { observation: truncate(lines.join('\n') || 'Nessun tab.', 2000) };
@@ -1144,7 +1158,8 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           try {
             const fresh = await snapshotTab(tabId, snapOpts, sendToTab);
             return { observation: `Focus sul tab "${tab.title}".\n\nNuovo snapshot:\n${fresh}` };
-          } catch {
+          } catch (error) {
+            if (isSecurityBoundaryError(error)) throw error;
             return { observation: 'Focus sul tab eseguito. Content script non raggiungibile qui.' };
           }
         });
@@ -1168,11 +1183,12 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           }
           if (dup?.id == null) throw new Error('Duplicazione fallita.');
           await waitForTabComplete(dup.id, 5_000);
-          trackDomain(dup.url);
           try {
             const fresh = await snapshotTab(dup.id, snapOpts, sendToTab);
+            trackDomain(dup.url);
             return { observation: `Tab duplicato (#${dup.id}).\n\nNuovo snapshot:\n${fresh}` };
-          } catch {
+          } catch (error) {
+            if (isSecurityBoundaryError(error)) throw error;
             return { observation: `Tab duplicato (#${dup.id}). Content script non raggiungibile qui.` };
           }
         });
