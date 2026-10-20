@@ -151,7 +151,7 @@ const browser = await puppeteer.launch({
     '--no-default-browser-check',
     '--no-sandbox',
     '--disable-dev-shm-usage',
-    `--user-data-dir=${join(root, '.e2e-profile')}`,
+    `--user-data-dir=${nativeBrowserHome ? join(nativeBrowserHome, '.config', 'google-chrome-for-testing') : join(root, '.e2e-profile')}`,
   ],
 });
 
