@@ -215,6 +215,7 @@ try {
     // Il runner Xvfb invia UNA conferma reale via X11, mai via API/fixture bypass.
     if (process.env.LMUSE_E2E_NATIVE_GRANT === '1') {
       try {
+        await new Promise((r) => setTimeout(r, 600));
         console.log(
           'e2e Chrome native active window:',
           execFileSync('xdotool', ['getactivewindow', 'getwindowname'], { encoding: 'utf8' }).trim(),
@@ -233,8 +234,10 @@ try {
       await new Promise((r) => setTimeout(r, 250));
     }
     const permissionStatus = await permissionPanel
-      .$eval('[role="status"]', (node) => node.textContent ?? '')
-      .catch(() => '(no UI status)');
+      .evaluate(() =>
+        [...document.querySelectorAll('[role="status"]')].map((node) => node.textContent?.trim()),
+      )
+      .catch(() => ['(no UI status)']);
     check('permesso host esplicito concesso dopo gesto UI', grantedOrigin, permissionStatus);
     check('other hostname is NOT granted', !(await checkHostPermission('http://localhost:9999/prova')));
     if (!grantedOrigin)

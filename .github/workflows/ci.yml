@@ -49,8 +49,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: install native UI test driver
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq xdotool
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xdotool openbox
       - name: install browser di test
         run: |
           node --input-type=module -e "import {install, Browser} from '@puppeteer/browsers'; import {homedir} from 'node:os'; import {join} from 'node:path'; import {readFileSync} from 'node:fs'; const v = readFileSync('scripts/e2e-smoke.mjs', 'utf8').match(/BROWSER_VERSION = '([^']+)'/)[1]; await install({browser: Browser.CHROME, buildId: v, cacheDir: join(homedir(), '.cache', 'puppeteer')}); console.log('browser', v, 'ok');"
-      - run: xvfb-run -a pnpm test:e2e
+      - name: Run Chrome E2E with a window manager
+        run: |
+          xvfb-run -a bash -euo pipefail -c '
+            openbox >/tmp/lmuse-openbox.log 2>&1 &
+            wm_pid=$!
+            trap "kill $wm_pid 2>/dev/null || true" EXIT
+            sleep 1
+            pnpm test:e2e
+          '
