@@ -1,3 +1,7 @@
+## Privacy Gateway v0.9.0 — beta
+
+Apri le impostazioni del pannello e seleziona **Privacy Gateway sul dispositivo**. La modalità **Rigorosa** richiede un elenco di domini consentiti, conferma la prima lettura di ogni origin e chiede approvazione per tutte le azioni operative. Screenshot disattivati. I segnaposto riconosciuti vengono risolti solo sul sito d'origine; il risultato finale viene ripristinato localmente. In assenza di certezza sulla protezione di un documento, non usarlo con dati reali. Per rischi e limiti consulta **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)**.
+
 # lmuse — Guida al progetto
 
 Estensione Chrome (Manifest V3) che fa usare il browser a un'AI per svolgere task e operazioni,
