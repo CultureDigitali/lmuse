@@ -15,11 +15,13 @@ const SEEN: ApprovalContext = { seenDomains: ['example.com'], trustedDomains: []
 const TRUSTED: ApprovalContext = { seenDomains: [], trustedDomains: ['fidato.test'] };
 
 describe('shouldApprove', () => {
-  it('policy off: niente approval tranne safety floor', () => {
+  it('policy off: letture senza approval, click e digitazione protetti da safety floor', () => {
     expect(shouldApprove('browser_navigate', { url: 'https://nuovo.test/' }, 'off', EMPTY).needed).toBe(
       false,
     );
     expect(shouldApprove('browser_snapshot', {}, 'off', EMPTY).needed).toBe(false);
+    expect(shouldApprove('browser_click', { ref: 1 }, 'off', EMPTY).needed).toBe(true);
+    expect(shouldApprove('browser_type', { ref: 1, text: 'x' }, 'off', EMPTY).needed).toBe(true);
   });
   it('safety floor: type+submit sempre approvato anche con off', () => {
     const d = shouldApprove('browser_type', { ref: 1, text: 'x', submit: true }, 'off', EMPTY);
@@ -37,9 +39,9 @@ describe('shouldApprove', () => {
       shouldApprove('browser_navigate', { url: 'https://sub.example.com/a' }, 'sensitive', SEEN).needed,
     ).toBe(true);
   });
-  it('sensitive: tab_focus sì, click/scroll/snapshot no', () => {
+  it('sensitive: tab_focus e click sì, scroll e snapshot no', () => {
     expect(shouldApprove('browser_tab_focus', { tabId: 3 }, 'sensitive', EMPTY).needed).toBe(true);
-    expect(shouldApprove('browser_click', { ref: 2 }, 'sensitive', EMPTY).needed).toBe(false);
+    expect(shouldApprove('browser_click', { ref: 2 }, 'sensitive', EMPTY).needed).toBe(true);
     expect(shouldApprove('browser_snapshot', {}, 'sensitive', EMPTY).needed).toBe(false);
   });
   it('sensitive: select e reload sì, wait/press/read no', () => {
@@ -54,11 +56,14 @@ describe('shouldApprove', () => {
     expect(shouldApprove('browser_clipboard_read', {}, 'sensitive', EMPTY).needed).toBe(true);
     expect(shouldApprove('browser_iframe_snapshot', { index: 0 }, 'sensitive', EMPTY).needed).toBe(false);
   });
-  it('click e clipboard_write NON chiedono conferma con sensitive (solo con all)', () => {
-    expect(shouldApprove('browser_click', { ref: 1 }, 'sensitive', EMPTY).needed).toBe(false);
-    expect(shouldApprove('browser_clipboard_write', { text: 'x' }, 'sensitive', EMPTY).needed).toBe(false);
+  it('click e clipboard_write richiedono conferma anche con sensitive', () => {
+    expect(shouldApprove('browser_click', { ref: 1 }, 'sensitive', EMPTY).needed).toBe(true);
+    expect(shouldApprove('browser_clipboard_write', { text: 'x' }, 'sensitive', EMPTY).needed).toBe(true);
     expect(shouldApprove('browser_click', { ref: 1 }, 'all', EMPTY).needed).toBe(true);
     expect(shouldApprove('browser_clipboard_write', { text: 'x' }, 'all', EMPTY).needed).toBe(true);
+    expect(shouldApprove('browser_tab_close', { tabId: 1 }, 'off', EMPTY).needed).toBe(false);
+    expect(shouldApprove('browser_tab_close', { tabId: 1 }, 'sensitive', EMPTY).needed).toBe(true);
+    expect(shouldApprove('browser_screenshot', {}, 'all', EMPTY).needed).toBe(true);
   });
   it('all: tutto tranne snapshot, iframe_snapshot, tabs_list e wait', () => {
     expect(shouldApprove('browser_click', { ref: 1 }, 'all', EMPTY).needed).toBe(true);
