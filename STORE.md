@@ -63,16 +63,16 @@ Ollama / LM Studio). lmuse non include chiavi e non rivende accesso ai modelli.
 
 ## Giustificazione permessi (una per campo della dashboard)
 
-| Permesso | Testo da incollare |
-| --- | --- |
-| `storage` | Salva impostazioni e chiavi API esclusivamente sul dispositivo dell'utente (`chrome.storage`), senza inviarle a server dello sviluppatore. |
-| `scripting` | Inietta il content script solo quando l'utente avvia un task, per leggere la pagina e compiere l'azione richiesta. Nessuna iniezione a riposo. |
-| `tabs` | Legge URL/titolo della scheda attiva e può elencare, attivare, duplicare o chiudere schede quando il task lo richiede. |
-| `activeTab` | Opera sulla scheda attiva al momento dell'azione dell'utente, senza accesso preventivo. |
-| `sidePanel` | Mostra l'interfaccia dell'agente nel pannello laterale di Chrome. |
-| `alarms` | Esegue i task programmati dall'utente (intervalli ≥ 60 minuti, massimo 5, solo locali). |
+| Permesso          | Testo da incollare                                                                                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `storage`         | Salva impostazioni e chiavi API esclusivamente sul dispositivo dell'utente (`chrome.storage`), senza inviarle a server dello sviluppatore.                                                                                                       |
+| `scripting`       | Inietta il content script solo quando l'utente avvia un task, per leggere la pagina e compiere l'azione richiesta. Nessuna iniezione a riposo.                                                                                                   |
+| `tabs`            | Legge URL/titolo della scheda attiva e può elencare, attivare, duplicare o chiudere schede quando il task lo richiede.                                                                                                                           |
+| `activeTab`       | Opera sulla scheda attiva al momento dell'azione dell'utente, senza accesso preventivo.                                                                                                                                                          |
+| `sidePanel`       | Mostra l'interfaccia dell'agente nel pannello laterale di Chrome.                                                                                                                                                                                |
+| `alarms`          | Esegue i task programmati dall'utente (intervalli ≥ 60 minuti, massimo 5, solo locali).                                                                                                                                                          |
 | `nativeMessaging` | Comunica con il bridge opencode, installato separatamente e su scelta dell'utente (`pnpm setup:opencode`), che legge in locale `~/.local/share/opencode/auth.json` e non usa la rete. Se il bridge non è installato il permesso non viene usato. |
-| Host `<all_urls>` | L'agente deve poter operare sui siti che l'utente gli indica. Il perimetro è restringibile con l'elenco “Domini consentiti”; non c'è raccolta dati in background. |
+| Host `<all_urls>` | L'agente deve poter operare sui siti che l'utente gli indica. Il perimetro è restringibile con l'elenco “Domini consentiti”; non c'è raccolta dati in background.                                                                                |
 
 ## Single purpose (dashboard)
 

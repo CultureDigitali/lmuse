@@ -1200,9 +1200,13 @@ export default function App() {
               value={settings.privacyMode}
               onChange={(e) => update({ privacyMode: e.target.value as Settings['privacyMode'] })}
             >
-              <option value="strict">{lang === 'en' ? 'Strict (recommended)' : 'Rigorosa (consigliata)'}</option>
+              <option value="strict">
+                {lang === 'en' ? 'Strict (recommended)' : 'Rigorosa (consigliata)'}
+              </option>
               <option value="pseudonymize">{lang === 'en' ? 'Pseudonymize' : 'Pseudonimizzazione'}</option>
-              <option value="off">{lang === 'en' ? 'Off — unprotected' : 'Disattivata — senza protezione'}</option>
+              <option value="off">
+                {lang === 'en' ? 'Off — unprotected' : 'Disattivata — senza protezione'}
+              </option>
             </select>
           </label>
           <p className="muted">
@@ -1211,10 +1215,18 @@ export default function App() {
               : 'I segnaposto reversibili restano solo in memoria. Screenshot bloccati nelle modalità protette. Testi liberi e identità possono ancora essere dedotti dal contesto.'}
           </p>
           {settings.privacyMode === 'off' && (
-            <p className="warn">{lang === 'en' ? 'Warning: page content can reach the provider in clear text.' : 'Attenzione: i contenuti delle pagine possono raggiungere il provider in chiaro.'}</p>
+            <p className="warn">
+              {lang === 'en'
+                ? 'Warning: page content can reach the provider in clear text.'
+                : 'Attenzione: i contenuti delle pagine possono raggiungere il provider in chiaro.'}
+            </p>
           )}
           {settings.privacyMode === 'strict' && !settings.allowedDomains.trim() && (
-            <p className="warn">{lang === 'en' ? 'Set allowed domains before starting a task.' : 'Inserisci i domini consentiti prima di avviare un task.'}</p>
+            <p className="warn">
+              {lang === 'en'
+                ? 'Set allowed domains before starting a task.'
+                : 'Inserisci i domini consentiti prima di avviare un task.'}
+            </p>
           )}
           <label>
             {t(lang, 'approval_label')}

@@ -73,9 +73,7 @@ describe('PrivacyGateway — isolamento dati verso LLM', () => {
     const protectedOutput = gateway.protectUnknown(output, PAGE_A);
     expect(JSON.stringify(protectedOutput)).not.toContain('mario@example.it');
     expect(protectedOutput.ok).toBe(true);
-    expect(protectedOutput.links[0].text).toEqual(
-      protectedOutput.observation.replace('Contatto ', ''),
-    );
+    expect(protectedOutput.links[0].text).toEqual(protectedOutput.observation.replace('Contatto ', ''));
   });
 
   it('svuota la mappa alla fine del run', () => {

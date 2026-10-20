@@ -25,7 +25,7 @@ pubblica. La parte dashboard richiede il tuo account: non è automatizzabile.
    - Data usage: nessuna raccolta da parte dello sviluppatore; chiave e contenuti
      restano locali e vanno solo al provider scelto.
    - Remote code: **No**.
-6. **Visibility**: `Unlisted` (non “Public”). Nella sezione *Trusted testers*
+6. **Visibility**: `Unlisted` (non “Public”). Nella sezione _Trusted testers_
    inserisci le email delle persone che devono provarlo (max 100).
 7. **Submit for review**. La prima revisione richiede in genere 1–7 giorni.
 
@@ -53,7 +53,7 @@ Passa a pubblico solo se, nei test:
 - [ ] nessun difetto aperto di severità alta;
 - [ ] recensione privacy/permessi coerente con il comportamento osservato.
 
-Poi: dashboard → *Visibility* → **Public** → *Submit for review*.
+Poi: dashboard → _Visibility_ → **Public** → _Submit for review_.
 
 ## 4. Note specifiche BYOK
 

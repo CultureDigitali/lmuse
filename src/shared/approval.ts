@@ -68,7 +68,10 @@ export function shouldApprove(
     return { needed: true, reason: 'Click su elemento (può inviare o eliminare dati)' };
   }
   if (toolName === 'browser_type') {
-    return { needed: true, reason: input['submit'] === true ? 'Digitazione e invio form' : 'Digitazione in pagina' };
+    return {
+      needed: true,
+      reason: input['submit'] === true ? 'Digitazione e invio form' : 'Digitazione in pagina',
+    };
   }
   if (policy === 'off') return { needed: false, reason: '' };
   if (policy === 'all' && !READONLY_TOOLS.has(toolName)) {
@@ -94,7 +97,10 @@ export function shouldApprove(
     return { needed: true, reason: 'Ricarica pagina (perde lo stato dei form)' };
   }
   if (toolName === 'browser_clipboard_write' || toolName === 'browser_tab_close') {
-    return { needed: true, reason: toolName === 'browser_tab_close' ? 'Chiusura scheda' : 'Modifica appunti' };
+    return {
+      needed: true,
+      reason: toolName === 'browser_tab_close' ? 'Chiusura scheda' : 'Modifica appunti',
+    };
   }
   if (toolName === 'browser_download') {
     return { needed: true, reason: 'Download di un file dal sito' };

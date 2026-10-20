@@ -92,8 +92,9 @@ export class PrivacyGateway {
   protectText(text: string, sourceUrl?: string): string {
     if (this.mode === 'off' || !text) return text;
     if (text.length > MAX_TEXT) throw new Error('Privacy Gateway: contenuto troppo grande, invio bloccato.');
-    let result = text.replace(QUERY_SECRETS, (_match, prefix: string, value: string) =>
-      prefix + this.replace(value, 'QUERY', sourceUrl),
+    let result = text.replace(
+      QUERY_SECRETS,
+      (_match, prefix: string, value: string) => prefix + this.replace(value, 'QUERY', sourceUrl),
     );
     for (const { kind, re } of PATTERNS) {
       result = result.replace(re, (value) => this.replace(value, kind, sourceUrl));

@@ -82,7 +82,6 @@ export function hoverElement(el: Element): void {
   el.dispatchEvent(new MouseEvent('mouseenter', { ...opts, bubbles: false }));
 }
 
-
 /** Gli agenti non devono aprire picker di file tramite input/label DOM. */
 export function assertNoFileUploadTarget(el: Element): void {
   const direct = el instanceof HTMLInputElement && el.type === 'file';

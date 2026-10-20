@@ -359,7 +359,9 @@ describe('TOCTOU: cambio di scheda durante la conferma (regressione)', () => {
       return true;
     });
     const { tools } = createBrowserTools(baseConfig({ policy: 'all', requestApproval }));
-    await expect(tools.browser_click.execute({ ref: 1 }, {} as never)).rejects.toThrow(/cambiata.*pagina|cambiata.*scheda/);
+    await expect(tools.browser_click.execute({ ref: 1 }, {} as never)).rejects.toThrow(
+      /cambiata.*pagina|cambiata.*scheda/,
+    );
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
@@ -432,18 +434,23 @@ describe('il testo copiato negli appunti non finisce nel log (regressione)', () 
   });
 });
 
-
 describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
   it('senza consenso di lettura non acquisisce né passa lo snapshot al modello', async () => {
     const gateway = new PrivacyGateway('strict');
     const requestApproval = vi.fn(async () => false);
     sendMessage.mockResolvedValue({ ok: true, tree: 'mario@example.it' });
-    const { tools } = createBrowserTools(baseConfig({
-      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
-    }));
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
     await expect(tools.browser_snapshot.execute({}, {} as never)).rejects.toThrow();
     expect(requestApproval).toHaveBeenCalledWith(
-      'browser_data_disclosure', expect.stringContaining('pseudonimizzato'), expect.any(String),
+      'browser_data_disclosure',
+      expect.stringContaining('pseudonimizzato'),
+      expect.any(String),
     );
     expect(sendMessage).not.toHaveBeenCalled();
   });
@@ -452,11 +459,15 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
     const gateway = new PrivacyGateway('strict');
     const requestApproval = vi.fn(async () => true);
     sendMessage.mockResolvedValue({ ok: true, tree: '[0] link "mario@example.it"' });
-    const { tools } = createBrowserTools(baseConfig({
-      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
-    }));
-    const one = await tools.browser_snapshot.execute({}, {} as never) as { observation: string };
-    const two = await tools.browser_snapshot.execute({}, {} as never) as { observation: string };
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
+    const one = (await tools.browser_snapshot.execute({}, {} as never)) as { observation: string };
+    const two = (await tools.browser_snapshot.execute({}, {} as never)) as { observation: string };
     expect(one.observation).not.toContain('mario@example.it');
     expect(one.observation).toMatch(/\[LMUSE_EMAIL_[a-p]{24}\]/);
     expect(two.observation).toBe(one.observation);
@@ -467,9 +478,12 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
     const gateway = new PrivacyGateway('strict');
     const token = gateway.protectText('mario@example.it', 'https://esempio.it/pagina');
     sendMessage.mockResolvedValue({ ok: true, tree: 'Fatto' });
-    const { tools } = createBrowserTools(baseConfig({
-      privacyGateway: gateway, allowedDomains: 'esempio.it',
-    }));
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+      }),
+    );
     await tools.browser_type.execute({ ref: 2, text: token }, {} as never);
     const payloads = sendMessage.mock.calls.map((x) => x[1] as { kind: string; text?: string });
     expect(payloads.find((x) => x.kind === 'LMUSE_TYPE')?.text).toBe('mario@example.it');
@@ -478,9 +492,12 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
   it('rifiuta l inserimento di un token in un sito diverso', async () => {
     const gateway = new PrivacyGateway('strict');
     const token = gateway.protectText('mario@example.it', 'https://altro.example.test/');
-    const { tools } = createBrowserTools(baseConfig({
-      privacyGateway: gateway, allowedDomains: 'esempio.it',
-    }));
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+      }),
+    );
     await expect(tools.browser_type.execute({ ref: 2, text: token }, {} as never)).rejects.toThrow();
     expect(sendMessage).not.toHaveBeenCalled();
   });
@@ -489,9 +506,12 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
     const gateway = new PrivacyGateway('strict');
     const capture = vi.mocked(chrome.tabs.captureVisibleTab);
     capture.mockClear();
-    const { tools } = createBrowserTools(baseConfig({
-      privacyGateway: gateway, sendScreenshots: true,
-    }));
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        sendScreenshots: true,
+      }),
+    );
     await expect(tools.browser_screenshot.execute({}, {} as never)).rejects.toThrow(/screenshot/i);
     expect(capture).not.toHaveBeenCalled();
   });
@@ -503,10 +523,13 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
       { id: 9, url: 'https://esempio.it/pagina?token=SEGRETO', title: 'Clienti molto riservati' },
       { id: 10, url: 'https://mail.altro.test/inbox', title: 'Private personal mail' },
     ] as chrome.tabs.Tab[]);
-    const { tools } = createBrowserTools(baseConfig({
-      privacyGateway: gateway, allowedDomains: 'esempio.it',
-    }));
-    const result = await tools.browser_tabs_list.execute({}, {} as never) as { observation: string };
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+      }),
+    );
+    const result = (await tools.browser_tabs_list.execute({}, {} as never)) as { observation: string };
     expect(result.observation).toContain('esempio.it');
     expect(result.observation).not.toContain('SEGRETO');
     expect(result.observation).not.toContain('Clienti molto riservati');

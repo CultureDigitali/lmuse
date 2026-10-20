@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_WAIT_MS, describeFocused, hoverElement, selectOption, waitFor, assertNoFileUploadTarget } from './actions';
+import {
+  MAX_WAIT_MS,
+  describeFocused,
+  hoverElement,
+  selectOption,
+  waitFor,
+  assertNoFileUploadTarget,
+} from './actions';
 
 describe('selectOption', () => {
   it('seleziona per valore e conferma selectedIndex + change', () => {
@@ -82,7 +89,6 @@ describe('hoverElement', () => {
     expect(onDoc).toHaveBeenCalledTimes(1);
   });
 });
-
 
 describe('blocco upload file automatici', () => {
   it('rifiuta un input file e un label associato', () => {

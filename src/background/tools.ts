@@ -432,13 +432,19 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       .query({ active: true, lastFocusedWindow: true })
       .then((t) => t[0] ?? null)
       .catch(() => null);
-    if (!current || current.id !== approvedTabId ||
-        (approvedTabUrl != null && current.url !== approvedTabUrl)) {
+    if (
+      !current ||
+      current.id !== approvedTabId ||
+      (approvedTabUrl != null && current.url !== approvedTabUrl)
+    ) {
       const stale = approvedTabId;
       approvedTabId = null;
       approvedTabUrl = null;
-      throw new Error('Durante la conferma è cambiata la scheda o la pagina (#' + stale +
-        '): azione bloccata. Ripeti il comando.');
+      throw new Error(
+        'Durante la conferma è cambiata la scheda o la pagina (#' +
+          stale +
+          '): azione bloccata. Ripeti il comando.',
+      );
     }
   }
 
@@ -697,7 +703,10 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
           const realText = privacyActive ? cfg.privacyGateway!.restoreForPage(text, tab.url ?? '') : text;
-          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_CLIPBOARD_WRITE', text: realText });
+          const res = await sendToTab<SnapshotResult>(tab.id, {
+            kind: 'LMUSE_CLIPBOARD_WRITE',
+            text: realText,
+          });
           if (!res.ok) throw new Error(res.error ?? 'Scrittura appunti fallita (permesso?).');
           return acted(tab.id, `Testo copiato negli appunti della pagina (${text.length} caratteri).`);
         });
@@ -744,7 +753,11 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           if (!res.ok || typeof res.tree !== 'string' || !res.tree.trim()) {
             throw new Error(res.error ?? 'Snapshot iframe fallito.');
           }
-          const tree = privacyActive ? cfg.privacyGateway!.protectText(res.tree, tab.url) : cfg.maskPii ? maskPii(res.tree) : res.tree;
+          const tree = privacyActive
+            ? cfg.privacyGateway!.protectText(res.tree, tab.url)
+            : cfg.maskPii
+              ? maskPii(res.tree)
+              : res.tree;
           const idx = index ?? 0;
           // L'indice dell'iframe va detto all'agente: i ref ricominciano da 0 in
           // ogni documento, quindi i tool successivi devono specificare da quale
@@ -1008,12 +1021,17 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           const lines = tabs.map((t) => {
             if (privacyActive && cfg.privacyGateway!.mode === 'strict') {
               const allowed = /^https?:/i.test(t.url ?? '') && isAllowedHost(t.url ?? '', cfg.allowedDomains);
-              return allowed ? '#' + t.id + ' ' + (extractDomain(t.url ?? '') ?? '(sconosciuto)') + ' [solo dominio]' : '#' + t.id + ' [fuori perimetro]';
+              return allowed
+                ? '#' + t.id + ' ' + (extractDomain(t.url ?? '') ?? '(sconosciuto)') + ' [solo dominio]'
+                : '#' + t.id + ' [fuori perimetro]';
             }
             const title = (t.title ?? '').slice(0, 60);
             // Stessa regola degli altri percorsi: con hostOnly via solo
             // origin+path, mai la query string.
-            const url = displayUrl(t.url, { maskPiiEnabled: privacyActive ? false : cfg.maskPii, hostOnly: cfg.hostOnly });
+            const url = displayUrl(t.url, {
+              maskPiiEnabled: privacyActive ? false : cfg.maskPii,
+              hostOnly: cfg.hostOnly,
+            });
             const base = `#${t.id} "${privacyActive ? title : cfg.maskPii ? maskPii(title) : title}" ${url}`;
             // Con allowlist impostata, i tab fuori perimetro restano elencati ma
             // marcati: il modello deve sapere che non può agirci.
@@ -1108,7 +1126,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
             mode: mode ?? 'full',
           });
           if (!res.ok) throw new Error(res.error ?? 'Lettura testo fallita.');
-          const text = privacyActive ? cfg.privacyGateway!.protectText(res.text ?? '(vuoto)', tab.url) : (res.text ?? '(vuoto)');
+          const text = privacyActive
+            ? cfg.privacyGateway!.protectText(res.text ?? '(vuoto)', tab.url)
+            : (res.text ?? '(vuoto)');
           return { observation: checkStop(truncateTo(text, 8000)) };
         }),
     }),
@@ -1127,11 +1147,22 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
             // displayUrl, non la sola redazione dei token: con hostOnly la
             // query string (spesso un identificativo di sessione) non deve
             // arrivare al modello da nessun percorso.
-            const href = displayUrl(l.href, { maskPiiEnabled: privacyActive ? false : cfg.maskPii, hostOnly: cfg.hostOnly });
-            return privacyActive ? `- ${l.text} → ${href}` : cfg.maskPii ? `- ${maskPii(l.text)} → ${href}` : `- ${l.text} → ${href}`;
+            const href = displayUrl(l.href, {
+              maskPiiEnabled: privacyActive ? false : cfg.maskPii,
+              hostOnly: cfg.hostOnly,
+            });
+            return privacyActive
+              ? `- ${l.text} → ${href}`
+              : cfg.maskPii
+                ? `- ${maskPii(l.text)} → ${href}`
+                : `- ${l.text} → ${href}`;
           });
           const links = lines.join('\n') || 'Nessun link.';
-          return { observation: checkStop(truncateTo(privacyActive ? cfg.privacyGateway!.protectText(links, tab.url) : links, 6000)) };
+          return {
+            observation: checkStop(
+              truncateTo(privacyActive ? cfg.privacyGateway!.protectText(links, tab.url) : links, 6000),
+            ),
+          };
         }),
     }),
 
