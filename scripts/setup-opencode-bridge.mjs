@@ -87,6 +87,8 @@ function hostDirs() {
   if (os === 'darwin') {
     return [
       join(home, 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts'),
+      // Chrome for Testing >=146 usa una directory host distinta da Chrome Stable.
+      join(home, 'Library', 'Application Support', 'Google', 'ChromeForTesting', 'NativeMessagingHosts'),
       join(home, 'Library', 'Application Support', 'Chromium', 'NativeMessagingHosts'),
       join(home, 'Library', 'Application Support', 'Microsoft Edge', 'NativeMessagingHosts'),
     ];
@@ -94,6 +96,7 @@ function hostDirs() {
   if (os === 'linux') {
     return [
       join(home, '.config', 'google-chrome', 'NativeMessagingHosts'),
+      join(home, '.config', 'google-chrome-for-testing', 'NativeMessagingHosts'),
       join(home, '.config', 'chromium', 'NativeMessagingHosts'),
       join(home, '.config', 'microsoft-edge', 'NativeMessagingHosts'),
     ];

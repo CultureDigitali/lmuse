@@ -44,6 +44,9 @@ piccolo launcher .NET e registra il percorso del manifest nel registro **HKCU**
 di Chrome/Chromium/Edge, senza privilegi amministrativi. Richiede Node e, su
 Windows, PowerShell/.NET Framework. Il dry-run usa esclusivamente una directory
 temporanea, senza modificare il browser o leggere credenziali reali.
+Su macOS e Linux il setup registra anche il manifest separato di
+**Chrome for Testing** (versioni 146+), per consentire collaudi E2E isolati
+con una home temporanea.
 
 Il bridge (`native/lmuse-opencode-bridge.mjs`) legge `~/.local/share/opencode/auth.json`
 e restituisce all'estensione solo i provider compatibili (NVIDIA, OpenAI, Anthropic,

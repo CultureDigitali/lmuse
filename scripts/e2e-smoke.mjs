@@ -227,7 +227,7 @@ try {
         const hostManifest = join(
           nativeBrowserHome,
           '.config',
-          'google-chrome',
+          'google-chrome-for-testing',
           'NativeMessagingHosts',
           'it.lmuse.opencode_bridge.json',
         );

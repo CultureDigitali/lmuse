@@ -66,6 +66,10 @@ sono create solo lanciando intenzionalmente il setup. La modalità `--dry-run`
 crea file soltanto in una directory temporanea e non tocca Chrome/Edge o il registro.
 I test eseguono il launcher vero con credenziali **sintetiche**, controllando
 `ping`, `list`, `export`, framing e pinning senza accedere ad auth.json reale.
+Su macOS/Linux, Chrome for Testing 146+ richiede una directory
+`NativeMessagingHosts` distinta da Chrome Stable; il setup scrive entrambi
+i manifest limitati al medesimo ID. La CI prova la chiamata effettiva da
+Chrome for Testing con una home provvisoria e credenziali sintetiche.
 Il native bridge può esporre credenziali al pannello solo tramite il comando
 `export`: trattare import e ambiente Chrome come operazioni sensibili.
 

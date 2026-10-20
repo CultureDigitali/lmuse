@@ -9,8 +9,10 @@
   revocabili con `--uninstall`; `--dry-run` usa una directory temporanea.
 - Test di integrazione con native host vero e credenziali sintetiche per i comandi
   `ping/list/export`, framing byte-for-byte e assenza di chiavi nel list.
+- Manifest anche per Chrome for Testing 146+ (percorsi separati su macOS/Linux)
+  e prova E2E Chrome → native host con HOME isolata e dati fittizi.
 
-### LM-001 — restrizione dei privilegi host (PR #9, in review)
+### LM-001 — restrizione dei privilegi host (PR #9 incorporata)
 
 - Rimossa la richiesta obbligatoria `<all_urls>` al primo avvio; host permissions HTTP(S) opzionali.
 - UI per concessione/revoca siti e provider con conferma nativa Chrome; registro secondario di scopo e origin esatto, inclusa porta, per impedire escalation tra API locali e altri siti.
@@ -23,7 +25,7 @@
 - Safety floor per click, digitazione, clipboard e screenshot; approvazione legata a URL e tab, consumata dopo una sola azione.
 - Blocchi su input file e label; impostazioni privacy predefinite più sicure, pannello con nuova modalità.
 - E2E verifica che il mock provider riceva il token e non l'email, con esecuzione dell'agente obbligatoria.
-- **Limiti:** niente anonimizzazione universale per file binari/testo libero, permesso host globale ancora da restringere, beta non pronta per profilo reale.
+- **Limiti:** niente anonimizzazione universale per file binari/testo libero; la beta non è pronta per profili reali.
 
 # Changelog — lmuse
 
