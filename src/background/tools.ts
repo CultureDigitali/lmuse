@@ -8,6 +8,7 @@ import { extractDomain, shouldApprove, type ApprovalContext, type ApprovalPolicy
 import { displayUrl, formatSnapshotHeader } from '../shared/header';
 import { maskPii, maskUrlTokens } from '../shared/pii';
 import { containsStop } from '../shared/task';
+import type { PrivacyGateway } from '../shared/privacy-gateway';
 
 // ---------------------------------------------------------------------------
 // Strato di accesso al browser: i tool dell'agente parlano con il content
@@ -20,6 +21,8 @@ import { containsStop } from '../shared/task';
 
 export interface BrowserToolConfig {
   maskPii: boolean;
+  /** Mappa reversibile solo RAM, separata per ogni run. */
+  privacyGateway?: PrivacyGateway;
   hidePasswords: boolean;
   hostOnly: boolean;
   sendScreenshots: boolean;
@@ -52,8 +55,7 @@ export interface SnapshotResult {
   table?: string;
 }
 
-/** Ultimo screenshot catturato (PNG base64, senza prefisso data:). */
-let lastScreenshot: string | null = null;
+// I buffer di screenshot non devono sopravvivere tra diversi run.
 
 function base64Of(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -114,9 +116,11 @@ const ALLOWLIST_PREFIX = 'ALLOWLIST:';
  * vincolo (comportamento predefinito invariato).
  */
 export function assertTabAllowed(tab: chrome.tabs.Tab, allowedDomains: string): void {
-  if (!allowedDomains.trim()) return;
   const url = tab.url ?? '';
-  if (!/^https?:/i.test(url)) return; // pagine non navigabili: fuori perimetro
+  if (!/^https?:/i.test(url) || isBlockedUrl(url)) {
+    throw new Error('ALLOWLIST: scheda non HTTP(S) o URL riservato.');
+  }
+  if (!allowedDomains.trim()) return;
   if (isAllowedHost(url, allowedDomains)) return;
   throw new Error(
     `${ALLOWLIST_PREFIX}Tab fuori dall'allowlist utente (${allowedDomains}). ` +
@@ -211,6 +215,8 @@ export interface SnapshotOpts {
   maxChars: number;
   /** Confine "Domini consentiti": riapplicato a ogni lettura di contenuto. */
   allowedDomains: string;
+  privacyGateway?: PrivacyGateway;
+  approveRead?: (url: string) => Promise<void>;
 }
 
 /** Snapshot del tab; usato anche per "rescuare" ref scaduti. */
@@ -229,7 +235,21 @@ async function snapshotTab(
   // o un reindirizzamento l'URL può essere cambiato, e leggere la pagina senza
   // ricontrollare avrebbe mostrato contenuto fuori dai domini consentiti.
   assertTabAllowed(tab, opts.allowedDomains);
+  const initialUrl = tab.url ?? '';
+  await opts.approveRead?.(initialUrl);
+  // Non associare mai ad un origin approvato il contenuto di una pagina
+  // caricata mentre il banner di approvazione era ancora aperto.
+  const before = await chrome.tabs.get(tabId);
+  assertTabAllowed(before, opts.allowedDomains);
+  if (before.url !== initialUrl) {
+    throw new Error('Privacy Gateway: pagina cambiata durante il consenso di lettura.');
+  }
   const res = await send<SnapshotResult>(tabId, { kind: 'LMUSE_SNAPSHOT', maskPii: opts.maskPii });
+  const after = await chrome.tabs.get(tabId);
+  assertTabAllowed(after, opts.allowedDomains);
+  if (after.url !== initialUrl) {
+    throw new Error('Privacy Gateway: pagina cambiata durante la lettura; risultato scartato.');
+  }
   if (!res.ok || !res.tree) throw new Error(res.error ?? 'Snapshot fallito.');
   let out = formatSnapshotHeader(tab.url, tab.title, res.tree, {
     maskPiiEnabled: opts.maskPii,
@@ -239,6 +259,7 @@ async function snapshotTab(
     out +=
       '\nSuggerimento: nessun elemento interattivo rilevato (pagina grafica/Canvas?). Prova browser_screenshot.';
   }
+  if (opts.privacyGateway) out = opts.privacyGateway.protectText(out, tab.url);
   return truncateTo(out, opts.maxChars);
 }
 
@@ -267,15 +288,58 @@ const BUDGET_EXHAUSTED = 'Budget tool esaurito: chiudi il task o aumenta i passi
 const STOP_TEXT_PREFIX = 'STOP_TEXT:';
 
 export function createBrowserTools(cfg: BrowserToolConfig) {
+  const privacyActive = cfg.privacyGateway != null && cfg.privacyGateway.mode !== 'off';
+  const disclosedOrigins = new Set<string>();
+  let lastScreenshot: string | null = null;
   const budget = new ToolBudget(cfg.budgetMax);
   const circuit = new FailureCircuit(5);
   const seenDomains: string[] = [];
   const snapOpts: SnapshotOpts = {
-    maskPii: cfg.maskPii,
+    maskPii: privacyActive ? false : cfg.maskPii,
+    privacyGateway: privacyActive ? cfg.privacyGateway : undefined,
+    approveRead,
     hostOnly: cfg.hostOnly,
     maxChars: cfg.snapshotMaxChars,
     allowedDomains: cfg.allowedDomains,
   };
+
+  /** La lettura di un sito in modalità rigorosa richiede un consenso per run/origin. */
+  async function approveRead(rawUrl: string): Promise<void> {
+    if (!privacyActive || cfg.privacyGateway!.mode !== 'strict') return;
+    let origin: string;
+    try {
+      const u = new URL(rawUrl);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error();
+      origin = u.origin;
+    } catch {
+      throw new Error('Privacy Gateway: sito non valido per la lettura.');
+    }
+    if (disclosedOrigins.has(origin)) return;
+    const description = 'Inviare al provider il contenuto pseudonimizzato di ' + origin + '?';
+    const ok = await cfg.requestApproval('browser_data_disclosure', description, origin);
+    cfg.onApprovalDecision?.('browser_data_disclosure', ok, 'Consenso lettura sito');
+    if (!ok) throw new Error('Privacy Gateway: lettura rifiutata; nessun dato inviato al modello.');
+    disclosedOrigins.add(origin);
+  }
+
+  /** Convalida URL e ID prima e dopo una lettura asincrona del DOM. */
+  async function readWithConsent<T>(tab: chrome.tabs.Tab, fn: () => Promise<T>): Promise<T> {
+    const initialUrl = tab.url ?? '';
+    if (tab.id == null) throw new Error('Nessuna scheda da leggere.');
+    await approveRead(initialUrl);
+    const before = await chrome.tabs.get(tab.id);
+    assertTabAllowed(before, cfg.allowedDomains);
+    if (before.url !== initialUrl) {
+      throw new Error('Privacy Gateway: pagina cambiata durante il consenso di lettura.');
+    }
+    const output = await fn();
+    const after = await chrome.tabs.get(tab.id);
+    assertTabAllowed(after, cfg.allowedDomains);
+    if (after.url !== initialUrl) {
+      throw new Error('Privacy Gateway: pagina cambiata durante la lettura; risultato scartato.');
+    }
+    return output;
+  }
 
   function trackDomain(url: string | undefined): void {
     const domain = url ? extractDomain(url) : null;
@@ -304,15 +368,33 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     if (!budget.tryConsume()) throw new Error(`${BUDGET_EXHAUSTED} (${budget.max} chiamate per run).`);
     try {
       const out = await fn();
+      // Confine di protezione condiviso da TUTTI i tool, inclusi quelli futuri.
+      const safe = privacyActive ? cfg.privacyGateway!.protectUnknown(out) : out;
       circuit.recordSuccess();
-      return out;
+      return safe;
     } catch (error) {
       circuit.recordFailure();
       // Lo stop-text è un esito previsto, non un errore: non va rimappato come
       // "timeout/chiave/quota del provider" (il worker lo riconosce dal prefisso).
       const raw = error instanceof Error ? error.message : String(error);
       if (raw.startsWith(STOP_TEXT_PREFIX)) throw error;
-      throw new Error(mapProviderError(error), { cause: error });
+      const message = mapProviderError(error);
+      const safeMessage = privacyActive ? cfg.privacyGateway!.protectText(message) : message;
+      const wrapped = new Error(safeMessage, { cause: error });
+      if (privacyActive) {
+        // Preserve verifier causality at construction, but never expose the
+        // original Error/cause containing page text or secrets to the LLM.
+        Object.defineProperty(wrapped, 'cause', {
+          value: new Error(safeMessage),
+          enumerable: false,
+          configurable: true,
+        });
+      }
+      throw wrapped;
+    } finally {
+      // L'approvazione vale soltanto per UNA operazione, mai per i tool successivi.
+      approvedTabId = null;
+      approvedTabUrl = null;
     }
   }
 
@@ -326,6 +408,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
    * cambia, l'azione non parte e si chiede una nuova conferma.
    */
   let approvedTabId: number | null = null;
+  let approvedTabUrl: string | null = null;
 
   /** Tab su cui agire: quello congelato dall'approvazione, o l'attivo. */
   async function tabForAction(allowedDomains: string): Promise<chrome.tabs.Tab> {
@@ -338,6 +421,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       }
       if (pinned.id != null) {
         assertTabAllowed(pinned, allowedDomains);
+        if (approvedTabUrl != null && pinned.url !== approvedTabUrl) {
+          throw new Error('La pagina è cambiata dopo la conferma: ripeti il comando.');
+        }
         return pinned;
       }
     }
@@ -352,12 +438,15 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     domain?: string,
   ): Promise<void> {
     // Il tab da congelare è quello attivo al momento della conferma.
+    approvedTabId = null;
+    approvedTabUrl = null;
     const activeAtApproval = await chrome.tabs
       .query({ active: true, lastFocusedWindow: true })
-      .then((t) => t[0]?.id ?? null)
+      .then((t) => t[0] ?? null)
       .catch(() => null);
     const ctx: ApprovalContext = { seenDomains: [...seenDomains], trustedDomains: cfg.trustedDomains };
-    const { needed, reason } = shouldApprove(toolName, args, cfg.policy, ctx);
+    const policy = privacyActive ? 'all' : cfg.policy;
+    const { needed, reason } = shouldApprove(toolName, args, policy, ctx);
     if (!needed) return;
     const full = reason ? `${description} — ${reason}` : description;
     let ok: boolean;
@@ -374,7 +463,8 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       );
     }
     // Confermato: l'azione vale per la scheda che l'utente stava vedendo.
-    approvedTabId = activeAtApproval;
+    approvedTabId = activeAtApproval?.id ?? null;
+    approvedTabUrl = activeAtApproval?.url ?? null;
   }
 
   /**
@@ -386,15 +476,20 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     if (approvedTabId == null) return;
     const current = await chrome.tabs
       .query({ active: true, lastFocusedWindow: true })
-      .then((t) => t[0]?.id ?? null)
+      .then((t) => t[0] ?? null)
       .catch(() => null);
-    if (current != null && current !== approvedTabId) {
+    if (
+      !current ||
+      current.id !== approvedTabId ||
+      (approvedTabUrl != null && current.url !== approvedTabUrl)
+    ) {
       const stale = approvedTabId;
       approvedTabId = null;
+      approvedTabUrl = null;
       throw new Error(
-        `Durante la conferma l'utente ha cambiato scheda (era #${stale}, ora #${current}): ` +
-          "l'azione non è stata eseguita per evitare di toccare una pagina diversa da quella approvata. " +
-          'Ripeti il comando.',
+        'Durante la conferma è cambiata la scheda o la pagina (#' +
+          stale +
+          '): azione bloccata. Ripeti il comando.',
       );
     }
   }
@@ -457,7 +552,12 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           }
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
-          await chrome.tabs.update(tab.id, { url: target });
+          // Riapertura URL privati ammessa solo sullo stesso origin osservato.
+          const targetOnDevice = privacyActive ? cfg.privacyGateway!.restoreForPage(target, target) : target;
+          if (new URL(targetOnDevice).origin !== new URL(target).origin) {
+            throw new Error('Privacy Gateway: cambio origine durante il ripristino URL.');
+          }
+          await chrome.tabs.update(tab.id, { url: targetOnDevice });
           await waitForTabComplete(tab.id);
           await new Promise((r) => setTimeout(r, 800));
           try {
@@ -594,7 +694,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           const res = await sendToTab<SnapshotResult>(tab.id, {
             kind: 'LMUSE_TYPE',
             ref,
-            text,
+            text: privacyActive ? cfg.privacyGateway!.restoreForPage(text, tab.url ?? '') : text,
             submit: submit ?? false,
             allowPassword: !cfg.hidePasswords,
             docIndex,
@@ -648,7 +748,11 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         return guarded(async () => {
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
-          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_CLIPBOARD_WRITE', text });
+          const realText = privacyActive ? cfg.privacyGateway!.restoreForPage(text, tab.url ?? '') : text;
+          const res = await sendToTab<SnapshotResult>(tab.id, {
+            kind: 'LMUSE_CLIPBOARD_WRITE',
+            text: realText,
+          });
           if (!res.ok) throw new Error(res.error ?? 'Scrittura appunti fallita (permesso?).');
           return acted(tab.id, `Testo copiato negli appunti della pagina (${text.length} caratteri).`);
         });
@@ -670,7 +774,11 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           // punto del tool, ma ogni passaggio successivo lo maschera: il testo
           // non deve finire nel log esportabile né nell'inbox.
           const raw = String(res.text ?? '').slice(0, 400);
-          const shown = cfg.maskPii ? maskPii(raw) : raw;
+          const shown = privacyActive
+            ? cfg.privacyGateway!.protectText(raw, tab.url)
+            : cfg.maskPii
+              ? maskPii(raw)
+              : raw;
           return acted(tab.id, `Appunti (${String(res.text ?? '').length} caratteri):\n${shown}`);
         });
       },
@@ -686,15 +794,21 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
-          const res = await sendToTab<SnapshotResult>(tab.id, {
-            kind: 'LMUSE_IFRAME_SNAPSHOT',
-            index: index ?? 0,
-            maskPii: cfg.maskPii,
-          });
+          const res = await readWithConsent(tab, () =>
+            sendToTab<SnapshotResult>(tab.id!, {
+              kind: 'LMUSE_IFRAME_SNAPSHOT',
+              index: index ?? 0,
+              maskPii: privacyActive ? false : cfg.maskPii,
+            }),
+          );
           if (!res.ok || typeof res.tree !== 'string' || !res.tree.trim()) {
             throw new Error(res.error ?? 'Snapshot iframe fallito.');
           }
-          const tree = cfg.maskPii ? maskPii(res.tree) : res.tree;
+          const tree = privacyActive
+            ? cfg.privacyGateway!.protectText(res.tree, tab.url)
+            : cfg.maskPii
+              ? maskPii(res.tree)
+              : res.tree;
           const idx = index ?? 0;
           // L'indice dell'iframe va detto all'agente: i ref ricominciano da 0 in
           // ogni documento, quindi i tool successivi devono specificare da quale
@@ -707,7 +821,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           const safeTree = tree.replace(
             /^(URL pagina corrente:\s*)(\S+)$/m,
             (_m, label: string, url: string) =>
-              `${label}${displayUrl(url, { maskPiiEnabled: cfg.maskPii, hostOnly: cfg.hostOnly })}`,
+              `${label}${displayUrl(url, { maskPiiEnabled: privacyActive ? false : cfg.maskPii, hostOnly: cfg.hostOnly })}`,
           );
           return {
             observation: checkStop(truncateTo(maskUrlTokens(safeTree) + note, cfg.snapshotMaxChars)),
@@ -867,6 +981,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         await approved('browser_screenshot', {}, 'Cattura screenshot');
         await assertTabUnchanged();
         return guarded(async () => {
+          if (privacyActive) {
+            throw new Error('Privacy Gateway: screenshot non anonimizzabile; invio vietato.');
+          }
           if (!cfg.sendScreenshots) {
             throw new Error('Screenshot disattivato dalla privacy di lmuse (impostazioni ⚙).');
           }
@@ -906,6 +1023,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         await approved('browser_screenshot_element', { ref }, `Screenshot di [${ref}]`);
         await assertTabUnchanged();
         return guarded(async () => {
+          if (privacyActive) {
+            throw new Error('Privacy Gateway: screenshot non anonimizzabile; invio vietato.');
+          }
           if (!cfg.sendScreenshots) {
             throw new Error('Screenshot disattivato dalla privacy di lmuse (impostazioni ⚙).');
           }
@@ -950,11 +1070,20 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
           const lines = tabs.map((t) => {
+            if (privacyActive && cfg.privacyGateway!.mode === 'strict') {
+              const allowed = /^https?:/i.test(t.url ?? '') && isAllowedHost(t.url ?? '', cfg.allowedDomains);
+              return allowed
+                ? '#' + t.id + ' ' + (extractDomain(t.url ?? '') ?? '(sconosciuto)') + ' [solo dominio]'
+                : '#' + t.id + ' [fuori perimetro]';
+            }
             const title = (t.title ?? '').slice(0, 60);
             // Stessa regola degli altri percorsi: con hostOnly via solo
             // origin+path, mai la query string.
-            const url = displayUrl(t.url, { maskPiiEnabled: cfg.maskPii, hostOnly: cfg.hostOnly });
-            const base = `#${t.id} "${cfg.maskPii ? maskPii(title) : title}" ${url}`;
+            const url = displayUrl(t.url, {
+              maskPiiEnabled: privacyActive ? false : cfg.maskPii,
+              hostOnly: cfg.hostOnly,
+            });
+            const base = `#${t.id} "${privacyActive ? title : cfg.maskPii ? maskPii(title) : title}" ${url}`;
             // Con allowlist impostata, i tab fuori perimetro restano elencati ma
             // marcati: il modello deve sapere che non può agirci.
             const out = cfg.allowedDomains.trim() && !isAllowedHost(t.url ?? '', cfg.allowedDomains);
@@ -996,7 +1125,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
             const fresh = await snapshotTab(tabId, snapOpts, sendToTab);
             return { observation: `Focus sul tab "${tab.title}".\n\nNuovo snapshot:\n${fresh}` };
           } catch {
-            return { observation: `Focus sul tab "${tab.title}". Content script non raggiungibile qui.` };
+            return { observation: 'Focus sul tab eseguito. Content script non raggiungibile qui.' };
           }
         });
       },
@@ -1040,14 +1169,19 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
-          const res = await sendToTab<SnapshotResult>(tab.id, {
-            kind: 'LMUSE_TEXT',
-            maxChars: Math.min(cfg.snapshotMaxChars, 8000),
-            maskPii: cfg.maskPii,
-            mode: mode ?? 'full',
-          });
+          const res = await readWithConsent(tab, () =>
+            sendToTab<SnapshotResult>(tab.id!, {
+              kind: 'LMUSE_TEXT',
+              maxChars: Math.min(cfg.snapshotMaxChars, 8000),
+              maskPii: privacyActive ? false : cfg.maskPii,
+              mode: mode ?? 'full',
+            }),
+          );
           if (!res.ok) throw new Error(res.error ?? 'Lettura testo fallita.');
-          return { observation: checkStop(truncateTo(res.text ?? '(vuoto)', 8000)) };
+          const text = privacyActive
+            ? cfg.privacyGateway!.protectText(res.text ?? '(vuoto)', tab.url)
+            : (res.text ?? '(vuoto)');
+          return { observation: checkStop(truncateTo(text, 8000)) };
         }),
     }),
 
@@ -1058,16 +1192,30 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
-          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_LINKS', max: 200 });
+          const res = await readWithConsent(tab, () =>
+            sendToTab<SnapshotResult>(tab.id!, { kind: 'LMUSE_LINKS', max: 200 }),
+          );
           if (!res.ok) throw new Error(res.error ?? 'Lettura link fallita.');
           const lines = (res.links ?? []).map((l) => {
             // displayUrl, non la sola redazione dei token: con hostOnly la
             // query string (spesso un identificativo di sessione) non deve
             // arrivare al modello da nessun percorso.
-            const href = displayUrl(l.href, { maskPiiEnabled: cfg.maskPii, hostOnly: cfg.hostOnly });
-            return cfg.maskPii ? `- ${maskPii(l.text)} → ${href}` : `- ${l.text} → ${href}`;
+            const href = displayUrl(l.href, {
+              maskPiiEnabled: privacyActive ? false : cfg.maskPii,
+              hostOnly: cfg.hostOnly,
+            });
+            return privacyActive
+              ? `- ${l.text} → ${href}`
+              : cfg.maskPii
+                ? `- ${maskPii(l.text)} → ${href}`
+                : `- ${l.text} → ${href}`;
           });
-          return { observation: checkStop(truncateTo(lines.join('\n') || 'Nessun link.', 6000)) };
+          const links = lines.join('\n') || 'Nessun link.';
+          return {
+            observation: checkStop(
+              truncateTo(privacyActive ? cfg.privacyGateway!.protectText(links, tab.url) : links, 6000),
+            ),
+          };
         }),
     }),
 
@@ -1102,14 +1250,19 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
-          const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_TABLE', ref, docIndex });
+          const res = await readWithConsent(tab, () =>
+            sendToTab<SnapshotResult>(tab.id!, { kind: 'LMUSE_TABLE', ref, docIndex }),
+          );
           if (!res.ok) {
             if (res.error?.includes('scaduto')) {
               return refRescue(tab.id, ref, snapOpts, 'Lettura tabella non riuscita.', sendToTab);
             }
             throw new Error(res.error ?? 'Lettura tabella fallita.');
           }
-          return { observation: checkStop(truncateTo(res.table ?? '(vuota)', 6000)) };
+          const table = privacyActive
+            ? cfg.privacyGateway!.protectText(res.table ?? '(vuota)', tab.url)
+            : (res.table ?? '(vuota)');
+          return { observation: checkStop(truncateTo(table, 6000)) };
         }),
     }),
 
@@ -1125,14 +1278,16 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           if (!selector.trim()) throw new Error('Selettore vuoto.');
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
-          const res = await sendToTab<SnapshotResult>(tab.id, {
-            kind: 'LMUSE_QUERY',
-            selector,
-            max: max ?? 30,
-          });
+          const res = await readWithConsent(tab, () =>
+            sendToTab<SnapshotResult>(tab.id!, {
+              kind: 'LMUSE_QUERY',
+              selector,
+              max: max ?? 30,
+            }),
+          );
           if (!res.ok) throw new Error(res.error ?? 'Query fallita.');
           return {
-            observation: `Trovati ${(res.refs ?? []).length} elementi (ref riusabili): ${res.text ?? ''}`,
+            observation: `Trovati ${(res.refs ?? []).length} elementi (ref riusabili): ${privacyActive ? cfg.privacyGateway!.protectText(res.text ?? '', tab.url) : (res.text ?? '')}`,
           };
         }),
     }),

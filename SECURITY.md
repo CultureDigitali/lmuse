@@ -1,5 +1,15 @@
 # Security — lmuse
 
+## Hardened beta v0.9.0
+
+- Conferma obbligatoria per click e digitazione: il click DOM può inviare un form o eliminare dati anche senza flag submit.
+- Ogni approvazione vincola **ID e URL** della scheda, viene consumata per una sola operazione; il cambio pagina invalida l'azione.
+- Privacy Gateway con segnaposto casuali per run e origin, approvazione di lettura per origin in modalità rigorosa, e ripristino in pagina consentito soltanto sul sito originale.
+- Screenshot sempre bloccati in modalità protetta; input di upload e label associate bloccati nel content script.
+- Default prudenziale: domini consentiti obbligatori in modalità rigorosa, chiave di sessione, screenshot OFF, cronologia OFF, conferme complete.
+
+**Non è garanzia di anonimato assoluto:** testi liberi, nomi e file complessi non sono anonimizzati in modo universale; il contesto può permettere reidentificazione. Il manifest continua a richiedere accesso a tutti i siti e il provider LLM conosce la chiave API usata per autenticarsi. Leggere **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)** prima dell'uso con dati reali.
+
 ## Superficie d'attacco (volutamente piccola)
 
 - Manifest MV3 con `content_security_policy: script-src 'self'; object-src 'self'`.

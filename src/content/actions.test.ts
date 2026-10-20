@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_WAIT_MS, describeFocused, hoverElement, selectOption, waitFor } from './actions';
+import {
+  MAX_WAIT_MS,
+  describeFocused,
+  hoverElement,
+  selectOption,
+  waitFor,
+  assertNoFileUploadTarget,
+} from './actions';
 
 describe('selectOption', () => {
   it('seleziona per valore e conferma selectedIndex + change', () => {
@@ -80,5 +87,24 @@ describe('hoverElement', () => {
     document.addEventListener('mouseover', onDoc);
     hoverElement(document.getElementById('inner') as HTMLElement);
     expect(onDoc).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('blocco upload file automatici', () => {
+  it('rifiuta un input file e un label associato', () => {
+    document.body.innerHTML =
+      '<input type="file" id="attach"><label for="attach"><span id="choose">Allega</span></label>';
+    const file = document.getElementById('attach') as Element;
+    const label = document.querySelector('label') as Element;
+    const span = document.getElementById('choose') as Element;
+    expect(() => assertNoFileUploadTarget(file)).toThrow(/Upload file bloccato/);
+    expect(() => assertNoFileUploadTarget(label)).toThrow(/Upload file bloccato/);
+    expect(() => assertNoFileUploadTarget(span)).toThrow(/Upload file bloccato/);
+  });
+
+  it('non blocca controlli ordinari', () => {
+    document.body.innerHTML = '<button>Salva</button><input type="text">';
+    expect(() => assertNoFileUploadTarget(document.querySelector('button') as Element)).not.toThrow();
+    expect(() => assertNoFileUploadTarget(document.querySelector('input') as Element)).not.toThrow();
   });
 });

@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import type { ApprovalPolicy } from './approval';
+import type { PrivacyMode } from './privacy-gateway';
 import { ACTIVITY_KEY } from './lock';
 import type { Schedule } from './schedules';
 
@@ -382,6 +383,7 @@ export interface Settings {
   snapshotMaxChars: number;
   rememberKey: boolean;
   privacyMaskPii: boolean;
+  privacyMode: PrivacyMode;
   privacyHidePasswords: boolean;
   privacyHostOnly: boolean;
   keepHistory: boolean;
@@ -413,13 +415,14 @@ export const DEFAULT_SETTINGS: Settings = {
   runTimeoutMin: 15,
   approvalTimeoutSec: 120,
   snapshotMaxChars: MAX_SNAPSHOT_CHARS,
-  rememberKey: true,
+  rememberKey: false,
   privacyMaskPii: true,
+  privacyMode: 'strict',
   privacyHidePasswords: true,
-  privacyHostOnly: false,
-  keepHistory: true,
-  approval: 'sensitive',
-  sendScreenshots: true,
+  privacyHostOnly: true,
+  keepHistory: false,
+  approval: 'all',
+  sendScreenshots: false,
   allowedDomains: '',
   trustedDomains: [],
   savedPrompts: [],
@@ -431,7 +434,7 @@ export const DEFAULT_SETTINGS: Settings = {
   compactLog: false,
   lastRuns: [],
   schedules: [],
-  sessionLockMin: 0,
+  sessionLockMin: 15,
 };
 
 function clamp(value: number, min: number, max: number, fallback: number): number {
@@ -463,6 +466,9 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined): Settings {
     snapshotMaxChars: clamp(Number(base.snapshotMaxChars), 4000, 20000, DEFAULT_SETTINGS.snapshotMaxChars),
     rememberKey: Boolean(base.rememberKey),
     privacyMaskPii: Boolean(base.privacyMaskPii),
+    privacyMode: ['off', 'pseudonymize', 'strict'].includes(base.privacyMode)
+      ? base.privacyMode
+      : DEFAULT_SETTINGS.privacyMode,
     privacyHidePasswords: Boolean(base.privacyHidePasswords),
     privacyHostOnly: Boolean(base.privacyHostOnly),
     keepHistory: base.keepHistory !== false,

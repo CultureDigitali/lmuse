@@ -1,7 +1,7 @@
 # Chrome Web Store — listing lmuse (pronto da incollare)
 
-> Stato: **pronto per la submission come “Unlisted / trusted testers”**.
-> Ultimo aggiornamento: 19 ottobre 2026 · candidato: `release/lmuse-0.8.1.zip`
+> Stato: **CANDIDATO NON ANCORA APPROVATO: test solo Private / trusted testers**.
+> Ultimo aggiornamento: 20 ottobre 2026 · candidato: `release/lmuse-0.9.0.zip` (NON ancora generato)
 
 ## Scheda
 
@@ -26,17 +26,19 @@ Scegli tra 25 provider: OpenAI, Anthropic, Google Gemini, xAI, Azure, DeepSeek,
 Groq, Cerebras, Mistral, Cohere, DeepInfra, Fireworks, Perplexity, Together AI,
 Hugging Face, NVIDIA NIM, SambaNova, Baseten, GitHub Models, OpenRouter,
 OpenCode Zen, Vercel AI Gateway, Ollama, LM Studio o qualsiasi endpoint
-OpenAI-compatibile. La chiave resta sul tuo computer, in un keystore locale
-per provider. Nessun server nostro, nessuna telemetria, nessun tracciamento.
+OpenAI-compatibile. La chiave resta nel browser e viene inviata al solo provider configurato per
+autenticazione. Le chiavi non vengono salvate sui server dello sviluppatore. Nessun server nostro, nessuna telemetria, nessun tracciamento.
 
 CONTROLLO UMANO
-Le azioni sensibili (navigazione, invio moduli, cambio scheda, download,
-lettura appunti) richiedono la tua conferma, con policy configurabile
-(mai / sensibili / tutte). STOP sempre a portata di mano.
+Per click e digitazione è sempre richiesta conferma. Nella modalità rigorosa,
+l'agente chiede anche il consenso per leggere un sito prima di trasmettere
+il contenuto filtrato al provider. STOP sempre a portata di mano.
 
 PRIVACY
-Redazione automatica di email, IBAN, carte, numeri e token negli URL prima
-di inviare lo snapshot al modello. Campi password mai letti né compilati.
+Privacy Gateway locale: pseudonimizza email, IBAN, carte, telefoni e alcuni
+token prima dell'invio; ripristina sul dispositivo soltanto sul sito origine.
+Non assicura l'anonimato dei nomi, testo libero e contenuti non riconosciuti.
+Screenshot disattivati nelle modalità protette. Campi password schermati.
 Elenco di domini consentiti per restringere il perimetro. “Cancella tutti i
 dati” elimina chiavi, cronologia e impostazioni.
 
@@ -63,16 +65,16 @@ Ollama / LM Studio). lmuse non include chiavi e non rivende accesso ai modelli.
 
 ## Giustificazione permessi (una per campo della dashboard)
 
-| Permesso | Testo da incollare |
-| --- | --- |
-| `storage` | Salva impostazioni e chiavi API esclusivamente sul dispositivo dell'utente (`chrome.storage`), senza inviarle a server dello sviluppatore. |
-| `scripting` | Inietta il content script solo quando l'utente avvia un task, per leggere la pagina e compiere l'azione richiesta. Nessuna iniezione a riposo. |
-| `tabs` | Legge URL/titolo della scheda attiva e può elencare, attivare, duplicare o chiudere schede quando il task lo richiede. |
-| `activeTab` | Opera sulla scheda attiva al momento dell'azione dell'utente, senza accesso preventivo. |
-| `sidePanel` | Mostra l'interfaccia dell'agente nel pannello laterale di Chrome. |
-| `alarms` | Esegue i task programmati dall'utente (intervalli ≥ 60 minuti, massimo 5, solo locali). |
+| Permesso          | Testo da incollare                                                                                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `storage`         | Salva impostazioni e chiavi API esclusivamente sul dispositivo dell'utente (`chrome.storage`), senza inviarle a server dello sviluppatore.                                                                                                       |
+| `scripting`       | Inietta il content script solo quando l'utente avvia un task, per leggere la pagina e compiere l'azione richiesta. Nessuna iniezione a riposo.                                                                                                   |
+| `tabs`            | Legge URL/titolo della scheda attiva e può elencare, attivare, duplicare o chiudere schede quando il task lo richiede.                                                                                                                           |
+| `activeTab`       | Opera sulla scheda attiva al momento dell'azione dell'utente, senza accesso preventivo.                                                                                                                                                          |
+| `sidePanel`       | Mostra l'interfaccia dell'agente nel pannello laterale di Chrome.                                                                                                                                                                                |
+| `alarms`          | Esegue i task programmati dall'utente (intervalli ≥ 60 minuti, massimo 5, solo locali).                                                                                                                                                          |
 | `nativeMessaging` | Comunica con il bridge opencode, installato separatamente e su scelta dell'utente (`pnpm setup:opencode`), che legge in locale `~/.local/share/opencode/auth.json` e non usa la rete. Se il bridge non è installato il permesso non viene usato. |
-| Host `<all_urls>` | L'agente deve poter operare sui siti che l'utente gli indica. Il perimetro è restringibile con l'elenco “Domini consentiti”; non c'è raccolta dati in background. |
+| Host `<all_urls>` | L'agente deve poter operare sui siti che l'utente gli indica. Il perimetro è restringibile con l'elenco “Domini consentiti”; non c'è raccolta dati in background.                                                                                |
 
 ## Single purpose (dashboard)
 
@@ -85,8 +87,9 @@ Ollama / LM Studio). lmuse non include chiavi e non rivende accesso ai modelli.
 - Raccolta dati da parte dello sviluppatore: **nessuna**.
 - Autenticazione: la chiave API è fornita dall'utente e salvata solo in locale;
   viene inviata esclusivamente al provider LLM scelto dall'utente.
-- Contenuto dei siti web: elaborato localmente e inviato al solo provider scelto
-  per eseguire il task; redazione PII attiva di default.
+- Contenuto dei siti web: nella modalità rigorosa viene pseudonimizzato per i valori
+  riconosciuti prima di raggiungere il provider scelto. Testo libero, nomi e contesto
+  possono comunque rivelare dati. Consenso dell'utente prima di leggere un sito.
 - Vendita dati a terzi: **no**. Pubblicità: **no**. Telemetria: **no**.
 - Codice remoto: **no** (tutto il codice è nel pacchetto; CSP `script-src 'self'`).
 
@@ -101,7 +104,8 @@ Non esiste un account lmuse e non ci sono server dello sviluppatore.
    In alternativa, con Ollama installato in locale: provider “Ollama (locale)”,
    base URL http://localhost:11434/v1, modello qwen3:8b, nessuna chiave.
 3. Scrivi “Riassumi questa pagina in 3 punti” e premi Avvia.
-4. Le azioni sensibili mostrano un banner di conferma con timeout.
+4. Imposta esplicitamente i domini consentiti. Le letture dei siti e le azioni
+   operative mostrano un banner di conferma con timeout.
 
 Senza chiave è possibile verificare UI, permessi, impostazioni, policy di
 conferma e redazione PII; l'esecuzione di un task richiede un provider.
@@ -110,12 +114,12 @@ Il codice è pubblico: https://github.com/CultureDigitali/lmuse
 
 ## Checklist prima dell'upload
 
-- [x] Build verificata dal tag `v0.8.1` (323 test, e2e completo con provider mock, a11y 0 violazioni)
-- [x] Pacchetto `release/lmuse-0.8.1.zip` (manifest 0.8.1, nessun sourcemap)
-- [x] Privacy policy pubblicata (GitHub Pages)
+- [ ] CI completo ed e2e sull'ultimo SHA della candidata `0.9.0`
+- [ ] Generare e verificare il pacchetto 0.9.0 con SHA-256
+- [ ] Pubblicare la policy aggiornata 0.9.0 su GitHub Pages prima della submission
 - [x] Pagina di supporto + issue tracker
-- [x] Screenshot 1280×800
-- [x] Giustificazioni permessi e single purpose
+- [ ] Screenshot aggiornati della modalità rigorosa e Privacy Gateway
+- [ ] Giustificazioni permessi aggiornate e revisione dei permessi globali
 - [ ] Account Chrome Web Store ($5 una tantum) — richiede l'utente
-- [ ] Upload del pacchetto e compilazione Data usage nella dashboard
+- [ ] Upload come **Private**, non **Unlisted**, e compilazione Data usage
 - [ ] Prova di accettazione con chiave reale su profilo pulito (utente)

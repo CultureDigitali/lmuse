@@ -1195,9 +1195,44 @@ export default function App() {
 
           <h3>{t(lang, 'privacy_section')}</h3>
           <label>
+            {lang === 'en' ? 'On-device Privacy Gateway' : 'Privacy Gateway sul dispositivo'}
+            <select
+              value={settings.privacyMode}
+              onChange={(e) => update({ privacyMode: e.target.value as Settings['privacyMode'] })}
+            >
+              <option value="strict">
+                {lang === 'en' ? 'Strict (recommended)' : 'Rigorosa (consigliata)'}
+              </option>
+              <option value="pseudonymize">{lang === 'en' ? 'Pseudonymize' : 'Pseudonimizzazione'}</option>
+              <option value="off">
+                {lang === 'en' ? 'Off — unprotected' : 'Disattivata — senza protezione'}
+              </option>
+            </select>
+          </label>
+          <p className="muted">
+            {lang === 'en'
+              ? 'Reversible tokens are stored only in memory. Screenshots are blocked in protected modes. Free-form text and identities may still leak context.'
+              : 'I segnaposto reversibili restano solo in memoria. Screenshot bloccati nelle modalità protette. Testi liberi e identità possono ancora essere dedotti dal contesto.'}
+          </p>
+          {settings.privacyMode === 'off' && (
+            <p className="warn">
+              {lang === 'en'
+                ? 'Warning: page content can reach the provider in clear text.'
+                : 'Attenzione: i contenuti delle pagine possono raggiungere il provider in chiaro.'}
+            </p>
+          )}
+          {settings.privacyMode === 'strict' && !settings.allowedDomains.trim() && (
+            <p className="warn">
+              {lang === 'en'
+                ? 'Set allowed domains before starting a task.'
+                : 'Inserisci i domini consentiti prima di avviare un task.'}
+            </p>
+          )}
+          <label>
             {t(lang, 'approval_label')}
             <select
-              value={settings.approval}
+              value={settings.privacyMode === 'strict' ? 'all' : settings.approval}
+              disabled={settings.privacyMode === 'strict'}
               onChange={(e) => update({ approval: e.target.value as ApprovalPolicy })}
             >
               <option value="off">{t(lang, 'approval_off')}</option>
@@ -1224,7 +1259,8 @@ export default function App() {
           <label className="check">
             <input
               type="checkbox"
-              checked={settings.sendScreenshots}
+              checked={settings.privacyMode === 'off' && settings.sendScreenshots}
+              disabled={settings.privacyMode !== 'off'}
               onChange={(e) => update({ sendScreenshots: e.target.checked })}
             />
             {t(lang, 'send_screenshots')}

@@ -2,6 +2,7 @@
 // delle osservazioni restituite, incluse le regressioni sui tool nuovi.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserToolConfig } from './tools';
+import { PrivacyGateway } from '../shared/privacy-gateway';
 
 const sendMessage = vi.fn();
 // URL del tab attivo, variabile per testare l'allowlist.
@@ -72,7 +73,24 @@ beforeEach(() => {
   activeTabUrl = 'https://esempio.it/pagina';
   sendMessage.mockReset();
   executeScript.mockClear();
-  getTab.mockClear();
+  // Ripristina ogni volta gli stub condivisi: altre suite sostituiscono
+  // query/get e possono lasciare URL differenti fra approvazione e azione.
+  const query = (chrome.tabs as unknown as { query: ReturnType<typeof vi.fn> }).query;
+  query.mockReset();
+  query.mockImplementation(async (q?: { url?: string }) =>
+    q?.url
+      ? [{ id: 1, url: q.url, title: 'Pagina', status: 'complete', windowId: 1 }]
+      : [{ id: 1, url: activeTabUrl, title: 'Pagina', status: 'complete', windowId: 1 }],
+  );
+  getTab.mockReset();
+  getTab.mockImplementation(async () => ({
+    id: 1,
+    url: activeTabUrl,
+    title: 'Pagina',
+    status: 'complete',
+    windowId: 1,
+  }));
+  (chrome.tabs as unknown as { get: unknown }).get = getTab;
 });
 
 describe('browser_iframe_snapshot', () => {
@@ -352,6 +370,18 @@ describe('TOCTOU: cambio di scheda durante la conferma (regressione)', () => {
     ).rejects.toThrow(/cambiato scheda|cambiato scheda|scheda/);
   });
 
+  it('stesso tab ma URL cambiato durante la conferma → click bloccato', async () => {
+    const requestApproval = vi.fn(async () => {
+      setActiveTabUrl('https://esempio.it/pagina-differente');
+      return true;
+    });
+    const { tools } = createBrowserTools(baseConfig({ policy: 'all', requestApproval }));
+    await expect(tools.browser_click.execute({ ref: 1 }, {} as never)).rejects.toThrow(
+      /cambiata.*pagina|cambiata.*scheda/,
+    );
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it('nessun cambio scheda → azione eseguita normalmente', async () => {
     const requestApproval = vi.fn(async () => true);
     const { tools } = createBrowserTools(baseConfig({ policy: 'all', requestApproval, allowedDomains: '' }));
@@ -418,5 +448,215 @@ describe('il testo copiato negli appunti non finisce nel log (regressione)', () 
     const descritto = requestApproval.mock.calls.map((c) => JSON.stringify(c)).join(' ');
     expect(descritto).not.toContain(SEGRETO);
     expect(descritto).toContain('caratteri');
+  });
+});
+
+describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
+  it('senza consenso di lettura non acquisisce né passa lo snapshot al modello', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => false);
+    sendMessage.mockResolvedValue({ ok: true, tree: 'mario@example.it' });
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
+    await expect(tools.browser_snapshot.execute({}, {} as never)).rejects.toThrow();
+    expect(requestApproval).toHaveBeenCalledWith(
+      'browser_data_disclosure',
+      expect.stringContaining('pseudonimizzato'),
+      expect.any(String),
+    );
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('dopo il consenso riceve il token, mai la email grezza', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => true);
+    sendMessage.mockResolvedValue({ ok: true, tree: '[0] link "mario@example.it"' });
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
+    const one = (await tools.browser_snapshot.execute({}, {} as never)) as { observation: string };
+    const two = (await tools.browser_snapshot.execute({}, {} as never)) as { observation: string };
+    expect(one.observation).not.toContain('mario@example.it');
+    expect(one.observation).toMatch(/\[LMUSE_EMAIL_[a-p]{24}\]/);
+    expect(two.observation).toBe(one.observation);
+    expect(requestApproval).toHaveBeenCalledTimes(1);
+  });
+
+  it('ripristina email nel form solo sul sito da cui è stata letta', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const token = gateway.protectText('mario@example.it', 'https://esempio.it/pagina');
+    sendMessage.mockResolvedValue({ ok: true, tree: 'Fatto' });
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+      }),
+    );
+    await tools.browser_type.execute({ ref: 2, text: token }, {} as never);
+    const payloads = sendMessage.mock.calls.map((x) => x[1] as { kind: string; text?: string });
+    expect(payloads.find((x) => x.kind === 'LMUSE_TYPE')?.text).toBe('mario@example.it');
+  });
+
+  it('rifiuta l inserimento di un token in un sito diverso', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const token = gateway.protectText('mario@example.it', 'https://altro.example.test/');
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+      }),
+    );
+    await expect(tools.browser_type.execute({ ref: 2, text: token }, {} as never)).rejects.toThrow();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('tabella e appunti mantengono l origine per la risoluzione locale', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => true);
+    const { tools } = createBrowserTools(
+      baseConfig({ privacyGateway: gateway, requestApproval, allowedDomains: 'esempio.it' }),
+    );
+    sendMessage.mockResolvedValue({ ok: true, table: '| nome | mario@example.it |' });
+    const table = (await tools.browser_table.execute({ ref: 1 }, {} as never)) as {
+      observation: string;
+    };
+    expect(table.observation).not.toContain('mario@example.it');
+    const token = table.observation.match(/\[LMUSE_EMAIL_[a-p]{24}\]/)?.[0];
+    expect(token).toBeDefined();
+    expect(gateway.restoreForPage(token!, 'https://esempio.it/nuova')).toBe('mario@example.it');
+
+    sendMessage.mockResolvedValue({ ok: true, text: 'segreto@example.it', tree: '[0] button "Ok"' });
+    const clipboard = (await tools.browser_clipboard_read.execute({}, {} as never)) as {
+      observation: string;
+    };
+    expect(clipboard.observation).not.toContain('segreto@example.it');
+    const clipToken = clipboard.observation.match(/\[LMUSE_EMAIL_[a-p]{24}\]/)?.[0];
+    expect(clipToken).toBeDefined();
+    expect(gateway.restoreForPage(clipToken!, 'https://esempio.it/nuova')).toBe('segreto@example.it');
+  });
+
+  it('non cattura immagini non anonimizzabili nemmeno se flag screenshot è on', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const capture = vi.mocked(chrome.tabs.captureVisibleTab);
+    capture.mockClear();
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        sendScreenshots: true,
+      }),
+    );
+    await expect(tools.browser_screenshot.execute({}, {} as never)).rejects.toThrow(/screenshot/i);
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('se la pagina cambia mentre si approva la lettura, il DOM non viene letto', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => {
+      setActiveTabUrl('https://esempio.it/altro');
+      return true;
+    });
+    sendMessage.mockResolvedValue({ ok: true, tree: 'segreto@example.it' });
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
+    await expect(tools.browser_snapshot.execute({}, {} as never)).rejects.toThrow(/pagina cambiata/);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('se il DOM cambia dopo la lettura il contenuto viene scartato', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => true);
+    sendMessage.mockImplementation(async () => {
+      setActiveTabUrl('https://esempio.it/secondo-documento');
+      return { ok: true, tree: 'cliente@example.it' };
+    });
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
+    await expect(tools.browser_snapshot.execute({}, {} as never)).rejects.toThrow(/pagina cambiata/);
+    expect(gateway.size).toBe(0);
+  });
+
+  it('blocca anche browser_read_text se il tab naviga dopo la conferma', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => {
+      setActiveTabUrl('https://esempio.it/documento-diverso');
+      return true;
+    });
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
+    await expect(tools.browser_read_text.execute({ mode: 'full' }, {} as never)).rejects.toThrow(
+      /pagina cambiata/,
+    );
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('gli iframe protetti usano segnaposto reversibili, non redazione irreversibile', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => true);
+    sendMessage.mockResolvedValue({
+      ok: true,
+      tree: 'URL pagina corrente: https://esempio.it/iframe\n[0] link "mario@example.it"',
+    });
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
+    const out = (await tools.browser_iframe_snapshot.execute({ index: 0 }, {} as never)) as {
+      observation: string;
+    };
+    expect(out.observation).not.toContain('mario@example.it');
+    const token = out.observation.match(/\[LMUSE_EMAIL_[a-p]{24}\]/)?.[0];
+    expect(token).toBeDefined();
+    expect(gateway.restoreForPage(token!, 'https://esempio.it/iframe')).toBe('mario@example.it');
+    expect((sendMessage.mock.calls[0][1] as { maskPii?: boolean }).maskPii).toBe(false);
+  });
+
+  it('elenca solo il dominio, non titoli e query private dei tab', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const tabs = (chrome.tabs as unknown as { query: ReturnType<typeof vi.fn> }).query;
+    tabs.mockImplementationOnce(
+      async () =>
+        [
+          { id: 9, url: 'https://esempio.it/pagina?token=SEGRETO', title: 'Clienti molto riservati' },
+          { id: 10, url: 'https://mail.altro.test/inbox', title: 'Private personal mail' },
+        ] as chrome.tabs.Tab[],
+    );
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+      }),
+    );
+    const result = (await tools.browser_tabs_list.execute({}, {} as never)) as { observation: string };
+    expect(result.observation).toContain('esempio.it');
+    expect(result.observation).not.toContain('SEGRETO');
+    expect(result.observation).not.toContain('Clienti molto riservati');
+    expect(result.observation).not.toContain('mail.altro.test');
   });
 });

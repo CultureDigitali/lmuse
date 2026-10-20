@@ -1,0 +1,40 @@
+name: Beta ZIP (not a public release)
+
+on:
+  push:
+    branches:
+      - agent/privacy-gateway-20261020
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check and package the locally installable Chrome extension
+        run: pnpm release
+      - name: Record reproducible SHA-256 digest
+        run: |
+          cd release
+          sha256sum lmuse-0.9.0.zip > lmuse-0.9.0.sha256
+          git -C .. rev-parse HEAD > SOURCE-COMMIT.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lmuse-0.9.0-private-beta
+          path: |
+            release/lmuse-0.9.0.zip
+            release/lmuse-0.9.0.sha256
+            release/SOURCE-COMMIT.txt
+          if-no-files-found: error
+          retention-days: 14

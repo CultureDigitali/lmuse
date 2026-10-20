@@ -1,3 +1,13 @@
+## 0.9.0 — Candidato beta (non pubblicato)
+
+- Gateway di pseudonimizzazione reversibile, mapping solo RAM per run e origin, con test automatici su email, IBAN, carte, telefoni, token e query secret.
+- Protezione all'uscita di tutti i tool e al prompt; ripristino locale finale e scrittura in pagina soltanto verso il sito origine del dato.
+- Consenso per sito prima di trasmettere il contenuto al provider in modalità rigorosa; screenshot e task senza supervisione bloccati.
+- Safety floor per click, digitazione, clipboard e screenshot; approvazione legata a URL e tab, consumata dopo una sola azione.
+- Blocchi su input file e label; impostazioni privacy predefinite più sicure, pannello con nuova modalità.
+- E2E verifica che il mock provider riceva il token e non l'email, con esecuzione dell'agente obbligatoria.
+- **Limiti:** niente anonimizzazione universale per file binari/testo libero, permesso host globale ancora da restringere, beta non pronta per profilo reale.
+
 # Changelog — lmuse
 
 ## 0.8.1 (2026-10-08) — Il prodotto ora funziona davvero

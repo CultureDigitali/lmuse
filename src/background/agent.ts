@@ -1,6 +1,7 @@
 import { ToolLoopAgent, isStepCount } from 'ai';
 import { createModel } from './providers';
 import { createBrowserTools } from './tools';
+import { PrivacyGateway } from '../shared/privacy-gateway';
 import type { Settings } from '../shared/settings';
 import { MAX_TASK_CHARS } from '../shared/settings';
 
@@ -121,12 +122,18 @@ export async function runTask(
     throw new Error(`Task troppo lungo (max ${MAX_TASK_CHARS} caratteri).`);
   }
 
+  if (settings.privacyMode === 'strict' && !settings.allowedDomains.trim()) {
+    throw new Error('Privacy rigorosa: imposta almeno un dominio consentito prima di avviare il task.');
+  }
+  const gateway = new PrivacyGateway(settings.privacyMode);
+  const protectedPrompt = gateway.protectText(trimmed);
   const model = await createModel(settings, apiKey);
   let stepIndex = 0;
 
   const { signal, dispose, abort } = withTimeout(userAbort, settings.runTimeoutMin * 60_000);
   const { tools } = createBrowserTools({
     maskPii: settings.privacyMaskPii,
+    privacyGateway: gateway,
     hidePasswords: settings.privacyHidePasswords,
     hostOnly: settings.privacyHostOnly,
     sendScreenshots: settings.sendScreenshots,
@@ -152,7 +159,7 @@ export async function runTask(
   let usedTokens = 0;
   try {
     const stream = await agent.stream({
-      prompt: trimmed,
+      prompt: protectedPrompt,
       abortSignal: signal,
       onStepEnd: async () => {
         stepIndex += 1;
@@ -179,7 +186,7 @@ export async function runTask(
     }
     const [text, steps, usage] = await Promise.all([stream.text, stream.steps, stream.usage]);
     return {
-      text,
+      text: gateway.restoreForUser(text),
       steps: steps.length,
       inputTokens: usage?.inputTokens ?? 0,
       outputTokens: usage?.outputTokens ?? 0,
@@ -190,5 +197,6 @@ export async function runTask(
     throw error;
   } finally {
     dispose();
+    gateway.clear();
   }
 }

@@ -268,12 +268,12 @@ describe('età chiave (rotazione)', () => {
 });
 
 describe('auto-lock chiave di sessione', () => {
-  it('sessionLockMin default 0 e clamp 0-120', () => {
-    expect(sanitizeSettings({}).sessionLockMin).toBe(0);
+  it('sessionLockMin default 15 (sicuro) e clamp 0-120', () => {
+    expect(sanitizeSettings({}).sessionLockMin).toBe(15);
     expect(sanitizeSettings({ sessionLockMin: 30 }).sessionLockMin).toBe(30);
     expect(sanitizeSettings({ sessionLockMin: 999 }).sessionLockMin).toBe(120);
     expect(sanitizeSettings({ sessionLockMin: -5 }).sessionLockMin).toBe(0);
-    expect(sanitizeSettings({ sessionLockMin: NaN }).sessionLockMin).toBe(0);
+    expect(sanitizeSettings({ sessionLockMin: NaN }).sessionLockMin).toBe(15);
   });
 
   it('clearSessionKeys cancella SOLO session, mai le chiavi ricordate', async () => {
@@ -302,10 +302,10 @@ describe('auto-lock chiave di sessione', () => {
     expect(await loadApiKey('openai', true)).toBe('chiave-ricordata');
   });
 
-  it('clearAllData azzera anche sessionLockMin', async () => {
+  it('clearAllData ripristina anche il default sicuro di sessionLockMin', async () => {
     await saveSettings({ ...(await loadSettings()), sessionLockMin: 30 });
     await clearAllData();
-    expect((await loadSettings()).sessionLockMin).toBe(0);
+    expect((await loadSettings()).sessionLockMin).toBe(15);
   });
 });
 

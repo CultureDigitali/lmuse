@@ -1,6 +1,6 @@
 import { buildSnapshot, getElement, registerElements } from './snapshot';
 import { isPressAllowed } from './keys';
-import { describeFocused, selectOption, waitFor, hoverElement } from './actions';
+import { describeFocused, selectOption, waitFor, hoverElement, assertNoFileUploadTarget } from './actions';
 import { findInPage, tableToMarkdown } from './extract';
 import { maskPii } from '../shared/pii';
 
@@ -60,6 +60,7 @@ const MAX_TEXT_CHARS = 8000;
 const MAX_LINKS = 200;
 
 function clickElement(el: Element): void {
+  assertNoFileUploadTarget(el);
   if (el instanceof HTMLElement) {
     el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
     el.focus({ preventScroll: true });

@@ -36,12 +36,18 @@ describe('sanitizeSettings', () => {
     const s = sanitizeSettings({ privacyMaskPii: 0 as unknown as boolean });
     expect(s.privacyMaskPii).toBe(false);
   });
-  it('nuovi campi: approval enum, default sensitive', () => {
-    expect(sanitizeSettings({}).approval).toBe('sensitive');
+  it('privacy protetta di default e enum normalizzati', () => {
+    expect(sanitizeSettings({}).approval).toBe('all');
     expect(sanitizeSettings({ approval: 'all' }).approval).toBe('all');
-    expect(sanitizeSettings({ approval: 'x' as never }).approval).toBe('sensitive');
-    expect(sanitizeSettings({}).privacyHostOnly).toBe(false);
-    expect(sanitizeSettings({}).keepHistory).toBe(true);
+    expect(sanitizeSettings({ approval: 'x' as never }).approval).toBe('all');
+    expect(sanitizeSettings({}).privacyMode).toBe('strict');
+    expect(sanitizeSettings({ privacyMode: 'pseudonymize' }).privacyMode).toBe('pseudonymize');
+    expect(sanitizeSettings({ privacyMode: 'off' }).privacyMode).toBe('off');
+    expect(sanitizeSettings({ privacyMode: 'bad' as never }).privacyMode).toBe('strict');
+    expect(sanitizeSettings({}).privacyHostOnly).toBe(true);
+    expect(sanitizeSettings({}).keepHistory).toBe(false);
+    expect(sanitizeSettings({}).rememberKey).toBe(false);
+    expect(sanitizeSettings({}).sendScreenshots).toBe(false);
     expect(sanitizeSettings({ keepHistory: false }).keepHistory).toBe(false);
   });
   it('allowedDomains normalizzato', () => {

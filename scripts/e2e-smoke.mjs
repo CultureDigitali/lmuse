@@ -158,7 +158,7 @@ try {
     // passerebbe la CI verde (bug del 2026-09-30).
     const pageHtml =
       '<!doctype html><html lang="it"><head><title>Pagina di prova</title></head>' +
-      '<body><h1>Verifica</h1><a href="/prova">Link di prova</a>' +
+      '<body><h1>Verifica</h1><a href="/prova">Link di prova mario.rossi@example.it</a>' +
       '<button id="b">Premi</button></body></html>';
     const server = createServer((_req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -198,10 +198,14 @@ try {
     // (pannello → worker → agente → tool → content script → DONE → storage),
     // mai esercitato prima.
     let llmCalls = 0;
+    let leakedSensitive = false;
+    let sawPseudonym = false;
     const mock = createServer((req, res) => {
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => {
+        leakedSensitive ||= body.includes('mario.rossi@example.it');
+        sawPseudonym ||= body.includes('[LMUSE_EMAIL_');
         llmCalls += 1;
         const usage = { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 };
         const payload =
@@ -376,12 +380,13 @@ try {
         snapshotMaxChars: 12000,
         rememberKey: false,
         privacyMaskPii: true,
+        privacyMode: 'strict',
         privacyHidePasswords: true,
         privacyHostOnly: false,
         keepHistory: false,
         approval: 'off',
         sendScreenshots: false,
-        allowedDomains: '',
+        allowedDomains: '127.0.0.1',
         trustedDomains: [],
         savedPrompts: [],
         theme: 'auto',
@@ -443,6 +448,11 @@ try {
               if (m.type === 'STEP') window.__lmuseRun.steps.push(m);
               if (m.type === 'DONE') window.__lmuseRun.done = m;
               if (m.type === 'ERROR') window.__lmuseRun.error = m;
+              // Solo nel test su loopback: simuliamo il consenso esplicito del tester.
+              if (m.type === 'APPROVAL' && m.tool === 'browser_data_disclosure' &&
+                  String(m.description || '').indexOf('127.0.0.1') !== -1) {
+                port.postMessage({ type: 'APPROVE', id: m.id });
+              }
             });
             port.postMessage({ type: 'RUN', task: 'Leggi la pagina di prova' });
             return 'ok';
@@ -482,7 +492,7 @@ try {
     })();
 
     if (runResult.skipped) {
-      console.log(`SKIP e2e: run completo non eseguito — ${runResult.motivo}`);
+      check('run completo obbligatorio', false, String(runResult.motivo));
     } else {
       check('run completo: nessun errore', !runResult.error, runResult.error?.message ?? '');
       check(
@@ -505,6 +515,8 @@ try {
         (runResult.done?.inputTokens ?? 0) > 0,
         `inputTokens=${runResult.done?.inputTokens ?? 0}`,
       );
+      check('il provider non riceve email in chiaro', !leakedSensitive);
+      check('il provider riceve il segnaposto email', sawPseudonym);
     }
 
     if (!runResult.skipped) {
