@@ -558,7 +558,6 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
     expect(capture).not.toHaveBeenCalled();
   });
 
-
   it('se la pagina cambia mentre si approva la lettura, il DOM non viene letto', async () => {
     const gateway = new PrivacyGateway('strict');
     const requestApproval = vi.fn(async () => {
@@ -566,9 +565,13 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
       return true;
     });
     sendMessage.mockResolvedValue({ ok: true, tree: 'segreto@example.it' });
-    const { tools } = createBrowserTools(baseConfig({
-      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
-    }));
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
     await expect(tools.browser_snapshot.execute({}, {} as never)).rejects.toThrow(/pagina cambiata/);
     expect(sendMessage).not.toHaveBeenCalled();
   });
@@ -580,9 +583,13 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
       setActiveTabUrl('https://esempio.it/secondo-documento');
       return { ok: true, tree: 'cliente@example.it' };
     });
-    const { tools } = createBrowserTools(baseConfig({
-      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
-    }));
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
     await expect(tools.browser_snapshot.execute({}, {} as never)).rejects.toThrow(/pagina cambiata/);
     expect(gateway.size).toBe(0);
   });
@@ -593,10 +600,16 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
       setActiveTabUrl('https://esempio.it/documento-diverso');
       return true;
     });
-    const { tools } = createBrowserTools(baseConfig({
-      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
-    }));
-    await expect(tools.browser_read_text.execute({ mode: 'full' }, {} as never)).rejects.toThrow(/pagina cambiata/);
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
+    await expect(tools.browser_read_text.execute({ mode: 'full' }, {} as never)).rejects.toThrow(
+      /pagina cambiata/,
+    );
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
@@ -607,10 +620,16 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
       ok: true,
       tree: 'URL pagina corrente: https://esempio.it/iframe\n[0] link "mario@example.it"',
     });
-    const { tools } = createBrowserTools(baseConfig({
-      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
-    }));
-    const out = (await tools.browser_iframe_snapshot.execute({ index: 0 }, {} as never)) as { observation: string };
+    const { tools } = createBrowserTools(
+      baseConfig({
+        privacyGateway: gateway,
+        allowedDomains: 'esempio.it',
+        requestApproval,
+      }),
+    );
+    const out = (await tools.browser_iframe_snapshot.execute({ index: 0 }, {} as never)) as {
+      observation: string;
+    };
     expect(out.observation).not.toContain('mario@example.it');
     const token = out.observation.match(/\[LMUSE_EMAIL_[a-p]{24}\]/)?.[0];
     expect(token).toBeDefined();
