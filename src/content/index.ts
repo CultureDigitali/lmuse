@@ -60,13 +60,13 @@ const MAX_TEXT_CHARS = 8000;
 const MAX_LINKS = 200;
 
 function clickElement(el: Element): void {
+  assertNoFileUploadTarget(el);
   if (el instanceof HTMLElement) {
     el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
     el.focus({ preventScroll: true });
   }
   el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
   el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-  assertNoFileUploadTarget(el);
   (el as HTMLElement).click?.();
 }
 
