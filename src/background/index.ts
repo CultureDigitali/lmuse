@@ -1,5 +1,10 @@
 import { runTask } from './agent';
-import { providerEndpoint, requireHostAccess } from '../shared/hostAccess';
+import {
+  HOST_GRANTS_KEY,
+  hasRevokedHostGrant,
+  providerEndpoint,
+  requireHostAccess,
+} from '../shared/hostAccess';
 import { createModel } from './providers';
 import { generateText } from 'ai';
 import {
@@ -95,6 +100,26 @@ chrome.commands.onCommand.addListener((command) => {
     stopRequested = true;
     currentAbort?.abort();
   }
+});
+
+// LM-005: il panel modifica il registro delle capability in chrome.storage.
+// Anche se il permesso Chrome resta perché un provider condivide l'hostname,
+// qualsiasi revoca di origin+purpose ferma SUBITO il run e ne scarta gli output.
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return;
+  const entry = changes[HOST_GRANTS_KEY];
+  if (!entry || !hasRevokedHostGrant(entry.oldValue, entry.newValue)) return;
+  if (!running || !currentAbort) return;
+  stopRequested = true;
+  currentAbort.abort(new DOMException('Autorizzazione revocata durante il task.', 'AbortError'));
+  abortPendingApprovals();
+  broadcast({
+    type: 'STEP',
+    index: -1,
+    tool: 'privacy',
+    input: null,
+    result: 'Autorizzazione revocata: task e operazioni successive interrotti.',
+  });
 });
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -515,6 +540,7 @@ async function startRun(task: string): Promise<void> {
       signal,
       requestApproval,
     );
+    if (signal.aborted) throw new DOMException('Task interrotto: autorizzazione revocata.', 'AbortError');
     const elapsedMs = Date.now() - startedAt;
     const tokens = inputTokens + outputTokens;
     try {

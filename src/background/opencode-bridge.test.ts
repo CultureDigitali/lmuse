@@ -27,7 +27,7 @@ vi.stubGlobal('chrome', {
     onConnectExternal: { addListener: () => undefined },
     sendNativeMessage,
   },
-  storage: { local, session: local },
+  storage: { local, session: local, onChanged: { addListener: () => undefined } },
   action: {
     setBadgeText: () => undefined,
     setBadgeBackgroundColor: () => undefined,
