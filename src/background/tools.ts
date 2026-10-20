@@ -8,6 +8,7 @@ import { extractDomain, shouldApprove, type ApprovalContext, type ApprovalPolicy
 import { displayUrl, formatSnapshotHeader } from '../shared/header';
 import { maskPii, maskUrlTokens } from '../shared/pii';
 import { containsStop } from '../shared/task';
+import type { PrivacyGateway } from '../shared/privacy-gateway';
 
 // ---------------------------------------------------------------------------
 // Strato di accesso al browser: i tool dell'agente parlano con il content
@@ -20,6 +21,8 @@ import { containsStop } from '../shared/task';
 
 export interface BrowserToolConfig {
   maskPii: boolean;
+  /** Mappa reversibile solo RAM, separata per ogni run. */
+  privacyGateway?: PrivacyGateway;
   hidePasswords: boolean;
   hostOnly: boolean;
   sendScreenshots: boolean;
@@ -52,8 +55,7 @@ export interface SnapshotResult {
   table?: string;
 }
 
-/** Ultimo screenshot catturato (PNG base64, senza prefisso data:). */
-let lastScreenshot: string | null = null;
+// I buffer di screenshot non devono sopravvivere tra diversi run.
 
 function base64Of(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -114,9 +116,11 @@ const ALLOWLIST_PREFIX = 'ALLOWLIST:';
  * vincolo (comportamento predefinito invariato).
  */
 export function assertTabAllowed(tab: chrome.tabs.Tab, allowedDomains: string): void {
-  if (!allowedDomains.trim()) return;
   const url = tab.url ?? '';
-  if (!/^https?:/i.test(url)) return; // pagine non navigabili: fuori perimetro
+  if (!/^https?:/i.test(url) || isBlockedUrl(url)) {
+    throw new Error('ALLOWLIST: scheda non HTTP(S) o URL riservato.');
+  }
+  if (!allowedDomains.trim()) return;
   if (isAllowedHost(url, allowedDomains)) return;
   throw new Error(
     `${ALLOWLIST_PREFIX}Tab fuori dall'allowlist utente (${allowedDomains}). ` +
@@ -211,6 +215,7 @@ export interface SnapshotOpts {
   maxChars: number;
   /** Confine "Domini consentiti": riapplicato a ogni lettura di contenuto. */
   allowedDomains: string;
+  privacyGateway?: PrivacyGateway;
 }
 
 /** Snapshot del tab; usato anche per "rescuare" ref scaduti. */
@@ -239,6 +244,7 @@ async function snapshotTab(
     out +=
       '\nSuggerimento: nessun elemento interattivo rilevato (pagina grafica/Canvas?). Prova browser_screenshot.';
   }
+  if (opts.privacyGateway) out = opts.privacyGateway.protectText(out, tab.url);
   return truncateTo(out, opts.maxChars);
 }
 
@@ -267,11 +273,14 @@ const BUDGET_EXHAUSTED = 'Budget tool esaurito: chiudi il task o aumenta i passi
 const STOP_TEXT_PREFIX = 'STOP_TEXT:';
 
 export function createBrowserTools(cfg: BrowserToolConfig) {
+  const privacyActive = cfg.privacyGateway != null && cfg.privacyGateway.mode !== 'off';
+  let lastScreenshot: string | null = null;
   const budget = new ToolBudget(cfg.budgetMax);
   const circuit = new FailureCircuit(5);
   const seenDomains: string[] = [];
   const snapOpts: SnapshotOpts = {
-    maskPii: cfg.maskPii,
+    maskPii: privacyActive ? false : cfg.maskPii,
+    privacyGateway: privacyActive ? cfg.privacyGateway : undefined,
     hostOnly: cfg.hostOnly,
     maxChars: cfg.snapshotMaxChars,
     allowedDomains: cfg.allowedDomains,
@@ -304,15 +313,18 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     if (!budget.tryConsume()) throw new Error(`${BUDGET_EXHAUSTED} (${budget.max} chiamate per run).`);
     try {
       const out = await fn();
+      // Confine di protezione condiviso da TUTTI i tool, inclusi quelli futuri.
+      const safe = privacyActive ? cfg.privacyGateway!.protectUnknown(out) : out;
       circuit.recordSuccess();
-      return out;
+      return safe;
     } catch (error) {
       circuit.recordFailure();
       // Lo stop-text è un esito previsto, non un errore: non va rimappato come
       // "timeout/chiave/quota del provider" (il worker lo riconosce dal prefisso).
       const raw = error instanceof Error ? error.message : String(error);
       if (raw.startsWith(STOP_TEXT_PREFIX)) throw error;
-      throw new Error(mapProviderError(error), { cause: error });
+      const message = mapProviderError(error);
+      throw new Error(privacyActive ? cfg.privacyGateway!.protectText(message) : message);
     }
   }
 
@@ -357,7 +369,8 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       .then((t) => t[0]?.id ?? null)
       .catch(() => null);
     const ctx: ApprovalContext = { seenDomains: [...seenDomains], trustedDomains: cfg.trustedDomains };
-    const { needed, reason } = shouldApprove(toolName, args, cfg.policy, ctx);
+    const policy = privacyActive ? 'all' : cfg.policy;
+    const { needed, reason } = shouldApprove(toolName, args, policy, ctx);
     if (!needed) return;
     const full = reason ? `${description} — ${reason}` : description;
     let ok: boolean;
@@ -867,6 +880,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         await approved('browser_screenshot', {}, 'Cattura screenshot');
         await assertTabUnchanged();
         return guarded(async () => {
+          if (privacyActive) {
+            throw new Error('Privacy Gateway: screenshot non anonimizzabile; invio vietato.');
+          }
           if (!cfg.sendScreenshots) {
             throw new Error('Screenshot disattivato dalla privacy di lmuse (impostazioni ⚙).');
           }
@@ -906,6 +922,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         await approved('browser_screenshot_element', { ref }, `Screenshot di [${ref}]`);
         await assertTabUnchanged();
         return guarded(async () => {
+          if (privacyActive) {
+            throw new Error('Privacy Gateway: screenshot non anonimizzabile; invio vietato.');
+          }
           if (!cfg.sendScreenshots) {
             throw new Error('Screenshot disattivato dalla privacy di lmuse (impostazioni ⚙).');
           }
