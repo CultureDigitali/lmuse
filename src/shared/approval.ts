@@ -9,8 +9,6 @@ const READONLY_TOOLS = new Set([
   'browser_iframe_snapshot',
   'browser_tabs_list',
   'browser_wait',
-  'browser_screenshot',
-  'browser_screenshot_element',
 ]);
 
 export interface ApprovalContext {
@@ -64,8 +62,13 @@ export function shouldApprove(
 ): ApprovalDecision {
   const input = toolArgs(args);
 
-  if (toolName === 'browser_type' && input['submit'] === true) {
-    return { needed: true, reason: 'Invio di un form (digita + Invio)' };
+  // Safety floor: un click può inviare un form, eliminare dati o fare acquisti.
+  // Il flag submit del solo browser_type NON copriva questi casi.
+  if (toolName === 'browser_click') {
+    return { needed: true, reason: 'Click su elemento (può inviare o eliminare dati)' };
+  }
+  if (toolName === 'browser_type') {
+    return { needed: true, reason: input['submit'] === true ? 'Digitazione e invio form' : 'Digitazione in pagina' };
   }
   if (policy === 'off') return { needed: false, reason: '' };
   if (policy === 'all' && !READONLY_TOOLS.has(toolName)) {
@@ -89,6 +92,9 @@ export function shouldApprove(
   }
   if (toolName === 'browser_reload') {
     return { needed: true, reason: 'Ricarica pagina (perde lo stato dei form)' };
+  }
+  if (toolName === 'browser_clipboard_write' || toolName === 'browser_tab_close') {
+    return { needed: true, reason: toolName === 'browser_tab_close' ? 'Chiusura scheda' : 'Modifica appunti' };
   }
   if (toolName === 'browser_download') {
     return { needed: true, reason: 'Download di un file dal sito' };
