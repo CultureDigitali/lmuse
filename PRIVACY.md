@@ -1,5 +1,12 @@
 # Privacy — lmuse
 
+## Privacy Gateway v0.9.0 (beta)
+
+Nella modalità **rigorosa** predefinita, l'utente imposta i domini consentiti e autorizza la prima lettura di ogni origin in ciascun run. Il service worker sostituisce email, telefoni, IBAN, carte, alcuni token e parametri segreti degli URL con segnaposto casuali prima di trasmettere i risultati dei tool al modello. La mappa reversibile rimane **solo in RAM durante il run**, senza export o persistenza: le risposte finali sono ripristinate localmente. Un token può essere risolto dentro la pagina soltanto nello stesso origin in cui è stato osservato e dopo l'approvazione dell'azione.
+
+Screenshot disattivati nelle modalità protette, chiavi di sessione e cronologia disattivata per impostazione predefinita, task non presidiati bloccati in modalità rigorosa. La chiave di accesso al provider resta comunque visibile **al provider scelto** per l'autenticazione. Il testo libero, i nomi e altri dati non riconosciuti possono essere inviati o dedotti; pseudonimizzazione non significa anonimato garantito. Non esiste attualmente parsing anonimo di PDF/DOCX/XLSX o OCR integrato. Per perimetro e limiti consulta **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)**.
+
+
 lmuse è progettata per minimizzare i dati: **nessuna telemetria, nessun server nostro,
 nessun account**. Tutto resta sul tuo PC tranne ciò che invii al provider LLM che scegli.
 
