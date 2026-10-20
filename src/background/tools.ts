@@ -1225,7 +1225,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           }
           const table = privacyActive
             ? cfg.privacyGateway!.protectText(res.table ?? '(vuota)', tab.url)
-            : res.table ?? '(vuota)';
+            : (res.table ?? '(vuota)');
           return { observation: checkStop(truncateTo(table, 6000)) };
         }),
     }),
@@ -1250,7 +1250,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           });
           if (!res.ok) throw new Error(res.error ?? 'Query fallita.');
           return {
-            observation: `Trovati ${(res.refs ?? []).length} elementi (ref riusabili): ${privacyActive ? cfg.privacyGateway!.protectText(res.text ?? '', tab.url) : res.text ?? ''}`,
+            observation: `Trovati ${(res.refs ?? []).length} elementi (ref riusabili): ${privacyActive ? cfg.privacyGateway!.protectText(res.text ?? '', tab.url) : (res.text ?? '')}`,
           };
         }),
     }),
