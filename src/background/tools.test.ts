@@ -558,6 +558,66 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
     expect(capture).not.toHaveBeenCalled();
   });
 
+
+  it('se la pagina cambia mentre si approva la lettura, il DOM non viene letto', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => {
+      setActiveTabUrl('https://esempio.it/altro');
+      return true;
+    });
+    sendMessage.mockResolvedValue({ ok: true, tree: 'segreto@example.it' });
+    const { tools } = createBrowserTools(baseConfig({
+      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
+    }));
+    await expect(tools.browser_snapshot.execute({}, {} as never)).rejects.toThrow(/pagina cambiata/);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('se il DOM cambia dopo la lettura il contenuto viene scartato', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => true);
+    sendMessage.mockImplementation(async () => {
+      setActiveTabUrl('https://esempio.it/secondo-documento');
+      return { ok: true, tree: 'cliente@example.it' };
+    });
+    const { tools } = createBrowserTools(baseConfig({
+      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
+    }));
+    await expect(tools.browser_snapshot.execute({}, {} as never)).rejects.toThrow(/pagina cambiata/);
+    expect(gateway.size).toBe(0);
+  });
+
+  it('blocca anche browser_read_text se il tab naviga dopo la conferma', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => {
+      setActiveTabUrl('https://esempio.it/documento-diverso');
+      return true;
+    });
+    const { tools } = createBrowserTools(baseConfig({
+      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
+    }));
+    await expect(tools.browser_read_text.execute({ mode: 'full' }, {} as never)).rejects.toThrow(/pagina cambiata/);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('gli iframe protetti usano segnaposto reversibili, non redazione irreversibile', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => true);
+    sendMessage.mockResolvedValue({
+      ok: true,
+      tree: 'URL pagina corrente: https://esempio.it/iframe\\n[0] link "mario@example.it"',
+    });
+    const { tools } = createBrowserTools(baseConfig({
+      privacyGateway: gateway, allowedDomains: 'esempio.it', requestApproval,
+    }));
+    const out = (await tools.browser_iframe_snapshot.execute({ index: 0 }, {} as never)) as { observation: string };
+    expect(out.observation).not.toContain('mario@example.it');
+    const token = out.observation.match(/\\[LMUSE_EMAIL_[a-p]{24}\\]/)?.[0];
+    expect(token).toBeDefined();
+    expect(gateway.restoreForPage(token!, 'https://esempio.it/iframe')).toBe('mario@example.it');
+    expect((sendMessage.mock.calls[0][1] as { maskPii?: boolean }).maskPii).toBe(false);
+  });
+
   it('elenca solo il dominio, non titoli e query private dei tab', async () => {
     const gateway = new PrivacyGateway('strict');
     const tabs = (chrome.tabs as unknown as { query: ReturnType<typeof vi.fn> }).query;
