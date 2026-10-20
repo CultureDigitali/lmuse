@@ -81,3 +81,15 @@ export function hoverElement(el: Element): void {
   el.dispatchEvent(new MouseEvent('mouseover', opts));
   el.dispatchEvent(new MouseEvent('mouseenter', { ...opts, bubbles: false }));
 }
+
+
+/** Gli agenti non devono aprire picker di file tramite input/label DOM. */
+export function assertNoFileUploadTarget(el: Element): void {
+  const direct = el instanceof HTMLInputElement && el.type === 'file';
+  const label = el instanceof HTMLLabelElement ? el : el.closest('label');
+  const control = label instanceof HTMLLabelElement ? label.control : null;
+  const associated = control instanceof HTMLInputElement && control.type === 'file';
+  if (direct || associated) {
+    throw new Error('Upload file bloccato: scegli e autorizza il file manualmente.');
+  }
+}
