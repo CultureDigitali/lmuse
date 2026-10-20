@@ -31,15 +31,27 @@ La chiave è per-provider (ogni provider la sua) e migra automaticamente dalla 0
 ### Integrazione opencode (se installato)
 
 ```bash
-pnpm setup:opencode            # registra il native bridge in Chrome/Chromium/Edge
-pnpm setup:opencode --uninstall  # rimuove il bridge
+pnpm setup:opencode --dry-run --extension-id=<id-estensione>  # prova isolata senza registrare
+pnpm setup:opencode --extension-id=<id-estensione>            # installa SOLO dopo scelta esplicita
+pnpm setup:opencode --uninstall                               # revoca registrazione e launcher
 ```
+
+Leggi l'ID di **32 caratteri (lettere a–p)** dalla pagina `chrome://extensions`
+(modalità sviluppatore). Per ogni installazione o cambio di ID ripeti il setup.
+Il comando rifiuta ID mancanti e non registra wildcard. Su macOS/Linux scrive
+launcher e manifest nella cartella dell'utente; su Windows compila localmente un
+piccolo launcher .NET e registra il percorso del manifest nel registro **HKCU**
+di Chrome/Chromium/Edge, senza privilegi amministrativi. Richiede Node e, su
+Windows, PowerShell/.NET Framework. Il dry-run usa esclusivamente una directory
+temporanea, senza modificare il browser o leggere credenziali reali.
 
 Il bridge (`native/lmuse-opencode-bridge.mjs`) legge `~/.local/share/opencode/auth.json`
 e restituisce all'estensione solo i provider compatibili (NVIDIA, OpenAI, Anthropic,
 Google, xAI, DeepSeek, Groq, Mistral, Cerebras, Together, Hugging Face, Cohere,
 DeepInfra, opencode stesso, …). Nel pannello: ⚙ → sezione **opencode** → _Rileva_ →
-_Importa chiavi_. Le chiavi non escono mai dal PC e non finiscono nei log.
+_Importa chiavi_. Le chiavi importate sono salvate nello storage locale di LMuse,
+non nei log; **quando usi un provider remoto, la chiave viene inviata al provider
+per autenticare la richiesta**. Non installare il bridge su profili non fidati.
 
 ## Struttura
 

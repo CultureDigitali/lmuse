@@ -1,5 +1,15 @@
 ## 0.9.0 — Candidato beta (non pubblicato)
 
+### LM-003 — setup nativeMessaging verificabile (PR separata, in verifica)
+
+- Setup richiede un ID estensione esplicito valido, nessun placeholder o wildcard.
+- Installazione di una copia locale del bridge con launcher avviabile dal browser;
+  Windows usa un piccolo eseguibile .NET compilato sul PC, senza binari distribuiti.
+- Manifest pin dell'origin e registrazione per-utente su macOS/Linux o HKCU Windows,
+  revocabili con `--uninstall`; `--dry-run` usa una directory temporanea.
+- Test di integrazione con native host vero e credenziali sintetiche per i comandi
+  `ping/list/export`, framing byte-for-byte e assenza di chiavi nel list.
+
 ### LM-001 — restrizione dei privilegi host (PR #9, in review)
 
 - Rimossa la richiesta obbligatoria `<all_urls>` al primo avvio; host permissions HTTP(S) opzionali.

@@ -50,12 +50,24 @@
 ### Bridge opencode — superficie d'attacco
 
 Il native host `it.lmuse.opencode_bridge` è registrato solo da te
-(`pnpm setup:opencode`) e risponde solo all'estensione con ID autorizzato in
+(`pnpm setup:opencode --extension-id=<id>`) e risponde solo all'estensione con ID autorizzato in
 `allowed_origins`. Il protocollo: messaggi JSON < 1 MiB con framing uint32LE,
 comandi ammessi `ping`/`list`/`export` solo (ogni altro → rifiutato). La risposta
 è validata con zod nel worker prima dell'uso. Le chiavi esportate non toccano
 mai i log né la UI in chiaro (maschera con reveal). Non c'è scrittura su disco
 dal bridge: solo lettura di `~/.local/share/opencode/auth.json`.
+
+**LM-003 — installazione governata:** il setup rifiuta ID mancanti/non validi e
+non scrive più un manifest con `<ID-ESTENSIONE>`. Installa una copia locale del
+bridge e un launcher eseguibile (shell su macOS/Linux con bit `execute`; su
+Windows piccolo EXE .NET compilato localmente con PowerShell). Il manifest
+consente un solo `chrome-extension://<id>/` esplicito; su Windows le voci HKCU
+sono create solo lanciando intenzionalmente il setup. La modalità `--dry-run`
+crea file soltanto in una directory temporanea e non tocca Chrome/Edge o il registro.
+I test eseguono il launcher vero con credenziali **sintetiche**, controllando
+`ping`, `list`, `export`, framing e pinning senza accedere ad auth.json reale.
+Il native bridge può esporre credenziali al pannello solo tramite il comando
+`export`: trattare import e ambiente Chrome come operazioni sensibili.
 
 I 9 tool aggiunti in v0.4.0 (select, wait, press, reload, forward, read_text, links,
 duplicate, screenshot_element) riusano gli stessi permessi: nessun nuovo permesso
