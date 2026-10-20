@@ -63,12 +63,31 @@
   <body>
     <main>
       <h1>lmuse — Privacy Policy</h1>
-      <p class="muted">Ultimo aggiornamento: 19 ottobre 2026 · <a href="./index.html">lmuse</a></p>
+      <p class="muted">Ultimo aggiornamento: 20 ottobre 2026 · <a href="./index.html">lmuse</a></p>
 
       <p>
         lmuse è un'estensione Chrome che esegue task nel browser tramite un modello linguistico scelto
         dall'utente, con la propria chiave API (BYOK). Questa pagina descrive quali dati tratta e dove
         restano.
+      </p>
+
+      <h2>Privacy Gateway 0.9.0 (beta)</h2>
+      <p>
+        La modalità rigorosa consente all'utente di approvare ogni sito prima che il suo
+        contenuto raggiunga il provider LLM. Email, numeri telefonici, IBAN, carte e alcuni
+        token riconosciuti sono trasformati in pseudonimi casuali nel browser. La mappa
+        per il ripristino vive solo nella memoria della singola esecuzione e non viene
+        inviata al provider. La scrittura con ripristino è consentita solo nel sito
+        d'origine, dopo approvazione. Screenshot e upload automatici sono disabilitati
+        nelle modalità protette.
+      </p>
+      <p>
+        Questa protezione non equivale a anonimizzazione completa. Nomi, testi liberi,
+        contenuti non riconosciuti e informazioni inferibili dal contesto possono
+        comunque essere condivisi con il provider e diventare dati personali. La chiave
+        API viene trasmessa al provider scelto per autenticazione. Nessun file binario
+        viene inviato direttamente al modello; la beta non offre parser universali
+        per documenti PDF, fogli di calcolo o immagini.
       </p>
 
       <h2>Nessun server nostro, nessuna telemetria</h2>
@@ -95,9 +114,10 @@
 
       <h2>A chi vengono inviati i dati</h2>
       <p>
-        Durante un task, lmuse invia al provider LLM che hai configurato: il testo del task, lo snapshot della
-        pagina (con redazione di email, IBAN, carte, numeri e token URL se attiva) e, se abilitati,
-        screenshot. Questi dati vanno esclusivamente al provider scelto, secondo la sua informativa. lmuse non
+        Durante un task, lmuse invia al provider LLM che hai configurato: il testo del task, il contenuto della
+        pagina con pseudonimizzazione dei valori strutturati riconosciuti nelle modalità protette.
+        Le informazioni residue possono ancora identificare persone. Screenshot sono consentiti
+        solo nella modalità non protetta. Questi dati vanno esclusivamente al provider scelto, secondo la sua informativa. lmuse non
         li invia ad altri soggetti.
       </p>
 
@@ -140,7 +160,7 @@
         lmuse is a Chrome extension that performs browser tasks using a language model of your choice and your
         own API key. The developer runs no servers, collects no telemetry and sells no data. Settings and API
         keys are stored locally in <code>chrome.storage</code>. During a task, the task text, a redacted page
-        snapshot and optional screenshots are sent only to the LLM provider you configured. The optional
+        page content pseudonymized for recognized structured identifiers is sent to the chosen LLM provider. Free text and context can still reveal personal information; screenshots are blocked in protected modes. The optional
         opencode bridge runs locally, reads opencode's <code>auth.json</code> and makes no network requests.
         Use “Cancella tutti i dati” to delete everything stored locally.
       </p>
