@@ -73,7 +73,24 @@ beforeEach(() => {
   activeTabUrl = 'https://esempio.it/pagina';
   sendMessage.mockReset();
   executeScript.mockClear();
-  getTab.mockClear();
+  // Ripristina ogni volta gli stub condivisi: altre suite sostituiscono
+  // query/get e possono lasciare URL differenti fra approvazione e azione.
+  const query = (chrome.tabs as unknown as { query: ReturnType<typeof vi.fn> }).query;
+  query.mockReset();
+  query.mockImplementation(async (q?: { url?: string }) =>
+    q?.url
+      ? [{ id: 1, url: q.url, title: 'Pagina', status: 'complete', windowId: 1 }]
+      : [{ id: 1, url: activeTabUrl, title: 'Pagina', status: 'complete', windowId: 1 }],
+  );
+  getTab.mockReset();
+  getTab.mockImplementation(async () => ({
+    id: 1,
+    url: activeTabUrl,
+    title: 'Pagina',
+    status: 'complete',
+    windowId: 1,
+  }));
+  (chrome.tabs as unknown as { get: unknown }).get = getTab;
 });
 
 describe('browser_iframe_snapshot', () => {
