@@ -462,7 +462,12 @@ async function startRun(task: string): Promise<void> {
     if (getProvider(settings.providerId).needsKey && !isPlausibleKey(apiKey)) {
       throw new Error('Chiave API mancante o non valida: controllala nelle impostazioni ⚙.');
     }
-    await saveRunState({ task: trimmed, at: startedAt });
+    if (settings.privacyMode === 'strict' && ports.size === 0) {
+      throw new Error('Privacy rigorosa: i task non presidiati sono bloccati. Apri il pannello lmuse.');
+    }
+    // Non lasciare task contenenti dati privati in storage o cronologia persistente.
+    const localTaskLabel = settings.privacyMode === 'off' ? trimmed : '[Task pseudonimizzato]';
+    await saveRunState({ task: localTaskLabel, at: startedAt });
     const mask = (value: unknown): unknown => maskForPanel(settings, value);
     maskCurrent = mask;
     approvalTimeoutSec = settings.approvalTimeoutSec;
@@ -515,14 +520,14 @@ async function startRun(task: string): Promise<void> {
       const fresh = await loadSettings();
       await saveSettings({
         ...fresh,
-        lastRuns: buildLastRuns(fresh.lastRuns, { task: trimmed, at: startedAt, steps, tokens }),
+        lastRuns: buildLastRuns(fresh.lastRuns, { task: localTaskLabel, at: startedAt, steps, tokens }),
       });
     } catch (error) {
       throw new Error('Spazio di archiviazione esaurito: impossibile salvare il risultato.', {
         cause: error,
       });
     }
-    await addHistoryTask(trimmed, settings.keepHistory);
+    await addHistoryTask(localTaskLabel, settings.keepHistory && settings.privacyMode === 'off');
     broadcast({ type: 'DONE', text, steps, inputTokens, outputTokens, elapsedMs });
     if (ports.size === 0) void chrome.action.setBadgeText({ text: '✓' });
   } catch (error) {
