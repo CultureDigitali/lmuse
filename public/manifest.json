@@ -37,7 +37,7 @@
   "side_panel": {
     "default_path": "sidepanel/index.html"
   },
-  "permissions": ["storage", "scripting", "tabs", "activeTab", "sidePanel", "alarms", "nativeMessaging"],
+  "permissions": ["storage", "scripting", "activeTab", "sidePanel", "alarms", "nativeMessaging"],
   "optional_host_permissions": ["https://*/*", "http://*/*"],
   "icons": {
     "16": "icons/icon-16.png",

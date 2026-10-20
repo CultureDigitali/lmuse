@@ -1,6 +1,13 @@
 ## 0.9.0 — Candidato beta (non pubblicato)
 
-### LM-001 — restrizione dei privilegi host (PR #9, in review)
+### LM-004 — Permessi Chrome minimi (PR separata)
+
+- Rimosso il permesso globale `tabs`, che consentiva URL e titoli di tutte le schede.
+- `scripting` (iniezione controllata) e `activeTab` (cattura tab attivo) mantenuti per le funzioni che li richiedono.
+- Test browser verifica che un sito senza host grant non esponga i metadati alla scheda dell'estensione, con accesso e revoca verificati.
+- Aggiornato Vite da 8.3.0 a 8.3.4 dopo il rilievo di sicurezza alto GHSA-587h-7wmj-h5pm; l'audit resta obbligatorio.
+
+### LM-001 — restrizione dei privilegi host (PR #9 incorporata)
 
 - Rimossa la richiesta obbligatoria `<all_urls>` al primo avvio; host permissions HTTP(S) opzionali.
 - UI per concessione/revoca siti e provider con conferma nativa Chrome; registro secondario di scopo e origin esatto, inclusa porta, per impedire escalation tra API locali e altri siti.
@@ -13,7 +20,7 @@
 - Safety floor per click, digitazione, clipboard e screenshot; approvazione legata a URL e tab, consumata dopo una sola azione.
 - Blocchi su input file e label; impostazioni privacy predefinite più sicure, pannello con nuova modalità.
 - E2E verifica che il mock provider riceva il token e non l'email, con esecuzione dell'agente obbligatoria.
-- **Limiti:** niente anonimizzazione universale per file binari/testo libero, permesso host globale ancora da restringere, beta non pronta per profilo reale.
+- **Limiti:** niente anonimizzazione universale per file binari/testo libero; la beta non è ancora pronta per profili reali.
 
 # Changelog — lmuse
 

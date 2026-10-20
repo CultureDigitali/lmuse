@@ -175,6 +175,12 @@ try {
         (manifest.optional_host_permissions ?? []).includes('https://*/*') &&
         (manifest.optional_host_permissions ?? []).includes('http://*/*'),
     );
+    check(
+      'LM-004: niente permesso tabs su tutte le schede',
+      !(manifest.permissions ?? []).includes('tabs') &&
+        (manifest.permissions ?? []).includes('scripting') &&
+        (manifest.permissions ?? []).includes('activeTab'),
+    );
     const hasRoot = await page.evaluate(() => !!document.getElementById('root')?.childElementCount);
     check('sidepanel renderizzato', hasRoot);
     const hasSettings = await page.evaluate(() =>
@@ -231,6 +237,14 @@ try {
     await permissionPanel.type('input[aria-label="URL sito per permesso Chrome"]', testUrl);
     const swTarget = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
     const worker = await swTarget?.worker();
+    const unreadableBeforeGrant = await worker.evaluate(async (tabUrl) => {
+      const tabsPermission = await chrome.permissions.contains({ permissions: ['tabs'] });
+      const tabs = await chrome.tabs.query({});
+      // Le API di base tabs.* sono accessibili, ma senza tab metadata globale
+      // URL e titolo della pagina non autorizzata devono restare invisibili.
+      return !tabsPermission && !tabs.some((tab) => tab.url === tabUrl || tab.title === 'Pagina di prova');
+    }, testUrl);
+    check('LM-004: URL e titolo tab non autorizzato invisibili prima del grant', unreadableBeforeGrant);
     const checkHostPermission = async (url) =>
       worker.evaluate(async (sourceUrl) => {
         const origin = new URL(sourceUrl);
@@ -284,6 +298,11 @@ try {
       'site grant saved with exact port and role',
       await waitForHostRole(permissionPanel, new URL(testUrl).origin, 'site', true),
     );
+    const tabMetadataAfterGrant = await worker.evaluate(async (tabUrl) => {
+      const tabs = await chrome.tabs.query({ url: tabUrl });
+      return tabs.some((tab) => tab.url === tabUrl && tab.title === 'Pagina di prova');
+    }, testUrl);
+    check('LM-004: URL e titolo tab disponibili dopo il grant host', tabMetadataAfterGrant);
     if (!grantedOrigin)
       throw new Error('Permesso host non concesso dalla finestra Chrome: ' + permissionStatus);
     await permissionPanel.close();
@@ -721,6 +740,11 @@ try {
       !revokeResult.chromeGranted && revokeResult.roles.length === 0,
       JSON.stringify(revokeResult),
     );
+    const tabMetadataAfterRevoke = await workerNow.evaluate(async (tabUrl) => {
+      const tabs = await chrome.tabs.query({});
+      return !tabs.some((tab) => tab.url === tabUrl || tab.title === 'Pagina di prova');
+    }, testUrl);
+    check('LM-004: URL e titolo tab nascosti dopo revoca', tabMetadataAfterRevoke);
     const deniedAfterRevoke = await workerNow.evaluate(async (tabUrl) => {
       const [tab] = await chrome.tabs.query({ url: tabUrl });
       try {
