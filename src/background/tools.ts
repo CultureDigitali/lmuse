@@ -324,7 +324,8 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       const raw = error instanceof Error ? error.message : String(error);
       if (raw.startsWith(STOP_TEXT_PREFIX)) throw error;
       const message = mapProviderError(error);
-      throw new Error(privacyActive ? cfg.privacyGateway!.protectText(message) : message);
+      const safeMessage = privacyActive ? cfg.privacyGateway!.protectText(message) : message;
+      throw new Error(safeMessage, { cause: privacyActive ? new Error(safeMessage) : error });
     }
   }
 
