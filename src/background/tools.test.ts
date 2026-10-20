@@ -519,6 +519,31 @@ describe('Privacy Gateway — verifiche sul confine reale dei tool', () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
+  it('tabella e appunti mantengono l origine per la risoluzione locale', async () => {
+    const gateway = new PrivacyGateway('strict');
+    const requestApproval = vi.fn(async () => true);
+    const { tools } = createBrowserTools(
+      baseConfig({ privacyGateway: gateway, requestApproval, allowedDomains: 'esempio.it' }),
+    );
+    sendMessage.mockResolvedValue({ ok: true, table: '| nome | mario@example.it |' });
+    const table = (await tools.browser_table.execute({ ref: 1 }, {} as never)) as {
+      observation: string;
+    };
+    expect(table.observation).not.toContain('mario@example.it');
+    const token = table.observation.match(/\[LMUSE_EMAIL_[a-p]{24}\]/)?.[0];
+    expect(token).toBeDefined();
+    expect(gateway.restoreForPage(token!, 'https://esempio.it/nuova')).toBe('mario@example.it');
+
+    sendMessage.mockResolvedValue({ ok: true, text: 'segreto@example.it', tree: '[0] button "Ok"' });
+    const clipboard = (await tools.browser_clipboard_read.execute({}, {} as never)) as {
+      observation: string;
+    };
+    expect(clipboard.observation).not.toContain('segreto@example.it');
+    const clipToken = clipboard.observation.match(/\[LMUSE_EMAIL_[a-p]{24}\]/)?.[0];
+    expect(clipToken).toBeDefined();
+    expect(gateway.restoreForPage(clipToken!, 'https://esempio.it/nuova')).toBe('segreto@example.it');
+  });
+
   it('non cattura immagini non anonimizzabili nemmeno se flag screenshot è on', async () => {
     const gateway = new PrivacyGateway('strict');
     const capture = vi.mocked(chrome.tabs.captureVisibleTab);
