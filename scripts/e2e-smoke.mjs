@@ -172,8 +172,14 @@ try {
     // permesso dal pannello. L'allowlist testuale NON autorizza Chrome.
     const permissionPanel = await browser.newPage();
     await permissionPanel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
-    await permissionPanel.waitForSelector('button[aria-label="Impostazioni"]', { timeout: 15_000 });
-    await permissionPanel.click('button[aria-label="Impostazioni"]');
+    await permissionPanel.waitForFunction('document.readyState === "complete" && !!chrome?.runtime?.id', {
+      timeout: 15_000,
+    });
+    await new Promise((r) => setTimeout(r, 1000));
+    await permissionPanel.waitForSelector('button[aria-label="Impostazioni"],button[aria-label="Settings"]', {
+      timeout: 15_000,
+    });
+    await permissionPanel.click('button[aria-label="Impostazioni"],button[aria-label="Settings"]');
     await permissionPanel.waitForSelector('input[aria-label="URL sito per permesso Chrome"]');
     await permissionPanel.type('input[aria-label="URL sito per permesso Chrome"]', testUrl);
     const grantButton = await permissionPanel.$$('button');
