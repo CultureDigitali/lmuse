@@ -26,16 +26,22 @@
 
 ## Rationale permessi
 
-| Permesso                    | Uso                                                  | Alternativa valutata                           |
-| --------------------------- | ---------------------------------------------------- | ---------------------------------------------- |
-| `storage`                   | settings/chiave/cronologia locali                    | nessuna (serve persistenza)                    |
-| `scripting`                 | inject on-demand di `content.js` (solo `files:`)     | content script statico (peggio: sempre attivo) |
-| `tabs`                      | leggere URL/titolo, elencare e fokusare tab          | `activeTab` solo (insufficiente per multi-tab) |
-| `activeTab`                 | agire sul tab attivo senza prompt                    | —                                              |
-| `sidePanel`                 | pannello laterale                                    | popup (peggiore per task lunghi)               |
-| `alarms`                    | cadenza task programmati (solo locali)               | polling dal panel (richiede panel aperto)      |
-| `nativeMessaging`           | bridge opencode (host registrato dall'utente)        | nessuna; senza bridge il canale è chiuso       |
-| `optional_host_permissions` | Accesso al dominio solo dopo gesto e conferma Chrome | Nessun host globale install-time               |
+| Permesso                    | Uso                                                                   | Alternativa valutata                                               |
+| --------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `storage`                   | settings/chiave/cronologia locali                                     | nessuna (serve persistenza)                                        |
+| `scripting`                 | inject on-demand di `content.js` (solo `files:`)                      | content script statico (peggio: sempre attivo)                     |
+| `activeTab`                 | `captureVisibleTab` su richiesta e accesso temporaneo al tab corrente | Necessario senza `<all_urls>`; resta soggetto a privacy e consenso |
+| `sidePanel`                 | pannello laterale                                                     | popup (peggiore per task lunghi)                                   |
+| `alarms`                    | cadenza task programmati (solo locali)                                | polling dal panel (richiede panel aperto)                          |
+| `nativeMessaging`           | bridge opencode (host registrato dall'utente)                         | nessuna; senza bridge il canale è chiuso                           |
+| `optional_host_permissions` | Accesso al dominio solo dopo gesto e conferma Chrome                  | Nessun host globale install-time                                   |
+
+### LM-004 — Riduzione dei metadati accessibili in Chrome
+
+- Eliminato il permesso install-time `tabs`: l'estensione non può più leggere indiscriminatamente URL, titolo, `pendingUrl` e favicon delle schede non autorizzate.
+- L'API `chrome.tabs` resta utilizzabile per elencare identificativi, attivare, creare e aggiornare le schede; il contenuto sensibile è visibile soltanto sugli host autorizzati. La policy LMuse richiede **anche** un grant applicativo esatto con ruolo `site`.
+- `scripting` resta obbligatorio per `chrome.scripting.executeScript` (iniezione on-demand di `content.js` soltanto dopo verifica locale del dominio); `activeTab` è necessario alla cattura del tab visibile, che resta soggetta alle autorizzazioni e alle restrizioni privacy.
+- E2E Chrome: i metadati devono essere assenti prima del grant, leggibili dopo il grant host e nuovamente assenti dopo la revoca.
 
 ### LM-001: autorizzazione Chrome distinta dall'allowlist
 
