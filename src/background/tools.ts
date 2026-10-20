@@ -216,6 +216,7 @@ export interface SnapshotOpts {
   /** Confine "Domini consentiti": riapplicato a ogni lettura di contenuto. */
   allowedDomains: string;
   privacyGateway?: PrivacyGateway;
+  approveRead?: (url: string) => Promise<void>;
 }
 
 /** Snapshot del tab; usato anche per "rescuare" ref scaduti. */
@@ -234,6 +235,7 @@ async function snapshotTab(
   // o un reindirizzamento l'URL può essere cambiato, e leggere la pagina senza
   // ricontrollare avrebbe mostrato contenuto fuori dai domini consentiti.
   assertTabAllowed(tab, opts.allowedDomains);
+  await opts.approveRead?.(tab.url ?? '');
   const res = await send<SnapshotResult>(tabId, { kind: 'LMUSE_SNAPSHOT', maskPii: opts.maskPii });
   if (!res.ok || !res.tree) throw new Error(res.error ?? 'Snapshot fallito.');
   let out = formatSnapshotHeader(tab.url, tab.title, res.tree, {
@@ -274,6 +276,7 @@ const STOP_TEXT_PREFIX = 'STOP_TEXT:';
 
 export function createBrowserTools(cfg: BrowserToolConfig) {
   const privacyActive = cfg.privacyGateway != null && cfg.privacyGateway.mode !== 'off';
+  const disclosedOrigins = new Set<string>();
   let lastScreenshot: string | null = null;
   const budget = new ToolBudget(cfg.budgetMax);
   const circuit = new FailureCircuit(5);
@@ -281,10 +284,30 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
   const snapOpts: SnapshotOpts = {
     maskPii: privacyActive ? false : cfg.maskPii,
     privacyGateway: privacyActive ? cfg.privacyGateway : undefined,
+    approveRead,
     hostOnly: cfg.hostOnly,
     maxChars: cfg.snapshotMaxChars,
     allowedDomains: cfg.allowedDomains,
   };
+
+  /** La lettura di un sito in modalità rigorosa richiede un consenso per run/origin. */
+  async function approveRead(rawUrl: string): Promise<void> {
+    if (!privacyActive || cfg.privacyGateway!.mode !== 'strict') return;
+    let origin: string;
+    try {
+      const u = new URL(rawUrl);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error();
+      origin = u.origin;
+    } catch {
+      throw new Error('Privacy Gateway: sito non valido per la lettura.');
+    }
+    if (disclosedOrigins.has(origin)) return;
+    const description = 'Inviare al provider il contenuto pseudonimizzato di ' + origin + '?';
+    const ok = await cfg.requestApproval('browser_data_disclosure', description, origin);
+    cfg.onApprovalDecision?.('browser_data_disclosure', ok, 'Consenso lettura sito');
+    if (!ok) throw new Error('Privacy Gateway: lettura rifiutata; nessun dato inviato al modello.');
+    disclosedOrigins.add(origin);
+  }
 
   function trackDomain(url: string | undefined): void {
     const domain = url ? extractDomain(url) : null;
@@ -706,6 +729,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
+          await approveRead(tab.url ?? '');
           const res = await sendToTab<SnapshotResult>(tab.id, {
             kind: 'LMUSE_IFRAME_SNAPSHOT',
             index: index ?? 0,
@@ -976,6 +1000,10 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
           const lines = tabs.map((t) => {
+            if (privacyActive && cfg.privacyGateway!.mode === 'strict') {
+              const allowed = /^https?:/i.test(t.url ?? '') && isAllowedHost(t.url ?? '', cfg.allowedDomains);
+              return allowed ? '#' + t.id + ' ' + (extractDomain(t.url ?? '') ?? '(sconosciuto)') + ' [solo dominio]' : '#' + t.id + ' [fuori perimetro]';
+            }
             const title = (t.title ?? '').slice(0, 60);
             // Stessa regola degli altri percorsi: con hostOnly via solo
             // origin+path, mai la query string.
@@ -1066,6 +1094,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
+          await approveRead(tab.url ?? '');
           const res = await sendToTab<SnapshotResult>(tab.id, {
             kind: 'LMUSE_TEXT',
             maxChars: Math.min(cfg.snapshotMaxChars, 8000),
@@ -1085,6 +1114,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
+          await approveRead(tab.url ?? '');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_LINKS', max: 200 });
           if (!res.ok) throw new Error(res.error ?? 'Lettura link fallita.');
           const lines = (res.links ?? []).map((l) => {
@@ -1130,6 +1160,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
         guarded(async () => {
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
+          await approveRead(tab.url ?? '');
           const res = await sendToTab<SnapshotResult>(tab.id, { kind: 'LMUSE_TABLE', ref, docIndex });
           if (!res.ok) {
             if (res.error?.includes('scaduto')) {
@@ -1153,6 +1184,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
           if (!selector.trim()) throw new Error('Selettore vuoto.');
           const tab = await tabForAction(cfg.allowedDomains);
           if (!tab.id) throw new Error('Tab senza id.');
+          await approveRead(tab.url ?? '');
           const res = await sendToTab<SnapshotResult>(tab.id, {
             kind: 'LMUSE_QUERY',
             selector,
