@@ -349,6 +349,10 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       const message = mapProviderError(error);
       const safeMessage = privacyActive ? cfg.privacyGateway!.protectText(message) : message;
       throw new Error(safeMessage, { cause: privacyActive ? new Error(safeMessage) : error });
+    } finally {
+      // L'approvazione vale soltanto per UNA operazione, mai per i tool successivi.
+      approvedTabId = null;
+      approvedTabUrl = null;
     }
   }
 
