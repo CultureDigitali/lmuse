@@ -2,10 +2,18 @@
 // installazione, service worker vivo, sidepanel senza errori.
 // Uso: pnpm test:e2e (richiede pnpm build prima; CHROME_PATH opzionale).
 // Su CI linux girare sotto xvfb-run.
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:http';
 import { execFileSync } from 'node:child_process';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import puppeteer from 'puppeteer-core';
 
@@ -89,6 +97,14 @@ const check = (name, ok, detail = '') => {
   if (!ok) errors.push(name);
 };
 
+// Chrome for Testing Linux and the native host run under a disposable HOME,
+// never the developer's ~/.config nor real opencode credentials.
+const nativeBrowserHome =
+  process.platform === 'linux' ? mkdtempSync(join(tmpdir(), 'lmuse-native-browser-')) : null;
+const nativeBrowserEnv = nativeBrowserHome
+  ? { ...process.env, HOME: nativeBrowserHome, XDG_CONFIG_HOME: join(nativeBrowserHome, '.config') }
+  : undefined;
+
 /** Clic reale sul bottone del pannello, senza invocare il relativo handler in JS. */
 async function clickPanelButton(page, labels) {
   const buttons = await page.$$('button');
@@ -124,6 +140,7 @@ async function waitForHostRole(page, origin, purpose, expected) {
 
 const browser = await puppeteer.launch({
   executablePath,
+  ...(nativeBrowserEnv ? { env: nativeBrowserEnv } : {}),
   headless: false,
   // Senza questo, puppeteer disabilita tutte le estensioni di default.
   ignoreDefaultArgs: ['--disable-extensions'],
@@ -191,6 +208,62 @@ try {
     );
     const violations = JSON.parse(violationsJson);
     check('a11y: zero serious/critical', violations.length === 0, violations.slice(0, 5).join(' | '));
+
+    if (nativeBrowserHome && nativeBrowserEnv) {
+      // In CI Linux l'installer registra l'host soltanto nel profilo HOME
+      // usa-e-getta del Chrome di test. Le credenziali sono sintetiche.
+      const fakeKey = 'LMUSE-E2E-FAKE-NOT-A-CREDENTIAL';
+      const authDir = join(nativeBrowserHome, '.local', 'share', 'opencode');
+      mkdirSync(authDir, { recursive: true, mode: 0o700 });
+      writeFileSync(join(authDir, 'auth.json'), JSON.stringify({ openai: { type: 'api', key: fakeKey } }), {
+        mode: 0o600,
+      });
+      try {
+        execFileSync(
+          process.execPath,
+          [join(root, 'scripts', 'setup-opencode-bridge.mjs'), `--extension-id=${extId}`],
+          { cwd: root, env: nativeBrowserEnv, timeout: 60_000, stdio: 'pipe' },
+        );
+        const hostManifest = join(
+          nativeBrowserHome,
+          '.config',
+          'google-chrome',
+          'NativeMessagingHosts',
+          'it.lmuse.opencode_bridge.json',
+        );
+        check('native host manifest installed in disposable HOME', existsSync(hostManifest));
+        const hostResult = await page.evaluate(async () => {
+          try {
+            const host = 'it.lmuse.opencode_bridge';
+            const ping = await chrome.runtime.sendNativeMessage(host, { cmd: 'ping' });
+            const listing = await chrome.runtime.sendNativeMessage(host, { cmd: 'list' });
+            const exported = await chrome.runtime.sendNativeMessage(host, { cmd: 'export' });
+            const rejected = await chrome.runtime.sendNativeMessage(host, { cmd: 'delete-all' });
+            return { ok: true, ping, listing, exported, rejected };
+          } catch (err) {
+            return { ok: false, error: String(err) };
+          }
+        });
+        check('Chrome→native host ping over real stdio', hostResult.ok && hostResult.ping?.ok === true);
+        check(
+          'Chrome→native host list does not disclose key',
+          hostResult.ok &&
+            hostResult.listing?.providers?.[0]?.id === 'openai' &&
+            !JSON.stringify(hostResult.listing).includes(fakeKey),
+        );
+        check(
+          'Chrome→native host export returns only synthetic key',
+          hostResult.ok && hostResult.exported?.credentials?.[0]?.key === fakeKey,
+        );
+        check(
+          'Chrome→native host unknown command rejected',
+          hostResult.ok && hostResult.rejected?.error === 'unknown-command',
+          hostResult.ok ? '' : hostResult.error?.slice(0, 160),
+        );
+      } catch (error) {
+        check('Chrome native messaging installation and handshake', false, String(error).slice(0, 180));
+      }
+    }
     await page.close();
 
     // --- Prova REALE del prodotto: il content script iniettato su una pagina
@@ -739,6 +812,7 @@ try {
   }
 } finally {
   await browser.close();
+  if (nativeBrowserHome) rmSync(nativeBrowserHome, { recursive: true, force: true });
 }
 
 if (errors.length > 0) {
