@@ -179,8 +179,13 @@ try {
     await permissionPanel.waitForSelector('button[aria-label="Impostazioni"],button[aria-label="Settings"]', {
       timeout: 15_000,
     });
-    await permissionPanel.click('button[aria-label="Impostazioni"],button[aria-label="Settings"]');
-    await permissionPanel.waitForSelector('input[aria-label="URL sito per permesso Chrome"]');
+    // Al primo avvio, l'assenza della chiave apre già le impostazioni:
+    // cliccare sempre il toggle le chiude e rende impossibile il grant.
+    const sitePermissionSelector = 'input[aria-label="URL sito per permesso Chrome"]';
+    if (!(await permissionPanel.$(sitePermissionSelector))) {
+      await permissionPanel.click('button[aria-label="Impostazioni"],button[aria-label="Settings"]');
+    }
+    await permissionPanel.waitForSelector(sitePermissionSelector, { timeout: 15_000 });
     await permissionPanel.type('input[aria-label="URL sito per permesso Chrome"]', testUrl);
     const grantButton = await permissionPanel.$$('button');
     let grantClicked = false;
