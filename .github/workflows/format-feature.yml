@@ -1,4 +1,4 @@
-# Final formatting pass after tool security and documentation changes
+# Formatter validation after the disclosure-race security regression tests
 name: Temporary feature branch format
 on:
   push:
