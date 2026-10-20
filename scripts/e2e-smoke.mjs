@@ -4,6 +4,7 @@
 // Su CI linux girare sotto xvfb-run.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import puppeteer from 'puppeteer-core';
@@ -172,6 +173,7 @@ try {
     // permesso dal pannello. L'allowlist testuale NON autorizza Chrome.
     const permissionPanel = await browser.newPage();
     await permissionPanel.goto(`chrome-extension://${extId}/sidepanel/index.html`);
+    await permissionPanel.bringToFront();
     await permissionPanel.waitForFunction('document.readyState === "complete" && !!chrome?.runtime?.id', {
       timeout: 15_000,
     });
@@ -187,6 +189,14 @@ try {
     }
     await permissionPanel.waitForSelector(sitePermissionSelector, { timeout: 15_000 });
     await permissionPanel.type('input[aria-label="URL sito per permesso Chrome"]', testUrl);
+    const swTarget = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
+    const worker = await swTarget?.worker();
+    const checkHostPermission = async (url) =>
+      worker.evaluate(async (sourceUrl) => {
+        const origin = new URL(sourceUrl);
+        return chrome.permissions.contains({ origins: [origin.protocol + '//' + origin.hostname + '/*'] });
+      }, url);
+    check('site permission absent before user grant', !(await checkHostPermission(testUrl)));
     const grantButton = await permissionPanel.$$('button');
     let grantClicked = false;
     for (const button of grantButton) {
@@ -201,14 +211,34 @@ try {
       }
     }
     check('pulsante grant sito disponibile', grantClicked);
-    await new Promise((r) => setTimeout(r, 1000));
-    const swTarget = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
-    const worker = await swTarget?.worker();
-    const grantedOrigin = await worker.evaluate(async (url) => {
-      const origin = new URL(url);
-      return chrome.permissions.contains({ origins: [origin.protocol + '//' + origin.hostname + '/*'] });
-    }, testUrl);
-    check('permesso host esplicito concesso dopo gesto UI', grantedOrigin);
+    // Chromium presenta la conferma in UI browser (fuori dal DOM del panel).
+    // Il runner Xvfb invia UNA conferma reale via X11, mai via API/fixture bypass.
+    if (process.env.LMUSE_E2E_NATIVE_GRANT === '1') {
+      try {
+        console.log(
+          'e2e Chrome native active window:',
+          execFileSync('xdotool', ['getactivewindow', 'getwindowname'], { encoding: 'utf8' }).trim(),
+        );
+        execFileSync('xdotool', ['key', '--clearmodifiers', 'Tab']);
+        await new Promise((r) => setTimeout(r, 250));
+        execFileSync('xdotool', ['key', '--clearmodifiers', 'Return']);
+      } catch (error) {
+        check('native UI confirmation via X11', false, String(error));
+      }
+    }
+    let grantedOrigin = false;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      grantedOrigin = await checkHostPermission(testUrl);
+      if (grantedOrigin) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    const permissionStatus = await permissionPanel
+      .$eval('[role="status"]', (node) => node.textContent ?? '')
+      .catch(() => '(no UI status)');
+    check('permesso host esplicito concesso dopo gesto UI', grantedOrigin, permissionStatus);
+    check('other hostname is NOT granted', !(await checkHostPermission('http://localhost:9999/prova')));
+    if (!grantedOrigin)
+      throw new Error('Permesso host non concesso dalla finestra Chrome: ' + permissionStatus);
     await permissionPanel.close();
     await target.bringToFront();
     const snapResult = await worker.evaluate(async (tabUrl) => {

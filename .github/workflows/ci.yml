@@ -36,6 +36,8 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    env:
+      LMUSE_E2E_NATIVE_GRANT: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -46,6 +48,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: install native UI test driver
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xdotool
       - name: install browser di test
         run: |
           node --input-type=module -e "import {install, Browser} from '@puppeteer/browsers'; import {homedir} from 'node:os'; import {join} from 'node:path'; import {readFileSync} from 'node:fs'; const v = readFileSync('scripts/e2e-smoke.mjs', 'utf8').match(/BROWSER_VERSION = '([^']+)'/)[1]; await install({browser: Browser.CHROME, buildId: v, cacheDir: join(homedir(), '.cache', 'puppeteer')}); console.log('browser', v, 'ok');"
