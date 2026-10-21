@@ -62,3 +62,26 @@ jobs:
             sleep 1
             pnpm test:e2e
           '
+
+  e2e-windows-native:
+    # LM-003: a disposable GitHub-hosted Windows VM, never the user's PC.
+    # The test registers HKCU only in this throwaway runner and uses fake keys.
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Windows Chrome to native host roundtrip
+        env:
+          LMUSE_CI_NATIVE_WINDOWS: '1'
+        run: node scripts/e2e-native-windows.mjs

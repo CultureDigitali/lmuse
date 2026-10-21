@@ -1,6 +1,6 @@
 ## 0.9.0 — Candidato beta (non pubblicato)
 
-### LM-005 — Arresto immediato al ritiro di un'autorizzazione (PR separata)
+### LM-005 — Arresto immediato al ritiro di un'autorizzazione (PR #12 incorporata)
 
 - Il service worker annulla il run e le approvazioni pendenti quando viene rimosso un grant per sito/provider, anche se Chrome mantiene il permesso sullo stesso hostname per altri ruoli.
 - Guardie sul segnale di stop prima e dopo le letture asincrone e gli strumenti browser: nessun nuovo risultato trasmesso al modello dopo revoca.
@@ -12,6 +12,24 @@
 - `scripting` (iniezione controllata) e `activeTab` (cattura tab attivo) mantenuti per le funzioni che li richiedono.
 - Test browser verifica che un sito senza host grant non esponga i metadati alla scheda dell'estensione, con accesso e revoca verificati.
 - Aggiornato Vite da 8.3.0 a 8.3.4 dopo il rilievo di sicurezza alto GHSA-587h-7wmj-h5pm; l'audit resta obbligatorio.
+
+### LM-003 — setup nativeMessaging verificabile (PR #10 in revisione)
+
+- Setup richiede un ID estensione esplicito valido, nessun placeholder o wildcard.
+- Installazione di una copia locale del bridge con launcher avviabile dal browser;
+  Windows usa un piccolo eseguibile .NET compilato sul PC, senza binari distribuiti.
+- Manifest pin dell'origin e registrazione per-utente su macOS/Linux o HKCU Windows,
+  revocabili con `--uninstall`; `--dry-run` usa una directory temporanea.
+- Test di integrazione con native host vero e credenziali sintetiche per i comandi
+  `ping/list/export`, framing byte-for-byte e assenza di chiavi nel list.
+- Manifest anche per Chrome for Testing 146+ (percorsi separati su macOS/Linux)
+  e prova E2E Chrome → native host con HOME isolata e dati fittizi.
+- La CI aggiunge il controllo Windows Chrome → EXE .NET → host Node, su runner
+  GitHub Windows usa-e-getta: test HKCU, origin vincolato, credenziali sintetiche,
+  comandi ammessi/rifiutati e disinstallazione verificata. Non tocca il PC dello sviluppatore.
+- Corretto il deadlock del launcher Windows: il relay binario ora svuota ogni
+  blocco sul pipe senza attendere EOF; il nuovo test regressivo lascia stdin
+  aperto esattamente come Chrome mentre attende la risposta.
 
 ### LM-001 — restrizione dei privilegi host (PR #9 incorporata)
 
