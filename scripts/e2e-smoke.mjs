@@ -340,9 +340,20 @@ try {
       !metadataDenied.chromeAllowed && !metadataDenied.appAllowed && metadataDenied.errorShown,
       JSON.stringify(metadataDenied),
     );
-    await permissionPanel.click(sitePermissionSelector, { clickCount: 3 });
+    // Triplo click può selezionare solo una parola, lasciando l'URL metadata
+    // concatenato al nuovo sito. Usare select-all reale sul campo.
+    await permissionPanel.click(sitePermissionSelector);
+    await permissionPanel.keyboard.down('Control');
+    await permissionPanel.keyboard.press('A');
+    await permissionPanel.keyboard.up('Control');
     await permissionPanel.keyboard.press('Backspace');
     await permissionPanel.type('input[aria-label="URL sito per permesso Chrome"]', testUrl);
+    const restoredInput = await permissionPanel.$eval(sitePermissionSelector, (el) => el.value);
+    check(
+      'LM-007: URL del sito sintetico ripristinato dopo metadata deny',
+      restoredInput === testUrl,
+      restoredInput,
+    );
     const swTarget = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
     const worker = await swTarget?.worker();
     const unreadableBeforeGrant = await worker.evaluate(async (tabUrl) => {

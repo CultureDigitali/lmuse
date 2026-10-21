@@ -161,7 +161,9 @@ export function normalizeNavigationTarget(input: string): string | null {
   if (BLOCKED_PROTOCOLS.some((p) => target.toLowerCase().startsWith(p))) return null;
   // Non trasformare schemi espliciti estranei in hostname HTTPS (ftp://foo
   // diventerebbe erroneamente https://ftp//foo).
-  if (/^[a-z][a-z0-9+.-]*:/i.test(target) && !/^https?:\/\//i.test(target)) return null;
+  const explicitScheme = /^[a-z][a-z0-9+.-]*:/i.test(target);
+  const bareHostPort = /^[a-z][a-z0-9.-]*:\d{1,5}(?:[/?#]|$)/i.test(target);
+  if (explicitScheme && !/^https?:\/\//i.test(target) && !bareHostPort) return null;
   if (!/^https?:\/\//i.test(target)) target = `https://${target}`;
   try {
     const url = new URL(target);

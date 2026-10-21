@@ -56,6 +56,8 @@ describe('isAllowedHost', () => {
 describe('normalizeNavigationTarget', () => {
   it('aggiunge https:// se manca il protocollo', () => {
     expect(normalizeNavigationTarget('example.com')).toBe('https://example.com/');
+    expect(normalizeNavigationTarget('evil.example.com:8443/x')).toBe('https://evil.example.com:8443/x');
+    expect(normalizeNavigationTarget('localhost:11434/v1')).toBe('https://localhost:11434/v1');
   });
   it('rifiuta protocolli pericolosi', () => {
     expect(normalizeNavigationTarget('javascript:alert(1)')).toBeNull();
