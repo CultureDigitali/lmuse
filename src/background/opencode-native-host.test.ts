@@ -1,7 +1,7 @@
 // LM-003: integration test for the ACTUAL installed native host executable.
 // Only synthetic credentials and a --dry-run installation directory are used.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { platform } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -101,6 +101,43 @@ describe('LM-003 nativeMessaging host pinning and local installation', () => {
     expect(command('ping').response).toEqual({ ok: true, version: 1 });
     expect(command('delete-all').response).toEqual({ ok: false, error: 'unknown-command' });
   });
+
+  it('replies while Chrome keeps the native-messaging stdin pipe open', async () => {
+    const data = Buffer.from(JSON.stringify({ cmd: 'ping' }));
+    const frame = Buffer.alloc(data.length + 4);
+    frame.writeUInt32LE(data.length, 0);
+    data.copy(frame, 4);
+    const child = spawn(manifest.path, [], {
+      windowsHide: true,
+      env: { ...process.env, OPENCODE_AUTH_JSON: join(directory, 'missing-auth.json') },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    try {
+      const reply = await new Promise<Buffer>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Native reply needs stdin EOF (deadlock)')), 5_000);
+        let buffer = Buffer.alloc(0);
+        const finish = (value?: Buffer, error?: Error) => {
+          clearTimeout(timer);
+          if (error) reject(error);
+          else resolve(value!);
+        };
+        child.once('error', (error) => finish(undefined, error));
+        child.once('exit', (code) => finish(undefined, new Error('Host exited before replying: ' + code)));
+        child.stdout.on('data', (chunk: Buffer) => {
+          buffer = Buffer.concat([buffer, chunk]);
+          if (buffer.length < 4) return;
+          const length = buffer.readUInt32LE(0);
+          if (buffer.length >= length + 4) finish(buffer.subarray(4, 4 + length));
+        });
+        // Do not close the pipe: Chrome awaits the response before closing it.
+        child.stdin.write(frame);
+      });
+      expect(JSON.parse(reply.toString('utf8'))).toEqual({ ok: true, version: 1 });
+    } finally {
+      child.stdin.end();
+      child.kill();
+    }
+  }, 12_000);
 
   it('list never sends secrets, export only returns keys in its explicit response', () => {
     const authPath = join(directory, 'mock-auth.json');

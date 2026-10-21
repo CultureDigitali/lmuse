@@ -89,6 +89,10 @@ profilo nuovo e conferma il percorso reale Chrome → EXE .NET → Node, inclusi
 pinning dell'estensione, risposte e disinstallazione. Lo script rifiuta
 l'esecuzione su normali PC Windows, anche con un profilo Chrome temporaneo:
 su Windows il registro Native Messaging è per utente, non per profilo Chrome.
+Il launcher Windows inoltra i byte con flush su ogni blocco in entrata e uscita:
+Chrome tiene aperto stdin mentre attende la risposta del native host, quindi
+attendere EOF prima di svuotare il pipe causava un blocco reciproco. Un test
+regressivo conserva stdin aperto fino alla ricezione del framing di risposta.
 Il native bridge può esporre credenziali al pannello solo tramite il comando
 `export`: trattare import e ambiente Chrome come operazioni sensibili.
 

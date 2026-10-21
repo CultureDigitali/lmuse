@@ -16,8 +16,17 @@ internal static class LMuseNativeHost
     {
         try
         {
-            source.CopyTo(destination);
-            destination.Flush();
+            // Chrome keeps stdin open until it receives a framed response.
+            // CopyTo() followed by a single Flush() waits for EOF, leaving
+            // the native host and Chrome waiting for one another forever.
+            // Forward and flush every chunk without changing any bytes.
+            var buffer = new byte[16 * 1024];
+            int count;
+            while ((count = source.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                destination.Write(buffer, 0, count);
+                destination.Flush();
+            }
         }
         catch (IOException)
         {

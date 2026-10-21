@@ -27,6 +27,9 @@
 - La CI aggiunge il controllo Windows Chrome → EXE .NET → host Node, su runner
   GitHub Windows usa-e-getta: test HKCU, origin vincolato, credenziali sintetiche,
   comandi ammessi/rifiutati e disinstallazione verificata. Non tocca il PC dello sviluppatore.
+- Corretto il deadlock del launcher Windows: il relay binario ora svuota ogni
+  blocco sul pipe senza attendere EOF; il nuovo test regressivo lascia stdin
+  aperto esattamente come Chrome mentre attende la risposta.
 
 ### LM-001 — restrizione dei privilegi host (PR #9 incorporata)
 
