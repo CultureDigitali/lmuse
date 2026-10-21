@@ -85,3 +85,27 @@ jobs:
         env:
           LMUSE_CI_NATIVE_WINDOWS: '1'
         run: node scripts/e2e-native-windows.mjs
+
+  e2e-profiles:
+    # LM-006: separate Chrome user-data-dirs and storage.session lifetimes.
+    # Uses only synthetic keys; cannot read the real browser's profiles.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: install Chrome for Testing pinned version
+        run: |
+          node --input-type=module -e "import {install,Browser} from '@puppeteer/browsers'; import {homedir} from 'node:os'; import {join} from 'node:path'; import {readFileSync} from 'node:fs'; const v=readFileSync('scripts/e2e-smoke.mjs','utf8').match(/BROWSER_VERSION = '([^']+)'/)[1]; await install({browser:Browser.CHROME,buildId:v,cacheDir:join(homedir(),'.cache','puppeteer')});"
+      - name: E2E profile separation and browser session cleanup
+        run: xvfb-run -a node scripts/e2e-profile-isolation.mjs

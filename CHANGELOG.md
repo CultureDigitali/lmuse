@@ -1,5 +1,11 @@
 ## 0.9.0 — Candidato beta (non pubblicato)
 
+### LM-006 — Isolamento profili e sessioni (test su browser veri)
+
+- Nuovo E2E Linux usa due Chrome for Testing distinti, entrambi con lo stesso ID estensione, e verifica che chiavi e impostazioni sintetiche, grant per sito, inbox e dati di sessione non passino fra profili.
+- Riavvio separato di ciascun profilo: lo storage persistente rimane nel proprio profilo, chiavi e inbox di sessione vengono cancellati.
+- Documentato il limite del bridge Native Messaging condiviso dall'account OS: per isolamento forte servono account OS distinti.
+
 ### LM-005 — Arresto immediato al ritiro di un'autorizzazione (PR #12 incorporata)
 
 - Il service worker annulla il run e le approvazioni pendenti quando viene rimosso un grant per sito/provider, anche se Chrome mantiene il permesso sullo stesso hostname per altri ruoli.
