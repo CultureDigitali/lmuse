@@ -132,6 +132,8 @@ export function isBlockedUrl(url: string): boolean {
  * Un dominio in lista copre anche i suoi sottodomini.
  */
 export function isAllowedHost(url: string, allowedDomainsCsv: string): boolean {
+  // LM-008: an empty allowlist means any safe site, never a privileged URL.
+  if (isBlockedUrl(url)) return false;
   const csv = allowedDomainsCsv.trim();
   if (!csv) return true;
   let host: string;
