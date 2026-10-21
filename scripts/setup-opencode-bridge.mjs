@@ -45,21 +45,6 @@ const installDir = dryRun
     ? join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'LMuse', 'native')
     : join(homedir(), '.local', 'share', 'lmuse', 'native');
 const bridgePath = join(installDir, 'lmuse-opencode-bridge.mjs');
-// A versioned Windows launcher can be reinstalled while an older process is
-// still open, without overwriting an EXE locked by the browser.
-const versionHash = windows
-  ? createHash('sha256')
-      .update(process.execPath)
-      .update(readFileSync(bridgeSourcePath))
-      .update(readFileSync(shimSourcePath))
-      .digest('hex')
-      .slice(0, 12)
-  : '';
-const launcherPath = join(
-  installDir,
-  windows ? `lmuse-opencode-host-${versionHash}.exe` : 'lmuse-opencode-host',
-);
-
 function nodePath() {
   return process.execPath;
 }
@@ -122,9 +107,9 @@ if (uninstall) {
       console.log('Rimosso:', f);
     }
   }
-  for (const filename of [launcherPath, bridgePath]) {
-    if (existsSync(filename)) unlinkSync(filename);
-  }
+  const unixLauncherPath = join(installDir, 'lmuse-opencode-host');
+  if (existsSync(unixLauncherPath)) unlinkSync(unixLauncherPath);
+  if (existsSync(bridgePath)) unlinkSync(bridgePath);
   if (windows && existsSync(installDir)) {
     for (const name of readdirSync(installDir)) {
       if (/^lmuse-opencode-host-[0-9a-f]{12}\.exe$/.test(name)) {
@@ -134,6 +119,23 @@ if (uninstall) {
   }
   process.exit(0);
 }
+
+// A versioned Windows launcher can be reinstalled while an older process is
+// still open, without overwriting an EXE locked by the browser. Compute the
+// hash only for installation: uninstall must keep working after the checkout
+// or its source files have been removed.
+const versionHash = windows
+  ? createHash('sha256')
+      .update(process.execPath)
+      .update(readFileSync(bridgeSourcePath))
+      .update(readFileSync(shimSourcePath))
+      .digest('hex')
+      .slice(0, 12)
+  : '';
+const launcherPath = join(
+  installDir,
+  windows ? `lmuse-opencode-host-${versionHash}.exe` : 'lmuse-opencode-host',
+);
 
 const dirs = hostDirs();
 if (dirs.length === 0) {
