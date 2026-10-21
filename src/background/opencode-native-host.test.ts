@@ -2,9 +2,9 @@
 // Only synthetic credentials and a --dry-run installation directory are used.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { platform } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const EXT_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const SCRIPT = resolve(process.cwd(), 'scripts', 'setup-opencode-bridge.mjs');
@@ -82,6 +82,19 @@ describe('LM-003 nativeMessaging host pinning and local installation', () => {
     expect(run.status).toBe(2);
     expect(run.stderr).toContain('ID estensione Chrome obbligatorio');
     expect(run.stdout).not.toContain('Scritto:');
+  });
+
+  it('uninstalls without the repository native source files', () => {
+    const isolatedRoot = join(directory, 'source-less-checkout');
+    const isolatedScript = join(isolatedRoot, 'scripts', 'setup-opencode-bridge.mjs');
+    mkdirSync(dirname(isolatedScript), { recursive: true });
+    copyFileSync(SCRIPT, isolatedScript);
+    const run = spawnSync(process.execPath, [isolatedScript, '--uninstall', '--dry-run'], {
+      encoding: 'utf8',
+      timeout: 10_000,
+      windowsHide: true,
+    });
+    expect(run.status, run.stderr).toBe(0);
   });
 
   it('stdio framing and ping work via the installed native binary', () => {
