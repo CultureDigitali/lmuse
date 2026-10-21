@@ -307,6 +307,41 @@ try {
       await permissionPanel.click('button[aria-label="Impostazioni"],button[aria-label="Settings"]');
     }
     await permissionPanel.waitForSelector(sitePermissionSelector, { timeout: 15_000 });
+    // LM-007: la UI non deve chiedere a Chrome il permesso per cloud metadata
+    // neppure quando l'utente incolla esplicitamente tale indirizzo.
+    const metadataUrl = 'http://169.254.169.254/latest/meta-data/';
+    await permissionPanel.type(sitePermissionSelector, metadataUrl);
+    const metadataGrantClicked = await clickPanelButton(permissionPanel, [
+      'Autorizza questo sito in Chrome',
+      'Allow this website in Chrome',
+    ]);
+    check('LM-007: bottone autorizzazione metadata testato', metadataGrantClicked);
+    await permissionPanel.waitForFunction(
+      () =>
+        [...document.querySelectorAll('[role="status"]')].some((x) =>
+          (x.textContent ?? '').includes('URL HTTP(S)'),
+        ),
+      { timeout: 5_000 },
+    );
+    const metadataDenied = await permissionPanel.evaluate(async () => {
+      const local = await chrome.storage.local.get('lmuse.hostGrants.v1');
+      const grants = local['lmuse.hostGrants.v1'] ?? [];
+      const chromeAllowed = await chrome.permissions.contains({ origins: ['http://169.254.169.254/*'] });
+      return {
+        chromeAllowed,
+        appAllowed: grants.some((x) => x.origin === 'http://169.254.169.254'),
+        errorShown: [...document.querySelectorAll('[role="status"]')].some((x) =>
+          (x.textContent ?? '').includes('URL HTTP(S)'),
+        ),
+      };
+    });
+    check(
+      'LM-007: metadata non autorizzabile in Chrome o LMuse',
+      !metadataDenied.chromeAllowed && !metadataDenied.appAllowed && metadataDenied.errorShown,
+      JSON.stringify(metadataDenied),
+    );
+    await permissionPanel.click(sitePermissionSelector, { clickCount: 3 });
+    await permissionPanel.keyboard.press('Backspace');
     await permissionPanel.type('input[aria-label="URL sito per permesso Chrome"]', testUrl);
     const swTarget = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
     const worker = await swTarget?.worker();

@@ -42,6 +42,7 @@ import { estimateTokens, tokenEstimateHigh } from '../shared/budget';
 import { t, type Lang } from '../shared/i18n';
 import { mapBridgeCredentials, matchBridgeProviders } from '../shared/opencode';
 import { forgetHostGrant, hostPattern, providerEndpoint, rememberHostGrant } from '../shared/hostAccess';
+import { isPrivateNetworkUrl } from '../shared/urlGuard';
 
 interface LogEntry {
   id: number;
@@ -1267,6 +1268,13 @@ export default function App() {
               spellCheck={false}
             />
           </label>
+          {isPrivateNetworkUrl(siteUrlToAuthorize.trim()) && (
+            <p className="warn" role="status">
+              {lang === 'en'
+                ? 'Private network address: authorize only trusted services. Chrome host grants include every port; LMuse also checks the exact origin and site/provider role.'
+                : 'Rete privata: autorizza solo servizi fidati. Chrome concede l’host su tutte le porte; LMuse verifica anche origin, porta e ruolo sito/provider.'}
+            </p>
+          )}
           <div className="btn-row">
             <button type="button" className="secondary" onClick={() => void grantCurrentSite()}>
               {lang === 'en' ? 'Allow this website in Chrome' : 'Autorizza questo sito in Chrome'}

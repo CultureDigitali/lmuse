@@ -11,6 +11,11 @@ const BLOCKED_PROTOCOLS = [
   'devtools:',
   'edge:',
   'view-source:',
+  'filesystem:',
+  'moz-extension:',
+  'safari-extension:',
+  'opera:',
+  'brave:',
 ];
 
 const BLOCKED_HOST_SUFFIXES = [
@@ -19,13 +24,104 @@ const BLOCKED_HOST_SUFFIXES = [
   'microsoftedge.microsoft.com',
 ];
 
+// Endpoints cloud metadata/credentials and unspecified IPs: never grant access.
+const BLOCKED_INTERNAL_HOSTS = new Set([
+  'metadata.google.internal',
+  'metadata.google',
+  '169.254.169.254',
+  '169.254.170.2',
+  '100.100.100.200',
+  '168.63.129.16',
+  '0.0.0.0',
+  '255.255.255.255',
+  '[::]',
+  '[fd00:ec2::254]',
+]);
+
+function normalizedHostname(url: URL): string {
+  return url.hostname.toLowerCase().replace(/\.$/, '');
+}
+
+function ipv4Parts(host: string): number[] | null {
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(host)) return null;
+  const parts = host.split('.').map(Number);
+  return parts.every((p) => p >= 0 && p <= 255) ? parts : null;
+}
+
+/** Canonical URL IPv4-mapped IPv6 form: [::ffff:a9fe:a9fe]. */
+function mappedIpv4Parts(host: string): number[] | null {
+  const mapped = /^\[::ffff:([a-f\d]{1,4}):([a-f\d]{1,4})\]$/i.exec(host);
+  if (!mapped) return null;
+  const a = Number.parseInt(mapped[1], 16);
+  const b = Number.parseInt(mapped[2], 16);
+  return [a >>> 8, a & 255, b >>> 8, b & 255];
+}
+
+function isLinkLocalHost(host: string): boolean {
+  const ip = ipv4Parts(host) ?? mappedIpv4Parts(host);
+  if (ip && ip[0] === 169 && ip[1] === 254) return true;
+  if (host.startsWith('[') && host.endsWith(']')) {
+    const first = Number.parseInt(host.slice(1, -1).split(':')[0] ?? '', 16);
+    return Number.isFinite(first) && first >= 0xfe80 && first <= 0xfebf;
+  }
+  return false;
+}
+
+/** Local sites are not automatically trusted; an explicit origin+port+role grant is required. */
+export function isPrivateNetworkUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    const host = normalizedHostname(parsed);
+    if (
+      host === 'localhost' ||
+      host.endsWith('.localhost') ||
+      host.endsWith('.local') ||
+      host.endsWith('.internal') ||
+      host.endsWith('.home.arpa')
+    )
+      return true;
+    const ip = ipv4Parts(host) ?? mappedIpv4Parts(host);
+    if (ip) {
+      return (
+        ip[0] === 10 ||
+        ip[0] === 127 ||
+        (ip[0] === 172 && ip[1] >= 16 && ip[1] <= 31) ||
+        (ip[0] === 192 && ip[1] === 168) ||
+        (ip[0] === 169 && ip[1] === 254)
+      );
+    }
+    if (host.startsWith('[') && host.endsWith(']')) {
+      const v6 = host.slice(1, -1);
+      const first = Number.parseInt(v6.split(':')[0] ?? '', 16);
+      return (
+        v6 === '::1' ||
+        (Number.isFinite(first) && first >= 0xfc00 && first <= 0xfdff) ||
+        isLinkLocalHost(host)
+      );
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /** True se l'URL usa un protocollo o un host che l'agente non deve aprire. */
 export function isBlockedUrl(url: string): boolean {
   const lower = url.trim().toLowerCase();
   if (BLOCKED_PROTOCOLS.some((p) => lower.startsWith(p))) return true;
   try {
-    const host = new URL(lower).hostname;
-    return BLOCKED_HOST_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+    const parsed = new URL(lower);
+    if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.username || parsed.password)
+      return true;
+    const host = normalizedHostname(parsed);
+    const ipv4Mapped = mappedIpv4Parts(host)?.join('.');
+    return (
+      BLOCKED_INTERNAL_HOSTS.has(host) ||
+      (ipv4Mapped != null && BLOCKED_INTERNAL_HOSTS.has(ipv4Mapped)) ||
+      isLinkLocalHost(host) ||
+      BLOCKED_HOST_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
+    );
   } catch {
     return true;
   }
@@ -63,12 +159,15 @@ export function normalizeNavigationTarget(input: string): string | null {
   let target = input.trim();
   if (!target) return null;
   if (BLOCKED_PROTOCOLS.some((p) => target.toLowerCase().startsWith(p))) return null;
+  // Non trasformare schemi espliciti estranei in hostname HTTPS (ftp://foo
+  // diventerebbe erroneamente https://ftp//foo).
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target) && !/^https?:\/\//i.test(target)) return null;
   if (!/^https?:\/\//i.test(target)) target = `https://${target}`;
   try {
     const url = new URL(target);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
     // Niente credenziali nell'URL: vettore di phishing, mai necessario all'agente.
-    if (url.username || url.password) return null;
+    if (url.username || url.password || isBlockedUrl(url.href)) return null;
     return stripTrackingParams(url.toString());
   } catch {
     return null;
