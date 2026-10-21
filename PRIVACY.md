@@ -2,6 +2,10 @@
 
 ## Privacy Gateway v0.9.0 (beta)
 
+## LM-008 — URL vietati e consenso
+
+Prima di mostrare un prompt di approvazione per navigare, LMuse scarta gli URL con protocolli speciali o pericolosi, credenziali nella destinazione, servizi di metadata cloud e pagine riservate. Un'allowlist vuota non elimina questo divieto: non viene richiesto il consenso umano per aprire un URL che il filtro considera vietato. Il blocco non rende sicuro qualsiasi link o redirect eseguito dentro una pagina: altre navigazioni e richieste di rete restano soggette ai controlli di host e ai limiti descritti in SECURITY.md.
+
 ## LM-001 — accessi host per scopo, porta e origin
 
 I permessi Chrome alle pagine sono opzionali. Oltre alla conferma nativa, LMuse richiede una concessione locale con origin **comprensivo di porta** e scopo distinto (`site` per pagine, `provider` per API LLM). Un provider locale su porta 11434 non abilita la lettura di un sito su porta 3000, anche se Chrome raggruppa entrambe sotto `http://localhost/*`. I due permessi possono essere revocati separatamente dal pannello. I reindirizzamenti non autorizzati non vengono letti, ma la navigazione HTTP può avere già provocato richieste di rete prima del rilevamento. I siti approvati possono comunque inviare dati al provider in forma non completamente anonimizzata.

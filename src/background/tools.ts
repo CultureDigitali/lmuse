@@ -564,7 +564,18 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       inputSchema: z.object({ url: z.string().describe('URL completo, es. https://example.com') }),
       execute: async ({ url }: { url: string }) => {
         const target = normalizeNavigationTarget(url);
-        const domain = target ? extractDomain(target) : null;
+        // LM-008: refuse dangerous schemes, credential URLs and forbidden
+        // destinations BEFORE any human approval UI is displayed.
+        // Recheck inside guarded() below as a defense-in-depth boundary.
+        if (!target || isBlockedUrl(target)) {
+          throw new Error('URL bloccato: lmuse non naviga pagine chrome://, interne o del Web Store.');
+        }
+        if (!isAllowedHost(target, cfg.allowedDomains)) {
+          throw new Error(
+            `Dominio fuori dall'allowlist utente (${cfg.allowedDomains}). Chiedi all'utente di aggiornare "Domini consentiti".`,
+          );
+        }
+        const domain = extractDomain(target);
         // Si passa l'URL NORMALIZZATO: shouldApprove ricalcola il dominio con
         // new URL(), che fallisce (→ nessuna conferma) su una stringa senza
         // schema. Con il valore grezzo, `evil.example.com` scavalcava la conferma
