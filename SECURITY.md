@@ -53,6 +53,13 @@
 - Dopo redirect, back/forward o click l'URL deve essere nuovamente autorizzato prima di leggerne il DOM. Un redirect può già aver avviato richieste di rete verso il sito di arrivo: l'estensione **non può garantire di impedirle**, ma rifiuta la lettura e segnala il confine violato anziché simulare uno snapshot riuscito.
 - **Limitazione LM-002:** manca ancora un inventario visuale completo di tutte le autorizzazioni con revoca granulare da una lista. Non usare su profili produttivi finché il collaudo manuale non è chiuso.
 
+### LM-007 — URL riservati e endpoint di rete
+
+- Parsing URL rigoroso: esclusivamente HTTP(S) senza credenziali, con schema e host canonici; i protocolli interni o speciali del browser non sono navigabili né autorizzabili.
+- Hard deny sugli endpoint noti di cloud instance metadata/credenziali (fra cui EC2/GCP/Azure/ECS/Alibaba e IP link-local), IP non specificati/broadcast e Web Store. I controlli si applicano sia a navigazione sia a `hostPattern`/`requireHostAccess` e alle API provider configurabili.
+- `localhost`, indirizzi loopback, RFC1918 e host intranet non ricevono accesso automatico: devono ottenere un grant app esatto `origin+porta+ruolo` e il permesso Chrome corrispondente. Ollama/LM Studio restano disponibili solo tramite grant `provider`. Il pannello segnala visivamente l'uso di indirizzi privati.
+- **Limiti:** il blocco statico non sostituisce risoluzione DNS affidabile, protezione da DNS rebinding, policy proxy/server o controllo degli eventuali redirect di rete effettuati prima dell'autorizzazione al DOM. LM-008/LM-009 proseguiranno questo hardening.
+
 ### LM-005 — revoca interrompe immediatamente i run
 
 - Il service worker ascolta `chrome.storage.onChanged` sul registro host e rileva quando sparisce un'abilitazione precisa `origin + purpose`. Un nuovo grant o l'aggiornamento di un timestamp non causa interruzioni.

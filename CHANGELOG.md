@@ -1,5 +1,11 @@
 ## 0.9.0 — Candidato beta (non pubblicato)
 
+### LM-007 — Protezione URL riservati, metadata e intranet
+
+- Il filtro URL rifiuta protocolli interni/speciali, Web Store, URL con credenziali, IP non specificati, cloud instance metadata e rete link-local senza possibilità di autorizzazione.
+- I siti locali e intranet restano utilizzabili soltanto con autorizzazione separata per origin/porta/ruolo; il pannello avverte quando viene richiesto accesso a una rete privata.
+- Conservato il funzionamento dei provider locali Ollama/LM Studio tramite grant espliciti. Aggiunti test avversari su schemi, IPv4 alternativi, IP privati e cloud metadata.
+
 ### LM-006 — Isolamento profili e sessioni (test su browser veri)
 
 - Nuovo E2E Linux usa due Chrome for Testing distinti, entrambi con lo stesso ID estensione, e verifica che chiavi e impostazioni sintetiche, grant per sito, inbox e dati di sessione non passino fra profili.

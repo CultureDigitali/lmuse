@@ -58,6 +58,32 @@ describe('LM-001 Chrome least privilege', () => {
     }
   });
 
+  it('LM-007 non può registrare autorizzazioni per metadata cloud o pagine riservate', async () => {
+    const urls = [
+      'http://169.254.169.254/latest/meta-data',
+      'http://metadata.google.internal/computeMetadata/v1',
+      'http://0.0.0.0:1234/admin',
+      'chrome://settings/passwords',
+      'file:///etc/passwd',
+    ];
+    for (const url of urls) {
+      expect(hostPattern(url)).toBeNull();
+      await expect(rememberHostGrant(url, 'site')).rejects.toThrow(/non valido/);
+      await expect(requireHostAccess(url, 'provider')).rejects.toThrow(/non valido o riservato/);
+    }
+    expect(saved).toEqual([]);
+    expect(contains).not.toHaveBeenCalled();
+  });
+
+  it('LM-007 mantiene Ollama locale con permesso provider distinto da quello site', async () => {
+    await rememberHostGrant('http://localhost:11434/v1', 'provider');
+    await expect(requireHostAccess('http://localhost:11434/v1', 'provider')).resolves.toBeUndefined();
+    await expect(requireHostAccess('http://localhost:11434/admin', 'site')).rejects.toThrow(
+      /non autorizzato in LMuse/,
+    );
+    expect(contains).toHaveBeenCalledTimes(1);
+  });
+
   it('requires a real Chrome host grant: allowlist alone is insufficient', async () => {
     await expect(requireHostAccess('https://example.com/private')).rejects.toThrow(
       /non autorizzato in LMuse/,
