@@ -238,9 +238,7 @@ describe('LM-008: blocco URL pericolosi prima della conferma', () => {
     const update = chrome.tabs.update as ReturnType<typeof vi.fn>;
     update.mockClear();
     const { tools } = createBrowserTools(baseConfig({ policy: 'all', requestApproval }));
-    await expect(tools.browser_navigate.execute({ url }, {} as never)).rejects.toThrow(
-      /URL bloccato/,
-    );
+    await expect(tools.browser_navigate.execute({ url }, {} as never)).rejects.toThrow(/URL bloccato/);
     expect(requestApproval).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
