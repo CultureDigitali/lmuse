@@ -60,6 +60,12 @@
 - Ogni tool verifica il segnale di STOP prima di iniziare, prima di iniettare nuovamente un content script e **dopo** il completamento dell'operazione asincrona: i risultati ottenuti dopo la revoca non vengono restituiti al modello.
 - Una richiesta o un click già eseguiti prima della revoca non possono essere annullati retroattivamente; la difesa ferma i passi successivi, non ripristina gli effetti precedenti.
 
+### LM-006 — separazione dei profili Chrome
+
+- Le autorizzazioni applicative, i secret locali, i risultati e la sessione sono associati al profilo Chrome che ospita LMuse. Il nuovo E2E usa due profili Chrome for Testing in directory temporanee, con lo stesso ID estensione, e richiede isolamento bidirezionale di impostazioni, chiavi sintetiche, origin grant e inbox.
+- Le chiavi in \`chrome.storage.session\` e l'inbox devono sparire dopo la chiusura completa del browser; le chiavi esplicitamente persistenti in \`chrome.storage.local\` restano soltanto nel loro profilo. Il test controlla due riavvii indipendenti.
+- **Confine distinto:** Native Messaging è registrato a livello di utente OS (HKCU su Windows), non di singolo profilo Chrome. Un utente che installa esplicitamente il bridge per un ID estensione autorizza tale ID nell'account OS: il bridge non può dedurre quale profilo Chrome abbia originato una richiesta. Non trattare i profili dello stesso account OS come un confine di sicurezza contro altri profili contenenti la stessa estensione; l'import credenziali resta una funzione esplicita del pannello. Per isolamento forte usare account OS distinti e non registrare il bridge nei profili non attendibili.
+
 ### Bridge opencode — superficie d'attacco
 
 Il native host `it.lmuse.opencode_bridge` è registrato solo da te
