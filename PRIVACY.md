@@ -2,6 +2,10 @@
 
 ## Privacy Gateway v0.9.0 (beta)
 
+## LM-009 — coerenza della pagina durante la lettura
+
+Le letture del DOM e gli snapshot sono legati alla scheda e alla destinazione autorizzate. Quando Chrome segnala un caricamento, un cambio URL o la chiusura della scheda mentre il content script prepara il risultato, LMuse lo scarta; una ricarica che torna sullo stesso URL non deve riutilizzare il consenso come se la pagina fosse immutata. Il blocco non cancella comunicazioni già avviate dalla pagina.
+
 ## LM-008 — URL vietati e consenso
 
 Prima di mostrare un prompt di approvazione per navigare, LMuse scarta gli URL con protocolli speciali o pericolosi, credenziali nella destinazione, servizi di metadata cloud e pagine riservate. Un'allowlist vuota non elimina questo divieto: non viene richiesto il consenso umano per aprire un URL che il filtro considera vietato. Il blocco non rende sicuro qualsiasi link o redirect eseguito dentro una pagina: altre navigazioni e richieste di rete restano soggette ai controlli di host e ai limiti descritti in SECURITY.md.
