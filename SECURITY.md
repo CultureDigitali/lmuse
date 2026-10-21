@@ -53,6 +53,13 @@
 - Dopo redirect, back/forward o click l'URL deve essere nuovamente autorizzato prima di leggerne il DOM. Un redirect può già aver avviato richieste di rete verso il sito di arrivo: l'estensione **non può garantire di impedirle**, ma rifiuta la lettura e segnala il confine violato anziché simulare uno snapshot riuscito.
 - **Limitazione LM-002:** manca ancora un inventario visuale completo di tutte le autorizzazioni con revoca granulare da una lista. Non usare su profili produttivi finché il collaudo manuale non è chiuso.
 
+### LM-008 — rifiuto prima della conferma e allowlist fail-closed
+
+- Il tool `browser_navigate` valida e normalizza la destinazione **prima** di mostrare qualsiasi approvazione. Gli schemi non HTTP(S), gli URL con credenziali, i metadata cloud e le pagine riservate non possono generare una conferma fuorviante.
+- L'allowlist vuota consente soltanto URL giudicati sicuri dal filtro centrale. Anche i chiamanti che usano `isAllowedHost` senza un controllo preliminare rifiutano ora i protocolli/host vietati.
+- Il controllo è ripetuto all'interno del tool prima dell'operazione reale; il browser non riceve un comando `tabs.update` su input pericolosi. I test verificano sia l'assenza della conferma sia l'assenza della navigazione.
+- Questa mitigazione riguarda gli URL immessi nel tool. Navigazioni indotte dai click o redirect in corso richiedono i controlli successivi di LM-009 e non costituiscono un blocco preventivo di tutte le richieste di rete.
+
 ### LM-007 — URL riservati e endpoint di rete
 
 - Parsing URL rigoroso: esclusivamente HTTP(S) senza credenziali, con schema e host canonici; i protocolli interni o speciali del browser non sono navigabili né autorizzabili.
