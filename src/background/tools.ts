@@ -10,6 +10,7 @@ import { maskPii, maskUrlTokens } from '../shared/pii';
 import { containsStop } from '../shared/task';
 import type { PrivacyGateway } from '../shared/privacy-gateway';
 import { HostAccessDenied, requireHostAccess } from '../shared/hostAccess';
+import { assertTabSettledForRead, withStableTabRead } from '../shared/tabReadGuard';
 
 // ---------------------------------------------------------------------------
 // Strato di accesso al browser: i tool dell'agente parlano con il content
@@ -245,6 +246,7 @@ async function snapshotTab(
   // ricontrollare avrebbe mostrato contenuto fuori dai domini consentiti.
   assertTabAllowed(tab, opts.allowedDomains);
   await requireHostAccess(tab.url ?? '');
+  assertTabSettledForRead(tab);
   const initialUrl = tab.url ?? '';
   await opts.approveRead?.(initialUrl);
   // Non associare mai ad un origin approvato il contenuto di una pagina
@@ -252,16 +254,24 @@ async function snapshotTab(
   const before = await chrome.tabs.get(tabId);
   assertTabAllowed(before, opts.allowedDomains);
   await requireHostAccess(before.url ?? '');
+  assertTabSettledForRead(before);
   if (before.url !== initialUrl) {
     throw new Error('Privacy Gateway: pagina cambiata durante il consenso di lettura.');
   }
-  const res = await send<SnapshotResult>(tabId, { kind: 'LMUSE_SNAPSHOT', maskPii: opts.maskPii });
-  const after = await chrome.tabs.get(tabId);
-  assertTabAllowed(after, opts.allowedDomains);
-  await requireHostAccess(after.url ?? '');
-  if (after.url !== initialUrl) {
-    throw new Error('Privacy Gateway: pagina cambiata durante la lettura; risultato scartato.');
-  }
+  const res = await withStableTabRead(tabId, async () => {
+    const result = await send<SnapshotResult>(tabId, {
+      kind: 'LMUSE_SNAPSHOT',
+      maskPii: opts.maskPii,
+    });
+    const after = await chrome.tabs.get(tabId);
+    assertTabAllowed(after, opts.allowedDomains);
+    await requireHostAccess(after.url ?? '');
+    assertTabSettledForRead(after);
+    if (after.url !== initialUrl) {
+      throw new Error('Privacy Gateway: pagina cambiata durante la lettura; risultato scartato.');
+    }
+    return result;
+  });
   if (!res.ok || !res.tree) throw new Error(res.error ?? 'Snapshot fallito.');
   let out = formatSnapshotHeader(tab.url, tab.title, res.tree, {
     maskPiiEnabled: opts.maskPii,
@@ -342,17 +352,21 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     const before = await chrome.tabs.get(tab.id);
     assertTabAllowed(before, cfg.allowedDomains);
     await requireHostAccess(before.url ?? '');
+    assertTabSettledForRead(before);
     if (before.url !== initialUrl) {
       throw new Error('Privacy Gateway: pagina cambiata durante il consenso di lettura.');
     }
-    const output = await fn();
-    const after = await chrome.tabs.get(tab.id);
-    assertTabAllowed(after, cfg.allowedDomains);
-    await requireHostAccess(after.url ?? '');
-    if (after.url !== initialUrl) {
-      throw new Error('Privacy Gateway: pagina cambiata durante la lettura; risultato scartato.');
-    }
-    return output;
+    return withStableTabRead(tab.id, async () => {
+      const output = await fn();
+      const after = await chrome.tabs.get(tab.id!);
+      assertTabAllowed(after, cfg.allowedDomains);
+      await requireHostAccess(after.url ?? '');
+      assertTabSettledForRead(after);
+      if (after.url !== initialUrl) {
+        throw new Error('Privacy Gateway: pagina cambiata durante la lettura; risultato scartato.');
+      }
+      return output;
+    });
   }
 
   function trackDomain(url: string | undefined): void {
