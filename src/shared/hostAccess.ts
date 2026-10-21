@@ -50,6 +50,18 @@ function cleanGrants(raw: unknown): HostGrant[] {
   return result;
 }
 
+/**
+ * Storage events arrive even if another extension panel revokes an origin.
+ * Ignore fresh grants, reorderings and grantedAt refreshes; stop a running
+ * agent only when a previously valid origin+purpose capability disappears.
+ */
+export function hasRevokedHostGrant(before: unknown, after: unknown): boolean {
+  const previous = cleanGrants(before);
+  if (previous.length === 0) return false;
+  const retained = new Set(cleanGrants(after).map((grant) => `${grant.purpose}|${grant.origin}`));
+  return previous.some((grant) => !retained.has(`${grant.purpose}|${grant.origin}`));
+}
+
 export async function listHostGrants(): Promise<HostGrant[]> {
   const stored = await chrome.storage.local.get(HOST_GRANTS_KEY);
   return cleanGrants(stored[HOST_GRANTS_KEY]);

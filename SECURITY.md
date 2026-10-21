@@ -26,16 +26,22 @@
 
 ## Rationale permessi
 
-| Permesso                    | Uso                                                  | Alternativa valutata                           |
-| --------------------------- | ---------------------------------------------------- | ---------------------------------------------- |
-| `storage`                   | settings/chiave/cronologia locali                    | nessuna (serve persistenza)                    |
-| `scripting`                 | inject on-demand di `content.js` (solo `files:`)     | content script statico (peggio: sempre attivo) |
-| `tabs`                      | leggere URL/titolo, elencare e fokusare tab          | `activeTab` solo (insufficiente per multi-tab) |
-| `activeTab`                 | agire sul tab attivo senza prompt                    | —                                              |
-| `sidePanel`                 | pannello laterale                                    | popup (peggiore per task lunghi)               |
-| `alarms`                    | cadenza task programmati (solo locali)               | polling dal panel (richiede panel aperto)      |
-| `nativeMessaging`           | bridge opencode (host registrato dall'utente)        | nessuna; senza bridge il canale è chiuso       |
-| `optional_host_permissions` | Accesso al dominio solo dopo gesto e conferma Chrome | Nessun host globale install-time               |
+| Permesso                    | Uso                                                                   | Alternativa valutata                                               |
+| --------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `storage`                   | settings/chiave/cronologia locali                                     | nessuna (serve persistenza)                                        |
+| `scripting`                 | inject on-demand di `content.js` (solo `files:`)                      | content script statico (peggio: sempre attivo)                     |
+| `activeTab`                 | `captureVisibleTab` su richiesta e accesso temporaneo al tab corrente | Necessario senza `<all_urls>`; resta soggetto a privacy e consenso |
+| `sidePanel`                 | pannello laterale                                                     | popup (peggiore per task lunghi)                                   |
+| `alarms`                    | cadenza task programmati (solo locali)                                | polling dal panel (richiede panel aperto)                          |
+| `nativeMessaging`           | bridge opencode (host registrato dall'utente)                         | nessuna; senza bridge il canale è chiuso                           |
+| `optional_host_permissions` | Accesso al dominio solo dopo gesto e conferma Chrome                  | Nessun host globale install-time                                   |
+
+### LM-004 — Riduzione dei metadati accessibili in Chrome
+
+- Eliminato il permesso install-time `tabs`: l'estensione non può più leggere indiscriminatamente URL, titolo, `pendingUrl` e favicon delle schede non autorizzate.
+- L'API `chrome.tabs` resta utilizzabile per elencare identificativi, attivare, creare e aggiornare le schede; il contenuto sensibile è visibile soltanto sugli host autorizzati. La policy LMuse richiede **anche** un grant applicativo esatto con ruolo `site`.
+- `scripting` resta obbligatorio per `chrome.scripting.executeScript` (iniezione on-demand di `content.js` soltanto dopo verifica locale del dominio); `activeTab` è necessario alla cattura del tab visibile, che resta soggetta alle autorizzazioni e alle restrizioni privacy.
+- E2E Chrome: i metadati devono essere assenti prima del grant, leggibili dopo il grant host e nuovamente assenti dopo la revoca.
 
 ### LM-001: autorizzazione Chrome distinta dall'allowlist
 
@@ -46,6 +52,13 @@
 - I pulsanti **Revoca permesso sito** e **Revoca API del provider** eliminano il rispettivo ruolo locale. La match pattern Chrome viene rimossa soltanto quando nessun ruolo sullo stesso hostname la richiede; **Cancella tutto** rimuove anche i grant gestiti. La revoca non ritira dati già trasmessi.
 - Dopo redirect, back/forward o click l'URL deve essere nuovamente autorizzato prima di leggerne il DOM. Un redirect può già aver avviato richieste di rete verso il sito di arrivo: l'estensione **non può garantire di impedirle**, ma rifiuta la lettura e segnala il confine violato anziché simulare uno snapshot riuscito.
 - **Limitazione LM-002:** manca ancora un inventario visuale completo di tutte le autorizzazioni con revoca granulare da una lista. Non usare su profili produttivi finché il collaudo manuale non è chiuso.
+
+### LM-005 — revoca interrompe immediatamente i run
+
+- Il service worker ascolta `chrome.storage.onChanged` sul registro host e rileva quando sparisce un'abilitazione precisa `origin + purpose`. Un nuovo grant o l'aggiornamento di un timestamp non causa interruzioni.
+- Alla revoca di almeno un'abilitazione, un task attivo viene interrotto tramite `AbortController`, le approvazioni pendenti vengono negate e non vengono avviati automaticamente i task in coda.
+- Ogni tool verifica il segnale di STOP prima di iniziare, prima di iniettare nuovamente un content script e **dopo** il completamento dell'operazione asincrona: i risultati ottenuti dopo la revoca non vengono restituiti al modello.
+- Una richiesta o un click già eseguiti prima della revoca non possono essere annullati retroattivamente; la difesa ferma i passi successivi, non ripristina gli effetti precedenti.
 
 ### Bridge opencode — superficie d'attacco
 

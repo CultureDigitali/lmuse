@@ -192,6 +192,12 @@ try {
         (manifest.optional_host_permissions ?? []).includes('https://*/*') &&
         (manifest.optional_host_permissions ?? []).includes('http://*/*'),
     );
+    check(
+      'LM-004: niente permesso tabs su tutte le schede',
+      !(manifest.permissions ?? []).includes('tabs') &&
+        (manifest.permissions ?? []).includes('scripting') &&
+        (manifest.permissions ?? []).includes('activeTab'),
+    );
     const hasRoot = await page.evaluate(() => !!document.getElementById('root')?.childElementCount);
     check('sidepanel renderizzato', hasRoot);
     const hasSettings = await page.evaluate(() =>
@@ -304,6 +310,14 @@ try {
     await permissionPanel.type('input[aria-label="URL sito per permesso Chrome"]', testUrl);
     const swTarget = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(extId));
     const worker = await swTarget?.worker();
+    const unreadableBeforeGrant = await worker.evaluate(async (tabUrl) => {
+      const tabsPermission = await chrome.permissions.contains({ permissions: ['tabs'] });
+      const tabs = await chrome.tabs.query({});
+      // Le API di base tabs.* sono accessibili, ma senza tab metadata globale
+      // URL e titolo della pagina non autorizzata devono restare invisibili.
+      return !tabsPermission && !tabs.some((tab) => tab.url === tabUrl || tab.title === 'Pagina di prova');
+    }, testUrl);
+    check('LM-004: URL e titolo tab non autorizzato invisibili prima del grant', unreadableBeforeGrant);
     const checkHostPermission = async (url) =>
       worker.evaluate(async (sourceUrl) => {
         const origin = new URL(sourceUrl);
@@ -357,8 +371,18 @@ try {
       'site grant saved with exact port and role',
       await waitForHostRole(permissionPanel, new URL(testUrl).origin, 'site', true),
     );
+    const tabMetadataAfterGrant = await worker.evaluate(async (tabUrl) => {
+      const tabs = await chrome.tabs.query({ url: tabUrl });
+      return tabs.some((tab) => tab.url === tabUrl && tab.title === 'Pagina di prova');
+    }, testUrl);
+    check('LM-004: URL e titolo tab disponibili dopo il grant host', tabMetadataAfterGrant);
     if (!grantedOrigin)
       throw new Error('Permesso host non concesso dalla finestra Chrome: ' + permissionStatus);
+    const authorizedTabId = await worker.evaluate(async (url) => {
+      const [tab] = await chrome.tabs.query({ url });
+      return tab?.id ?? -1;
+    }, testUrl);
+    check('LM-005: id tab autorizzato registrato prima della revoca', authorizedTabId > 0);
     await permissionPanel.close();
     await target.bringToFront();
     const snapResult = await worker.evaluate(async (tabUrl) => {
@@ -393,10 +417,21 @@ try {
     let llmCalls = 0;
     let leakedSensitive = false;
     let sawPseudonym = false;
+    let holdModelResponses = false;
+    let heldModelRequest = false;
+    const heldResponses = new Set();
     const mock = createServer((req, res) => {
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => {
+        if (holdModelResponses) {
+          heldModelRequest = true;
+          heldResponses.add(res);
+          res.once('close', () => heldResponses.delete(res));
+          // Non inviare risposta: per LM-005 il run deve essere ancora vivo
+          // quando il tester revoca il sito tramite la vera UI di Chrome.
+          return;
+        }
         leakedSensitive ||= body.includes('mario.rossi@example.it');
         sawPseudonym ||= body.includes('[LMUSE_EMAIL_');
         llmCalls += 1;
@@ -752,6 +787,38 @@ try {
       check("run completo: statistiche d'uso salvate", runs >= 1, `runs=${runs}`);
     }
 
+    // LM-005: nuovo run deliberatamente bloccato dal mock provider.
+    // Dopo la revoca del sito, il listener storage.onChanged del worker deve
+    // abortire il run nonostante la permission Chrome sullo stesso host resti
+    // valida per il provider su una porta distinta.
+    await new Promise((r) => setTimeout(r, 5300)); // cooldown RUN documentato
+    holdModelResponses = true;
+    const revokeRunStarted = await panel.evaluate(`(function () {
+      try {
+        window.__lmuseRevokeProbe = { running: false, idle: false, done: false, errors: [] };
+        var p = chrome.runtime.connect({ name: 'lmuse' });
+        window.__lmuseRevokePort = p;
+        p.onMessage.addListener(function (m) {
+          if (!m) return;
+          if (m.type === 'STATUS') {
+            if (m.running) window.__lmuseRevokeProbe.running = true;
+            if (!m.running && window.__lmuseRevokeProbe.running) window.__lmuseRevokeProbe.idle = true;
+          }
+          if (m.type === 'DONE') window.__lmuseRevokeProbe.done = true;
+          if (m.type === 'ERROR') window.__lmuseRevokeProbe.errors.push(m.message);
+        });
+        p.postMessage({ type: 'RUN', task: 'Test sintetico di revoca attiva' });
+        return 'ok';
+      } catch (error) {
+        return String(error);
+      }
+    })()`);
+    check('LM-005: secondo run avviato da Port reale', revokeRunStarted === 'ok');
+    for (let attempt = 0; attempt < 45 && !heldModelRequest; attempt++) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    check('LM-005: richiesta provider rimane pendente prima della revoca', heldModelRequest);
+
     // Revoca del solo SITO tramite UI: il permesso Chrome non può sparire
     // finché un provider sullo stesso hostname ha ancora una capability valida.
     await panel.bringToFront();
@@ -766,6 +833,19 @@ try {
     );
     const siteRoleRevoked = await waitForHostRole(panel, new URL(testUrl).origin, 'site', false);
     check('site permission revoked in LMuse role registry', siteRoleRevoked);
+    let runStoppedAfterRevoke = false;
+    for (let attempt = 0; attempt < 50; attempt++) {
+      runStoppedAfterRevoke = await panel
+        .evaluate('Boolean(window.__lmuseRevokeProbe && window.__lmuseRevokeProbe.idle)')
+        .catch(() => false);
+      if (runStoppedAfterRevoke) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    const revokeProbeState = await panel.evaluate('window.__lmuseRevokeProbe');
+    check('LM-005: revoca interrompe il run attivo', runStoppedAfterRevoke, JSON.stringify(revokeProbeState));
+    check('LM-005: nessun DONE dopo revoca del sito', revokeProbeState?.done === false);
+    holdModelResponses = false;
+    for (const response of heldResponses) response.destroy();
     check(
       'provider grant retained after site revoke',
       await hostRolePresent(panel, providerOrigin, 'provider'),
@@ -794,15 +874,19 @@ try {
       !revokeResult.chromeGranted && revokeResult.roles.length === 0,
       JSON.stringify(revokeResult),
     );
-    const deniedAfterRevoke = await workerNow.evaluate(async (tabUrl) => {
-      const [tab] = await chrome.tabs.query({ url: tabUrl });
+    const tabMetadataAfterRevoke = await workerNow.evaluate(async (tabUrl) => {
+      const tabs = await chrome.tabs.query({});
+      return !tabs.some((tab) => tab.url === tabUrl || tab.title === 'Pagina di prova');
+    }, testUrl);
+    check('LM-004: URL e titolo tab nascosti dopo revoca', tabMetadataAfterRevoke);
+    const deniedAfterRevoke = await workerNow.evaluate(async (tabId) => {
       try {
-        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+        await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
         return false;
       } catch {
         return true;
       }
-    }, testUrl);
+    }, authorizedTabId);
     check('Chrome blocca nuove iniezioni dopo la revoca', deniedAfterRevoke);
 
     await panel.close();

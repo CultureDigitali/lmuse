@@ -1,6 +1,19 @@
 ## 0.9.0 — Candidato beta (non pubblicato)
 
-### LM-003 — setup nativeMessaging verificabile (PR separata, in verifica)
+### LM-005 — Arresto immediato al ritiro di un'autorizzazione (PR #12 incorporata)
+
+- Il service worker annulla il run e le approvazioni pendenti quando viene rimosso un grant per sito/provider, anche se Chrome mantiene il permesso sullo stesso hostname per altri ruoli.
+- Guardie sul segnale di stop prima e dopo le letture asincrone e gli strumenti browser: nessun nuovo risultato trasmesso al modello dopo revoca.
+- Test Chrome con provider mock volutamente sospeso, revoca reale da UI e conferma che il run termina senza `DONE`; regressione su `tabId` per testare davvero il blocco all'iniezione.
+
+### LM-004 — Permessi Chrome minimi (PR #11 incorporata)
+
+- Rimosso il permesso globale `tabs`, che consentiva URL e titoli di tutte le schede.
+- `scripting` (iniezione controllata) e `activeTab` (cattura tab attivo) mantenuti per le funzioni che li richiedono.
+- Test browser verifica che un sito senza host grant non esponga i metadati alla scheda dell'estensione, con accesso e revoca verificati.
+- Aggiornato Vite da 8.3.0 a 8.3.4 dopo il rilievo di sicurezza alto GHSA-587h-7wmj-h5pm; l'audit resta obbligatorio.
+
+### LM-003 — setup nativeMessaging verificabile (PR #10 in revisione)
 
 - Setup richiede un ID estensione esplicito valido, nessun placeholder o wildcard.
 - Installazione di una copia locale del bridge con launcher avviabile dal browser;
@@ -25,7 +38,7 @@
 - Safety floor per click, digitazione, clipboard e screenshot; approvazione legata a URL e tab, consumata dopo una sola azione.
 - Blocchi su input file e label; impostazioni privacy predefinite più sicure, pannello con nuova modalità.
 - E2E verifica che il mock provider riceva il token e non l'email, con esecuzione dell'agente obbligatoria.
-- **Limiti:** niente anonimizzazione universale per file binari/testo libero; la beta non è pronta per profili reali.
+- **Limiti:** niente anonimizzazione universale per file binari/testo libero; la beta non è ancora pronta per profili reali.
 
 # Changelog — lmuse
 
