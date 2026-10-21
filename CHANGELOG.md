@@ -1,5 +1,11 @@
 ## 0.9.0 — Candidato beta (non pubblicato)
 
+### LM-008 — URL pericolosi rifiutati prima dell'approvazione
+
+- Validazione di `browser_navigate` anticipata: protocolli vietati, URL con credenziali, metadata cloud e domini fuori allowlist vengono rifiutati prima del prompt di conferma.
+- `isAllowedHost` non ammette più URL bloccati neppure quando l'elenco di domini è vuoto; il controllo viene ripetuto prima di navigare.
+- Test di regressione verificano nessuna approvazione e nessuna chiamata `chrome.tabs.update` su input pericolosi o fuori perimetro.
+
 ### LM-007 — Protezione URL riservati, metadata e intranet
 
 - Il filtro URL rifiuta protocolli interni/speciali, Web Store, URL con credenziali, IP non specificati, cloud instance metadata e rete link-local senza possibilità di autorizzazione.
