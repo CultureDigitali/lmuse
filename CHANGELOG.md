@@ -1,6 +1,12 @@
 ## 0.9.0 — Candidato beta (non pubblicato)
 
-### LM-004 — Permessi Chrome minimi (PR separata)
+### LM-005 — Arresto immediato al ritiro di un'autorizzazione (PR separata)
+
+- Il service worker annulla il run e le approvazioni pendenti quando viene rimosso un grant per sito/provider, anche se Chrome mantiene il permesso sullo stesso hostname per altri ruoli.
+- Guardie sul segnale di stop prima e dopo le letture asincrone e gli strumenti browser: nessun nuovo risultato trasmesso al modello dopo revoca.
+- Test Chrome con provider mock volutamente sospeso, revoca reale da UI e conferma che il run termina senza `DONE`; regressione su `tabId` per testare davvero il blocco all'iniezione.
+
+### LM-004 — Permessi Chrome minimi (PR #11 incorporata)
 
 - Rimosso il permesso globale `tabs`, che consentiva URL e titoli di tutte le schede.
 - `scripting` (iniezione controllata) e `activeTab` (cattura tab attivo) mantenuti per le funzioni che li richiedono.

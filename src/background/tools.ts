@@ -362,18 +362,30 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
 
   /** Invia al tab iniettando on-demand al primo uso + un retry dopo navigazioni. */
   async function sendToTab<T>(tabId: number, message: unknown, timeoutMs?: number): Promise<T> {
+    assertRunActive();
     try {
-      return await rawSendToTab<T>(tabId, message, timeoutMs);
+      const result = await rawSendToTab<T>(tabId, message, timeoutMs);
+      assertRunActive();
+      return result;
     } catch (error) {
+      assertRunActive();
       const raw = error instanceof Error ? error.message : String(error);
       if (!raw.startsWith(UNREACHABLE_PREFIX)) throw error;
       await injectContentScript(tabId);
-      return rawSendToTab<T>(tabId, message, timeoutMs);
+      assertRunActive();
+      const result = await rawSendToTab<T>(tabId, message, timeoutMs);
+      assertRunActive();
+      return result;
     }
+  }
+
+  function assertRunActive(): void {
+    if (cfg.signal.aborted) throw new Error('Task interrotto: autorizzazione revocata o STOP.');
   }
 
   /** Guardia centrale: budget + circuit breaker + errori in italiano. */
   async function guarded<O>(fn: () => Promise<O>): Promise<O> {
+    assertRunActive();
     if (circuit.open) {
       throw new Error(
         `Troppi errori consecutivi (${circuit.failures}): run interrotto. Riformula il task o cambia pagina e riprova.`,
@@ -382,6 +394,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     if (!budget.tryConsume()) throw new Error(`${BUDGET_EXHAUSTED} (${budget.max} chiamate per run).`);
     try {
       const out = await fn();
+      // Revoche che arrivano mentre il tool attende la risposta del browser:
+      // non restituire al modello nemmeno il risultato già preparato.
+      assertRunActive();
       // Confine di protezione condiviso da TUTTI i tool, inclusi quelli futuri.
       const safe = privacyActive ? cfg.privacyGateway!.protectUnknown(out) : out;
       circuit.recordSuccess();

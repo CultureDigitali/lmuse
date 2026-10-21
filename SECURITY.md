@@ -53,6 +53,13 @@
 - Dopo redirect, back/forward o click l'URL deve essere nuovamente autorizzato prima di leggerne il DOM. Un redirect può già aver avviato richieste di rete verso il sito di arrivo: l'estensione **non può garantire di impedirle**, ma rifiuta la lettura e segnala il confine violato anziché simulare uno snapshot riuscito.
 - **Limitazione LM-002:** manca ancora un inventario visuale completo di tutte le autorizzazioni con revoca granulare da una lista. Non usare su profili produttivi finché il collaudo manuale non è chiuso.
 
+### LM-005 — revoca interrompe immediatamente i run
+
+- Il service worker ascolta `chrome.storage.onChanged` sul registro host e rileva quando sparisce un'abilitazione precisa `origin + purpose`. Un nuovo grant o l'aggiornamento di un timestamp non causa interruzioni.
+- Alla revoca di almeno un'abilitazione, un task attivo viene interrotto tramite `AbortController`, le approvazioni pendenti vengono negate e non vengono avviati automaticamente i task in coda.
+- Ogni tool verifica il segnale di STOP prima di iniziare, prima di iniettare nuovamente un content script e **dopo** il completamento dell'operazione asincrona: i risultati ottenuti dopo la revoca non vengono restituiti al modello.
+- Una richiesta o un click già eseguiti prima della revoca non possono essere annullati retroattivamente; la difesa ferma i passi successivi, non ripristina gli effetti precedenti.
+
 ### Bridge opencode — superficie d'attacco
 
 Il native host `it.lmuse.opencode_bridge` è registrato solo da te

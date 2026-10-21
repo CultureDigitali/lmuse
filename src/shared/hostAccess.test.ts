@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   exactHostOrigin,
   forgetHostGrant,
+  hasRevokedHostGrant,
   hostPattern,
   HOST_GRANTS_KEY,
   listHostGrants,
@@ -120,5 +121,34 @@ describe('LM-001 Chrome least privilege', () => {
       'http://127.0.0.1:1820/v1',
     );
     expect(providerEndpoint({ providerId: 'azure', baseUrl: '' })).toBeNull();
+  });
+});
+
+describe('LM-005 revoca immediata', () => {
+  const site = { origin: 'https://example.com', purpose: 'site' as const, grantedAt: 1 };
+  const provider = { origin: 'https://example.com', purpose: 'provider' as const, grantedAt: 2 };
+  const other = { origin: 'http://localhost:11434', purpose: 'provider' as const, grantedAt: 3 };
+
+  it('rileva revoca site anche quando il provider conserva il permesso Chrome', () => {
+    expect(hasRevokedHostGrant([site, provider], [provider])).toBe(true);
+  });
+
+  it('rileva revoca di un origin anche se Chrome continua a permettere lo stesso hostname', () => {
+    const second = { origin: 'http://localhost:3000', purpose: 'site' as const, grantedAt: 1 };
+    expect(hasRevokedHostGrant([other, second], [other])).toBe(true);
+  });
+
+  it('ignora nuove autorizzazioni, riordino e rinnovo dei timestamp', () => {
+    expect(hasRevokedHostGrant(undefined, [site])).toBe(false);
+    expect(hasRevokedHostGrant([site], [site, provider])).toBe(false);
+    expect(hasRevokedHostGrant([site, provider], [{ ...provider, grantedAt: 99 }, site])).toBe(false);
+  });
+
+  it('Clear All e revoca multipla interrompono il run', () => {
+    expect(hasRevokedHostGrant([site, provider, other], undefined)).toBe(true);
+    expect(hasRevokedHostGrant([site, other], [])).toBe(true);
+    expect(hasRevokedHostGrant([{ origin: 'file:///unsafe', purpose: 'site', grantedAt: 0 }], [])).toBe(
+      false,
+    );
   });
 });
