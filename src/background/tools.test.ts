@@ -221,6 +221,45 @@ describe('browser_navigate — conferma di dominio (regressione)', () => {
   });
 });
 
+describe('LM-008: blocco URL pericolosi prima della conferma', () => {
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'blob:https://esempio.it/token',
+    'file:///etc/passwd',
+    'chrome://settings/passwords',
+    'chrome-extension://abcdefghijklmnopabcdefghijklmnop/options.html',
+    'https://user:pass@esempio.it/',
+    'http://169.254.169.254/latest/meta-data/',
+    'https://chromewebstore.google.com/detail/extension',
+    'ftp://esempio.it/credenziali',
+  ])('blocca %s senza approvazione o navigazione Chrome', async (url) => {
+    const requestApproval = vi.fn(async () => true);
+    const update = chrome.tabs.update as ReturnType<typeof vi.fn>;
+    update.mockClear();
+    const { tools } = createBrowserTools(baseConfig({ policy: 'all', requestApproval }));
+    await expect(tools.browser_navigate.execute({ url }, {} as never)).rejects.toThrow(
+      /URL bloccato/,
+    );
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('nego subito una destinazione fuori allowlist senza mostrare conferme', async () => {
+    const requestApproval = vi.fn(async () => true);
+    const update = chrome.tabs.update as ReturnType<typeof vi.fn>;
+    update.mockClear();
+    const { tools } = createBrowserTools(
+      baseConfig({ policy: 'all', allowedDomains: 'esempio.it', requestApproval }),
+    );
+    await expect(
+      tools.browser_navigate.execute({ url: 'https://esterna.example.org/' }, {} as never),
+    ).rejects.toThrow(/fuori dall.allowlist/);
+    expect(requestApproval).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+});
+
 describe('browser_download', () => {
   it('tool presente nel set e con descrizione', () => {
     const { tools } = createBrowserTools(baseConfig());
