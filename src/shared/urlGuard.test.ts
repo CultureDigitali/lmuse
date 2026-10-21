@@ -36,6 +36,21 @@ describe('isBlockedUrl', () => {
 });
 
 describe('isAllowedHost', () => {
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,test',
+    'blob:https://example.com/123',
+    'file:///secret',
+    'chrome://settings',
+    'https://user:pass@example.com/',
+    'http://169.254.169.254/latest/meta-data/',
+    'https://chromewebstore.google.com/detail/id',
+    'not a URL',
+  ])('LM-008: la allowlist vuota non permette %s', (url) => {
+    expect(isAllowedHost(url, '')).toBe(false);
+    expect(isAllowedHost(url, 'example.com')).toBe(false);
+  });
+
   it('allowlist vuota = tutti consentiti', () => {
     expect(isAllowedHost('https://qualsiasi.test/a', '')).toBe(true);
     expect(isAllowedHost('https://qualsiasi.test/a', '   ')).toBe(true);
