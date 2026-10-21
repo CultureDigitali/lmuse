@@ -12,6 +12,8 @@ const setActiveTabUrl = (u: string) => {
   activeTabUrl = u;
 };
 const executeScript = vi.fn(async () => []);
+const tabUpdatedListeners = new Set<(tabId: number, change: { status?: string; url?: string }) => void>();
+const tabRemovedListeners = new Set<(tabId: number) => void>();
 const getTab = vi.fn(async () => ({
   id: 1,
   url: activeTabUrl,
@@ -50,6 +52,18 @@ vi.stubGlobal('chrome', {
     },
   },
   tabs: {
+    onUpdated: {
+      addListener: vi.fn((listener: (tabId: number, change: { status?: string; url?: string }) => void) =>
+        tabUpdatedListeners.add(listener),
+      ),
+      removeListener: vi.fn((listener: (tabId: number, change: { status?: string; url?: string }) => void) =>
+        tabUpdatedListeners.delete(listener),
+      ),
+    },
+    onRemoved: {
+      addListener: vi.fn((listener: (tabId: number) => void) => tabRemovedListeners.add(listener)),
+      removeListener: vi.fn((listener: (tabId: number) => void) => tabRemovedListeners.delete(listener)),
+    },
     // vi.fn perché i test di regressione devono poter cambiare scheda/URL.
     query: vi.fn(async (q?: { url?: string }) =>
       q?.url
@@ -99,6 +113,8 @@ function kindsOf(calls: unknown[][]): string[] {
 
 beforeEach(() => {
   activeTabUrl = 'https://esempio.it/pagina';
+  tabUpdatedListeners.clear();
+  tabRemovedListeners.clear();
   sendMessage.mockReset();
   executeScript.mockClear();
   // Ripristina ogni volta gli stub condivisi: altre suite sostituiscono
@@ -255,6 +271,32 @@ describe('LM-008: blocco URL pericolosi prima della conferma', () => {
     ).rejects.toThrow(/fuori dall.allowlist/);
     expect(requestApproval).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe('LM-009: navigator epoch nelle risposte asincrone', () => {
+  it('scarta snapshot dopo ricaricamento della stessa URL, senza divulgare il DOM', async () => {
+    sendMessage.mockImplementation(async () => {
+      for (const listener of tabUpdatedListeners) listener(1, { status: 'loading' });
+      return { ok: true, tree: 'Contenuto privato dalla pagina precedente' };
+    });
+    const { tools } = createBrowserTools(baseConfig());
+    await expect(tools.browser_snapshot.execute({}, {} as never)).rejects.toThrow();
+    expect(sendMessage).toHaveBeenCalled();
+    expect(tabUpdatedListeners.size).toBe(0);
+    expect(tabRemovedListeners.size).toBe(0);
+  });
+
+  it('scarta lettura testo dopo evento di navigazione e non lascia listener', async () => {
+    sendMessage.mockImplementation(async () => {
+      for (const listener of tabUpdatedListeners) listener(1, { url: 'https://esempio.it/altra' });
+      return { ok: true, text: 'Token di pagina obsoleta' };
+    });
+    const { tools } = createBrowserTools(baseConfig());
+    await expect(tools.browser_read_text.execute({}, {} as never)).rejects.toThrow();
+    expect(sendMessage).toHaveBeenCalled();
+    expect(tabUpdatedListeners.size).toBe(0);
+    expect(tabRemovedListeners.size).toBe(0);
   });
 });
 

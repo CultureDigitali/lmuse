@@ -1,5 +1,11 @@
 ## 0.9.0 — Candidato beta (non pubblicato)
 
+### LM-009 — controllo navigazione durante la lettura
+
+- Snapshot e letture DOM rifiutano i tab in caricamento o con URL di navigazione pendente.
+- Un watcher per-tab durante il risultato asincrono rileva URL nuovi, reload sullo stesso URL e chiusura della scheda; il risultato viene scartato e i listener sempre rimossi.
+- Nuovi test del confine navigazione e delle risposte stale. Nessun permesso Chrome aggiuntivo.
+
 ### LM-008 — URL pericolosi rifiutati prima dell'approvazione
 
 - Validazione di `browser_navigate` anticipata: protocolli vietati, URL con credenziali, metadata cloud e domini fuori allowlist vengono rifiutati prima del prompt di conferma.

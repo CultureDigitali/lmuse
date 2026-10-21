@@ -53,6 +53,13 @@
 - Dopo redirect, back/forward o click l'URL deve essere nuovamente autorizzato prima di leggerne il DOM. Un redirect può già aver avviato richieste di rete verso il sito di arrivo: l'estensione **non può garantire di impedirle**, ma rifiuta la lettura e segnala il confine violato anziché simulare uno snapshot riuscito.
 - **Limitazione LM-002:** manca ancora un inventario visuale completo di tutte le autorizzazioni con revoca granulare da una lista. Non usare su profili produttivi finché il collaudo manuale non è chiuso.
 
+### LM-009 — letture asincrone legate alla stessa navigazione
+
+- Snapshot e letture del DOM rifiutano una scheda ancora in `loading` o con `pendingUrl`, anche quando la vecchia URL risulta autorizzata.
+- Durante la risposta asincrona del content script vengono osservati gli eventi `tabs.onUpdated` (cambio URL o avvio caricamento) e `tabs.onRemoved`. Un evento sulla scheda osservata invalida il risultato **anche se la URL finale torna identica a quella iniziale** (reload/ABA).
+- Prima di restituire il risultato, restano obbligatori il controllo del tab ID, URL esatto, allowlist e grant `origin+porta+ruolo`. Gli ascoltatori temporanei vengono rimossi anche in caso di errore.
+- Il controllo non aggiunge permessi al manifest. Rimangono fuori dal perimetro il blocco preventivo di tutte le richieste HTTP e la difesa completa dal DNS rebinding; queste richiedono una policy di rete separata.
+
 ### LM-008 — rifiuto prima della conferma e allowlist fail-closed
 
 - Il tool `browser_navigate` valida e normalizza la destinazione **prima** di mostrare qualsiasi approvazione. Gli schemi non HTTP(S), gli URL con credenziali, i metadata cloud e le pagine riservate non possono generare una conferma fuorviante.
