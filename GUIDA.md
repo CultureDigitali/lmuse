@@ -4,6 +4,8 @@
 
 **Revoca durante un task (LM-005).** La revoca di un sito o provider interrompe il task corrente, scarta le nuove risposte ancora in elaborazione e impedisce l'avvio automatico dei task in coda. È necessario un nuovo avvio esplicito dopo una nuova autorizzazione. Non è possibile annullare operazioni o richieste HTTP già completate prima della revoca.
 
+**Collaudo Native Messaging su Windows (LM-003).** La prova completa Chrome → host nativo è svolta dalla CI in una macchina Windows temporanea, con profilo browser e credenziali inventate; non lanciare direttamente lo script di prova sul proprio PC, perché l'installazione reale del bridge richiede la modifica di HKCU.
+
 Apri le impostazioni del pannello e seleziona **Privacy Gateway sul dispositivo**. La modalità **Rigorosa** richiede un elenco di domini consentiti, conferma la prima lettura di ogni origin e chiede approvazione per tutte le azioni operative. Screenshot disattivati. I segnaposto riconosciuti vengono risolti solo sul sito d'origine; il risultato finale viene ripristinato localmente. In assenza di certezza sulla protezione di un documento, non usarlo con dati reali. Per rischi e limiti consulta **[PRIVACY-GATEWAY.md](PRIVACY-GATEWAY.md)**.
 
 # lmuse — Guida al progetto

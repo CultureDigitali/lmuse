@@ -24,6 +24,9 @@
   `ping/list/export`, framing byte-for-byte e assenza di chiavi nel list.
 - Manifest anche per Chrome for Testing 146+ (percorsi separati su macOS/Linux)
   e prova E2E Chrome → native host con HOME isolata e dati fittizi.
+- La CI aggiunge il controllo Windows Chrome → EXE .NET → host Node, su runner
+  GitHub Windows usa-e-getta: test HKCU, origin vincolato, credenziali sintetiche,
+  comandi ammessi/rifiutati e disinstallazione verificata. Non tocca il PC dello sviluppatore.
 
 ### LM-001 — restrizione dei privilegi host (PR #9 incorporata)
 

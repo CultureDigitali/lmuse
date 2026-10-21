@@ -83,6 +83,12 @@ Su macOS/Linux, Chrome for Testing 146+ richiede una directory
 `NativeMessagingHosts` distinta da Chrome Stable; il setup scrive entrambi
 i manifest limitati al medesimo ID. La CI prova la chiamata effettiva da
 Chrome for Testing con una home provvisoria e credenziali sintetiche.
+La CI Windows esegue una prova separata su runner GitHub ospitato e temporaneo:
+registra l'host solo nell'HKCU di quella macchina, avvia Chrome for Testing con
+profilo nuovo e conferma il percorso reale Chrome → EXE .NET → Node, inclusi
+pinning dell'estensione, risposte e disinstallazione. Lo script rifiuta
+l'esecuzione su normali PC Windows, anche con un profilo Chrome temporaneo:
+su Windows il registro Native Messaging è per utente, non per profilo Chrome.
 Il native bridge può esporre credenziali al pannello solo tramite il comando
 `export`: trattare import e ambiente Chrome come operazioni sensibili.
 
