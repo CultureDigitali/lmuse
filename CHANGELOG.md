@@ -1,4 +1,4 @@
-## 0.9.0 — Candidato beta (non pubblicato)
+## 0.9.0 (2026-11-02) — Privacy Gateway, modelli free, template e drag
 
 ### LM-009 — controllo navigazione durante la lettura
 
@@ -72,7 +72,7 @@
 
 # Changelog — lmuse
 
-## 0.9.0 (2026-11-02) — Modelli free, template e drag
+### Modelli free, template e drag
 
 Nono ciclo: uso gratuito controllato, modelli di task con nome, overlay
 scorciatoie, `browser_drag` (27° tool) e chiusura dei difetti emersi dal

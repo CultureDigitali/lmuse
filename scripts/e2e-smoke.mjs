@@ -206,6 +206,15 @@ try {
       ),
     );
     check('panel interattivo (bottone impostazioni)', hasSettings);
+    // Con un profilo pulito il pannello mostra l'onboarding: va chiuso prima
+    // di cliccare le impostazioni, altrimenti il click non arriva ai controlli.
+    await page.evaluate(async () => {
+      const start = [...document.querySelectorAll('button')].find((b) =>
+        ['Inizia', 'Get started'].includes((b.textContent ?? '').trim()),
+      );
+      if (start) start.click();
+      await new Promise((r) => setTimeout(r, 150));
+    });
     const shortcutsOpened = await page.evaluate(async () => {
       const btn = [...document.querySelectorAll('button')].find((b) =>
         ['Mostra scorciatoie', 'Show shortcuts'].includes(b.getAttribute('aria-label') ?? ''),
@@ -370,9 +379,12 @@ try {
     // Triplo click può selezionare solo una parola, lasciando l'URL metadata
     // concatenato al nuovo sito. Usare select-all reale sul campo.
     await permissionPanel.click(sitePermissionSelector);
-    await permissionPanel.keyboard.down('Control');
+    // Su macOS il select-all è Meta+A, non Control+A: senza questo il valore
+    // precedente restava e il test falliva solo sulla piattaforma sbagliata.
+    const selectAllModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+    await permissionPanel.keyboard.down(selectAllModifier);
     await permissionPanel.keyboard.press('A');
-    await permissionPanel.keyboard.up('Control');
+    await permissionPanel.keyboard.up(selectAllModifier);
     await permissionPanel.keyboard.press('Backspace');
     await permissionPanel.type('input[aria-label="URL sito per permesso Chrome"]', testUrl);
     const restoredInput = await permissionPanel.$eval(sitePermissionSelector, (el) => el.value);
