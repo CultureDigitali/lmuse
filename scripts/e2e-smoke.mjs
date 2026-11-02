@@ -232,14 +232,21 @@ try {
     });
     check('Esc chiude overlay scorciatoie', shortcutsClosed);
     const freeUi = await page.evaluate(async () => {
-      const btn = [...document.querySelectorAll('button')].find((b) =>
-        ['Impostazioni', 'Settings'].includes(b.getAttribute('aria-label') ?? ''),
-      );
-      if (!btn) return false;
-      btn.click();
-      await new Promise((r) => setTimeout(r, 200));
-      const text = document.body.textContent ?? '';
-      return text.includes('Solo modelli gratuiti') || text.includes('Free models only');
+      const hasFree = () => {
+        const text = document.body.textContent ?? '';
+        return text.includes('Solo modelli gratuiti') || text.includes('Free models only');
+      };
+      // Al primo avvio le impostazioni sono già aperte: cliccare il toggle le
+      // chiuderebbe. Aprile solo se il testo non è già visibile.
+      if (!hasFree()) {
+        const btn = [...document.querySelectorAll('button')].find((b) =>
+          ['Impostazioni', 'Settings'].includes(b.getAttribute('aria-label') ?? ''),
+        );
+        if (!btn) return false;
+        btn.click();
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      return hasFree();
     });
     check('impostazioni: toggle solo modelli gratuiti presente', freeUi);
     check('zero errori pagina', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));

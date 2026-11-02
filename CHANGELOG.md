@@ -72,6 +72,12 @@
 
 # Changelog — lmuse
 
+## 0.9.1 (2026-11-02) — Dipendenze sicure
+
+- Audit pulito: `undici` 8.12.2 (override), `zod` 4.6.7, `puppeteer-core` 25.16.0; zero vulnerabilità note.
+- e2e più robusto su macOS (Meta+A per select-all) e con onboarding già aperto.
+- Nessun cambiamento funzionale rispetto alla 0.9.0.
+
 ### Modelli free, template e drag
 
 Nono ciclo: uso gratuito controllato, modelli di task con nome, overlay

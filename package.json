@@ -1,6 +1,6 @@
 {
   "name": "lmuse",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "description": "Estensione Chrome MV3: un agente AI che usa il browser per svolgere task, con la tua chiave LLM (multi-provider).",
   "type": "module",
@@ -48,7 +48,7 @@
     "ai": "^7.0.102",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -58,23 +58,25 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
-    "@vitest/coverage-v8": "^5.0.1",
+    "@vitest/coverage-v8": "^5.0.5",
     "axe-core": "^4.13.0",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
-    "puppeteer-core": "^25.11.0",
+    "puppeteer-core": "^25.16.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.70.0",
     "vite": "^8.3.4",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.5"
   },
   "license": "MIT",
   "pnpm": {
     "overrides": {
-      "source-map-js": ">=1.2.2"
+      "undici@<7.30.1": "7.30.1",
+      "minimatch@<11.0.1": "11.0.1",
+      "undici": "8.12.2"
     }
   }
 }

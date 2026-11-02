@@ -1,7 +1,7 @@
 # Chrome Web Store — listing lmuse (pronto da incollare)
 
 > Stato: **CANDIDATO NON ANCORA APPROVATO: test solo Private / trusted testers**.
-> Ultimo aggiornamento: 2 novembre 2026 · candidato: `release/lmuse-0.9.0.zip`
+> Ultimo aggiornamento: 2 novembre 2026 · candidato: `release/lmuse-0.9.1.zip`
 
 ## Scheda
 
@@ -115,7 +115,7 @@ Il codice è pubblico: https://github.com/CultureDigitali/lmuse
 ## Checklist prima dell'upload
 
 - [x] CI completo ed e2e sull'ultimo SHA della candidata (347 test, e2e completo con provider mock, a11y 0 violazioni)
-- [x] Generare e verificare il pacchetto con SHA-256 (`release/lmuse-0.9.0.zip`)
+- [x] Generare e verificare il pacchetto con SHA-256 (`release/lmuse-0.9.1.zip`)
 - [x] Privacy policy aggiornata su GitHub Pages
 - [x] Pagina di supporto + issue tracker
 - [ ] Screenshot aggiornati della modalità rigorosa e Privacy Gateway

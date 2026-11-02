@@ -11,12 +11,12 @@ possegga il link può installare. L'accesso alla dashboard richiede l'account sv
 2. Registrazione developer Chrome Web Store: **5 USD una tantum**
    → https://chrome.google.com/webstore/devconsole
 3. Email di contatto pubblica per il listing.
-4. Il pacchetto `release/lmuse-0.9.0.zip` (già pronto e verificato).
+4. Il pacchetto `release/lmuse-0.9.1.zip` (già pronto e verificato).
 
 ## 1. Upload come Private
 
 1. Apri la [Developer Dashboard](https://chrome.google.com/webstore/devconsole).
-2. **New item** → carica `release/lmuse-0.9.0.zip`.
+2. **New item** → carica `release/lmuse-0.9.1.zip`.
 3. Compila la scheda usando `STORE.md` (nome, descrizione, categoria, lingue).
 4. Carica gli screenshot `store/screenshot-1.png` e `store/screenshot-2.png`.
 5. **Privacy practices**:
@@ -72,7 +72,7 @@ Poi: dashboard → _Visibility_ → **Public** → _Submit for review_.
 
 ## 5. Versioni
 
-- Candidata per il test: `0.9.0` (verificata, non ancora approvata).
+- Candidata per il test: `0.9.1` (verificata, non ancora approvata).
 - Valutare il rilascio pubblico solo dopo la beta privata e un audit conclusivo; i fix richiedono un incremento della versione.
 - Non riusare lo stesso numero di versione per pacchetti diversi: lo store
   rifiuta versioni duplicate.
