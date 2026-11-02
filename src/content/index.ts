@@ -1,6 +1,13 @@
 import { buildSnapshot, getElement, registerElements } from './snapshot';
 import { isPressAllowed } from './keys';
-import { describeFocused, selectOption, waitFor, hoverElement, assertNoFileUploadTarget } from './actions';
+import {
+  assertNoFileUploadTarget,
+  describeFocused,
+  dragElement,
+  hoverElement,
+  selectOption,
+  waitFor,
+} from './actions';
 import { findInPage, tableToMarkdown } from './extract';
 import { maskPii } from '../shared/pii';
 
@@ -24,6 +31,7 @@ type Incoming =
   | { kind: 'LMUSE_WAIT'; waitKind: 'text' | 'selector'; value: string; timeoutMs: number }
   | { kind: 'LMUSE_PRESS'; key: string }
   | { kind: 'LMUSE_HOVER'; ref: number; docIndex?: number }
+  | { kind: 'LMUSE_DRAG'; fromRef: number; toRef: number }
   | { kind: 'LMUSE_CLIPBOARD_WRITE'; text: string }
   | { kind: 'LMUSE_CLIPBOARD_READ' }
   | { kind: 'LMUSE_DOWNLOAD'; ref: number; docIndex?: number }
@@ -44,6 +52,7 @@ const KINDS = new Set([
   'LMUSE_WAIT',
   'LMUSE_PRESS',
   'LMUSE_HOVER',
+  'LMUSE_DRAG',
   'LMUSE_CLIPBOARD_WRITE',
   'LMUSE_CLIPBOARD_READ',
   'LMUSE_DOWNLOAD',
@@ -297,6 +306,19 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
           target.dispatchEvent(new KeyboardEvent('keydown', { key: msg.key, bubbles: true }));
           target.dispatchEvent(new KeyboardEvent('keyup', { key: msg.key, bubbles: true }));
           reply({ ok: true, focused: describeFocused() });
+          break;
+        }
+        case 'LMUSE_DRAG': {
+          if (!validRef(msg.fromRef) || !validRef(msg.toRef)) throw new Error('Ref non valido.');
+          const from = getElement(msg.fromRef);
+          const to = getElement(msg.toRef);
+          if (!from) throw new Error(`Ref sorgente [${msg.fromRef}] scaduto: fai un nuovo snapshot.`);
+          if (!to) throw new Error(`Ref destinazione [${msg.toRef}] scaduto: fai un nuovo snapshot.`);
+          const centers = dragElement(from, to);
+          reply({
+            ok: true,
+            text: `Drag da [${msg.fromRef}] a [${msg.toRef}] (${centers.to.x},${centers.to.y})`,
+          });
           break;
         }
         case 'LMUSE_HOVER': {

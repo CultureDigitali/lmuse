@@ -60,7 +60,10 @@ async function handle(msg) {
       if (!auth.ok) return auth;
       const credentials = [];
       for (const [id, v] of Object.entries(auth.data)) {
-        if (v && typeof v === 'object' && typeof v.key === 'string' && v.key.trim()) {
+        // Solo credenziali API (type 'api'). I token OAuth di subscription
+        // (es. Antigravity/Gemini consumer) non sono riutilizzabili da terzi:
+        // il loro uso fuori dalle superfici ufficiali viola i ToS del provider.
+        if (v && typeof v === 'object' && v.type === 'api' && typeof v.key === 'string' && v.key.trim()) {
           credentials.push({ id: String(id).slice(0, 64), key: v.key.trim().slice(0, 4096) });
         }
       }

@@ -1,10 +1,11 @@
 import { ToolLoopAgent, isStepCount } from 'ai';
 import { createModel } from './providers';
-import { createBrowserTools } from './tools';
+import { createBrowserTools, isRunAbortReason } from './tools';
 import { providerEndpoint, requireHostAccess } from '../shared/hostAccess';
 import { PrivacyGateway } from '../shared/privacy-gateway';
 import type { Settings } from '../shared/settings';
 import { MAX_TASK_CHARS } from '../shared/settings';
+import { freeModelProblem } from '../shared/free-models';
 
 const SYSTEM_PROMPT = `Sei lmuse, un agente che controlla il browser Chrome dell'utente per svolgere task e operazioni.
 
@@ -122,6 +123,8 @@ export async function runTask(
   if (trimmed.length > MAX_TASK_CHARS) {
     throw new Error(`Task troppo lungo (max ${MAX_TASK_CHARS} caratteri).`);
   }
+  const freeProblem = freeModelProblem(settings.providerId, settings.model, settings.freeOnly);
+  if (freeProblem) throw new Error(freeProblem);
 
   if (settings.privacyMode === 'strict' && !settings.allowedDomains.trim()) {
     throw new Error('Privacy rigorosa: imposta almeno un dominio consentito prima di avviare il task.');
@@ -148,6 +151,7 @@ export async function runTask(
     budgetMax: settings.maxSteps * 3,
     policy: settings.approval,
     signal,
+    abortRun: abort,
     requestApproval,
     onApprovalDecision: callbacks.onApprovalDecision,
   });
@@ -189,6 +193,9 @@ export async function runTask(
       if (delta) callbacks.onStream(delta);
     }
     const [text, steps, usage] = await Promise.all([stream.text, stream.steps, stream.usage]);
+    // Un freno può scattare a fine stream (tool error ingoiato dall'SDK):
+    // l'esito corretto viaggia nel reason dell'abort, non nell'eccezione.
+    if (isRunAbortReason(signal.reason)) throw signal.reason;
     return {
       text: gateway.restoreForUser(text),
       steps: steps.length,
@@ -197,6 +204,7 @@ export async function runTask(
     };
   } catch (error) {
     const reason = signal.reason;
+    if (isRunAbortReason(reason)) throw reason;
     if (reason instanceof Error && reason.message.startsWith(TOKEN_LIMIT_PREFIX)) throw reason;
     throw error;
   } finally {

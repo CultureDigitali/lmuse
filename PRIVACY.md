@@ -106,6 +106,13 @@ Due limiti da conoscere:
 - **Non è un timer fisso.** Se stai usando l'estensione, il blocco non scatta; se
   un task è in esecuzione, il blocco attende che finisca.
 
+## Modelli gratuiti (OpenRouter free / NVIDIA NIM)
+
+Con “Solo modelli gratuiti” lmuse non manda richieste a modelli a pagamento su
+OpenRouter. Attenzione: i modelli free di OpenRouter possono **registrare i prompt**
+per migliorare il modello, secondo i termini del provider; NVIDIA NIM free tier ha
+rate limit (~40 req/min). Per dati riservati usa un provider con policy adeguata.
+
 ## Bridge opencode (opt-in, solo se installato da te)
 
 Se esegui `pnpm setup:opencode`, l'estensione può chiedere al native host

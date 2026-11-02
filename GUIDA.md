@@ -38,6 +38,52 @@ I nomi modello di default sono quelli correnti (set 2026), ma il campo modello �
 se esce un modello nuovo lo scrivi e funziona, senza aggiornare l'estensione.
 La chiave è per-provider (ogni provider la sua) e migra automaticamente dalla 0.5.x.
 
+### Uso gratuito: OpenRouter Free + NVIDIA NIM
+
+- **OpenRouter**: con “Solo modelli gratuiti” attivo (default) lmuse accetta solo
+  `openrouter/free` e i modelli con suffisso `:free`. Il router sceglie un modello
+  free compatibile con tool calling/vision. Limiti OpenRouter: ~20 req/min e
+  50 req/giorno (1.000/giorno dopo aver acquistato 10 crediti una volta).
+- **NVIDIA NIM**: tutti i modelli su build.nvidia.com sono free tier, ~40 req/min,
+  nessun addebito per token. Chiave `nvapi-…` da build.nvidia.com/settings.
+- Il preset **Gratis** in ⚙ imposta OpenRouter + `openrouter/free` + filtre free.
+- ⚠️ **Privacy**: molti modelli gratuiti OpenRouter registrano i prompt per
+  migliorare il modello. Non usare dati riservati con i modelli free.
+
+### Modelli di task e scorciatoie (v0.9.0)
+
+I task ricorrenti si salvano con un **nome** dalla sezione “Modelli di task”:
+un clic li ricarica nel composer. I modelli salvati nella 0.8.x (senza nome)
+vengono migrati automaticamente al primo avvio.
+
+| Scorciatoia          | Azione                        |
+| -------------------- | ----------------------------- |
+| Ctrl/Cmd + K         | Focus sul task                |
+| Enter                | Invia il task                 |
+| Shift + Enter        | Nuova riga                    |
+| Ctrl/Cmd + Shift + X | Ferma il task                 |
+| Ctrl/Cmd + Shift + L | Apre il pannello              |
+| Esc                  | Chiude overlay e impostazioni |
+
+Il pulsante **?** nell'header mostra la stessa tabella dentro il pannello.
+
+### Abbonamenti consumer (Antigravity / Google AI Pro) e abbonamenti vari
+
+lmuse usa **chiavi API**, non abbonamenti consumer. In particolare:
+
+- **Google AI Pro / Antigravity**: i termini di servizio Google vietano l'uso
+  del login consumer (OAuth personale) da software di terze parti e prevedono
+  la sospensione dell'account. Antigravity quota è utilizzabile solo nelle
+  superfici ufficiali Google (Antigravity App/IDE/CLI ed estensioni ufficiali).
+  Per Gemini in lmuse serve una **chiave API di Google AI Studio**
+  (`https://aistudio.google.com/apikey`), gratuita per i modelli Flash e a
+  consumo per i Pro. La chiave AI Studio va creata con restrizione all'API
+  Generative Language.
+- Lo stesso vale per abbonamenti ChatGPT/Claude consumer: lmuse non li usa,
+  servono chiavi API dei rispettivi provider.
+- Il bridge opencode importa **solo credenziali `type: "api"`**: i token OAuth
+  (Antigravity, Gemini CLI, ecc.) vengono ignorati di proposito.
+
 ### Integrazione opencode (se installato)
 
 ```bash
@@ -82,9 +128,9 @@ src/shared/budget.ts        Budget tool-call per run (testato)
 src/shared/i18n.ts          Stringhe UI it/en
 src/background/providers.ts Crea il modello AI SDK (import dinamico per provider:
                             solo il chunk configurato, SW −71%)
-src/background/tools.ts     26 tool browser (snapshot, navigate, back/forward, reload,
+src/background/tools.ts     27 tool browser (snapshot, navigate, back/forward, reload,
                              click, type, select, wait, press, find, table, query,
-                             hover, clipboard×2, iframe_snapshot, download, scroll,
+                             hover, drag, clipboard×2, iframe_snapshot, download, scroll,
                              screenshot×2, read_text, links, tabs×4)
                             con approval+budget/circuit/errori, inject on-demand
 src/shared/lock.ts          Auto-lock chiave: decisione su inattività (pura, testata)
@@ -106,7 +152,7 @@ reference/nanobrowser/      Clone di riferimento (fuori git, opzionale):
 ```mermaid
 flowchart LR
     Panel -- RUN --> SW[ServiceWorker]
-    SW -- prompt + 26 tools --> LLM
+    SW -- prompt + 27 tools --> LLM
     LLM -- tool-call --> SW
     SW -- APPROVAL --> Panel
     Panel -- APPROVE/DENY --> SW
@@ -116,7 +162,7 @@ flowchart LR
 ```
 
 ```
-┌─────────┐  RUN(task)   ┌──────────────┐  prompt+26 tools ┌───────────┐
+┌─────────┐  RUN(task)   ┌──────────────┐  prompt+27 tools ┌───────────┐
 │  Panel  │ ──────────→ │ ServiceWorker │ ──────────────→ │   LLM     │
 │  React  │ ←────────── │  (RUN/STOP,   │ ←────────────── │ (provider │
 └─────────┘  STEP/DONE  │  approval,   │  tool-call      │  scelto)  │

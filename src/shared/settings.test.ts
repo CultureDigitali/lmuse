@@ -11,6 +11,9 @@ import {
   sanitizeDomainList,
   sanitizeSettings,
   sanitizeUsage,
+  sanitizeTemplates,
+  buildTemplateList,
+  removeTemplate,
 } from './settings';
 
 describe('sanitizeSettings', () => {
@@ -57,7 +60,7 @@ describe('sanitizeSettings', () => {
   it('nuovi campi loop-3 con default e clamp', () => {
     const s = sanitizeSettings({});
     expect(s.trustedDomains).toEqual([]);
-    expect(s.savedPrompts).toEqual([]);
+    expect(s.templates).toEqual([]);
     expect(s.theme).toBe('auto');
     expect(s.locale).toBe('auto');
     expect(s.approvalTimeoutSec).toBe(120);
@@ -72,6 +75,17 @@ describe('sanitizeSettings', () => {
     const ids = PRESETS.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toContain('fast');
+    expect(ids).toContain('free');
+  });
+  it('freeOnly: default true, disattivabile esplicitamente', () => {
+    expect(sanitizeSettings({}).freeOnly).toBe(true);
+    expect(sanitizeSettings({ freeOnly: false }).freeOnly).toBe(false);
+  });
+  it('preset free: openrouter/free con freeOnly', () => {
+    const free = PRESETS.find((p) => p.id === 'free');
+    expect(free?.patch.providerId).toBe('openrouter');
+    expect(free?.patch.model).toBe('openrouter/free');
+    expect(free?.patch.freeOnly).toBe(true);
   });
 });
 
@@ -84,6 +98,45 @@ describe('buildPromptList', () => {
     expect(out).toHaveLength(20);
     expect(out[0]).toBe('new');
     expect(buildPromptList([], 'x'.repeat(400))[0]).toHaveLength(300);
+  });
+});
+
+describe('modelli di task', () => {
+  it('sanitize: oggetti validi, cap 20, testo obbligatorio', () => {
+    const out = sanitizeTemplates([
+      { id: 'a', name: 'Riassunto', text: 'Riassumi la pagina' },
+      { id: 'b', name: '', text: 'Senza nome' },
+      { id: 'c', name: 'Vuoto', text: '   ' },
+      'spazzatura',
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[0].name).toBe('Riassunto');
+    expect(out[1].name).toBe('Senza nome');
+    expect(
+      sanitizeTemplates(Array.from({ length: 25 }, (_, i) => ({ id: `i${i}`, text: `t${i}` }))),
+    ).toHaveLength(20);
+  });
+  it('migrazione da savedPrompts (stringhe) → templates', () => {
+    const s = sanitizeSettings({ savedPrompts: ['Riassumi questa pagina', 'Confronta i prezzi'] } as never);
+    expect(s.templates).toHaveLength(2);
+    expect(s.templates[0].text).toBe('Riassumi questa pagina');
+    expect(s.templates[0].name).toBe('Riassumi questa pagina');
+  });
+  it('buildTemplateList: nome fallback, cap FIFO, testo vuoto ignorato', () => {
+    let list = buildTemplateList([], { name: '', text: '  Fai qualcosa  ' });
+    expect(list[0].name).toBe('Fai qualcosa');
+    expect(list[0].text).toBe('Fai qualcosa');
+    expect(buildTemplateList(list, { name: 'x', text: '   ' })).toHaveLength(1);
+    for (let i = 0; i < 25; i++) list = buildTemplateList(list, { name: `n${i}`, text: `t${i}` });
+    expect(list).toHaveLength(20);
+    expect(list[list.length - 1].name).toBe('n24');
+  });
+  it('removeTemplate elimina solo per id', () => {
+    const list = sanitizeTemplates([
+      { id: 'a', name: 'A', text: 'uno' },
+      { id: 'b', name: 'B', text: 'due' },
+    ]);
+    expect(removeTemplate(list, 'a').map((t) => t.id)).toEqual(['b']);
   });
 });
 

@@ -737,6 +737,27 @@ precedenti non facevano.
 
 ---
 
+## 7-ter. Ciclo 9 (v0.9.0, 2 novembre 2026)
+
+Aggiornamento rispetto alla fotografia della 0.8.1:
+
+| Indicatore      | 0.8.1             | 0.9.0                                                |
+| --------------- | ----------------- | ---------------------------------------------------- |
+| Test automatici | 323               | **347**                                              |
+| Tool browser    | 26                | **27** (`browser_drag`)                              |
+| Modelli di task | prompt senza nome | **20 con nome**, migrazione automatica               |
+| Scorciatoie     | solo documentate  | **overlay nel pannello**                             |
+| Uso gratuito    | manuale           | **filtro “solo free”** su OpenRouter + preset Gratis |
+
+Difetti chiusi dal red-team: navigazione con query sensibili, back/forward fuori
+allowlist, clipboard-write, TOCTOU sul cambio scheda, hostOnly incompleto,
+regressione ref iframe, e soprattutto **stop-text/circuit/budget** che ora
+abortiscono il run anche quando l'SDK ingoia l'eccezione del tool.
+
+Restano invariati i limiti dichiarati: prompt injection intrinseca, permesso
+`<all_urls>`, nessun test end-to-end con chiave reale, pubblicazione store non
+ancora effettuata.
+
 ## 8. Funzionalità consegnate: i 25 provider LLM
 
 ### 8.1 Il modello «chiave propria» (c-BYOK)

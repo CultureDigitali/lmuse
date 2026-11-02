@@ -65,6 +65,32 @@ describe('shouldApprove', () => {
     expect(shouldApprove('browser_tab_close', { tabId: 1 }, 'sensitive', EMPTY).needed).toBe(true);
     expect(shouldApprove('browser_screenshot', {}, 'all', EMPTY).needed).toBe(true);
   });
+  it('drag chiede conferma con sensitive, con off no', () => {
+    expect(shouldApprove('browser_drag', { fromRef: 1, toRef: 2 }, 'sensitive', EMPTY).needed).toBe(true);
+    expect(shouldApprove('browser_drag', { fromRef: 1, toRef: 2 }, 'off', EMPTY).needed).toBe(false);
+  });
+  it('back/forward chiedono conferma anche con sensitive', () => {
+    expect(shouldApprove('browser_back', {}, 'sensitive', SEEN).needed).toBe(true);
+    expect(shouldApprove('browser_forward', {}, 'sensitive', SEEN).needed).toBe(true);
+    expect(shouldApprove('browser_back', {}, 'off', SEEN).needed).toBe(false);
+  });
+  it('navigate con query sensibile chiede conferma anche su dominio fidato', () => {
+    expect(
+      shouldApprove('browser_navigate', { url: 'https://fidato.test/?token=abc' }, 'sensitive', TRUSTED)
+        .needed,
+    ).toBe(true);
+    expect(
+      shouldApprove('browser_navigate', { url: 'https://fidato.test/?q=ciao' }, 'sensitive', TRUSTED).needed,
+    ).toBe(false);
+    expect(
+      shouldApprove(
+        'browser_navigate',
+        { url: `https://fidato.test/?d=${'x'.repeat(120)}` },
+        'sensitive',
+        TRUSTED,
+      ).needed,
+    ).toBe(true);
+  });
   it('all: tutto tranne snapshot, iframe_snapshot, tabs_list e wait', () => {
     expect(shouldApprove('browser_click', { ref: 1 }, 'all', EMPTY).needed).toBe(true);
     expect(shouldApprove('browser_snapshot', {}, 'all', EMPTY).needed).toBe(false);

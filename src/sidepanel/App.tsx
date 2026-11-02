@@ -5,7 +5,7 @@ import {
   PRESETS,
   PROVIDERS,
   addHistoryTask,
-  buildPromptList,
+  buildTemplateList,
   clearHistory,
   clearInbox,
   clearRunState,
@@ -21,6 +21,7 @@ import {
   loadSettings,
   loadUsage,
   removeHistoryTask,
+  removeTemplate,
   sanitizeDomainList,
   saveApiKey,
   saveSettings,
@@ -43,6 +44,7 @@ import { t, type Lang } from '../shared/i18n';
 import { mapBridgeCredentials, matchBridgeProviders } from '../shared/opencode';
 import { forgetHostGrant, hostPattern, providerEndpoint, rememberHostGrant } from '../shared/hostAccess';
 import { isPrivateNetworkUrl } from '../shared/urlGuard';
+import { isFreeOpenRouterModel } from '../shared/free-models';
 
 interface LogEntry {
   id: number;
@@ -92,6 +94,7 @@ export default function App() {
   const [steps, setSteps] = useState(0);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [inbox, setInbox] = useState<InboxEntry | null>(null);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
@@ -115,6 +118,7 @@ export default function App() {
   const [rememberDomain, setRememberDomain] = useState(false);
   const [streamText, setStreamText] = useState('');
   const [scheduleInterval, setScheduleInterval] = useState(1440);
+  const [templateName, setTemplateName] = useState('');
   const audioRef = useRef<AudioContext | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
@@ -130,6 +134,8 @@ export default function App() {
   const settingsRef = useRef(settings);
   const showSettingsRef = useRef(showSettings);
   showSettingsRef.current = showSettings;
+  const showShortcutsRef = useRef(showShortcuts);
+  showShortcutsRef.current = showShortcuts;
   const langRef = useRef(lang);
   apiKeyRef.current = apiKey;
   settingsRef.current = settings;
@@ -337,7 +343,8 @@ export default function App() {
         taskRef.current?.focus();
       }
       if (e.key === 'Escape') {
-        if (showSettingsRef.current) setShowSettings(false);
+        if (showShortcutsRef.current) setShowShortcuts(false);
+        else if (showSettingsRef.current) setShowSettings(false);
       }
     };
     document.addEventListener('keydown', onKey);
@@ -756,7 +763,8 @@ export default function App() {
   function saveTemplate() {
     const trimmed = task.trim();
     if (!trimmed) return;
-    update({ savedPrompts: buildPromptList(settings.savedPrompts, trimmed) });
+    update({ templates: buildTemplateList(settings.templates, { name: templateName, text: trimmed }) });
+    setTemplateName('');
   }
 
   function syncAlarms() {
@@ -891,6 +899,15 @@ export default function App() {
           )}
           <button
             className="ghost"
+            onClick={() => setShowShortcuts(true)}
+            title={t(lang, 'shortcuts_button')}
+            aria-label={t(lang, 'shortcuts_button')}
+            aria-haspopup="dialog"
+          >
+            ?
+          </button>
+          <button
+            className="ghost"
             onClick={() => setShowSettings((v) => !v)}
             title={t(lang, 'settings')}
             aria-label={t(lang, 'settings')}
@@ -900,6 +917,56 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {showShortcuts && (
+        <div className="shortcuts-overlay" onClick={() => setShowShortcuts(false)} role="presentation">
+          <div
+            className="shortcuts-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lmuse-shortcuts-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="shortcuts-head">
+              <h2 id="lmuse-shortcuts-title">{t(lang, 'shortcuts_title')}</h2>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setShowShortcuts(false)}
+                aria-label={t(lang, 'shortcuts_close')}
+              >
+                ✕
+              </button>
+            </div>
+            <dl className="shortcuts-list">
+              <div>
+                <dt>Ctrl/Cmd + K</dt>
+                <dd>{t(lang, 'shortcut_focus')}</dd>
+              </div>
+              <div>
+                <dt>Enter</dt>
+                <dd>{t(lang, 'shortcut_send')}</dd>
+              </div>
+              <div>
+                <dt>Shift + Enter</dt>
+                <dd>{t(lang, 'shortcut_newline')}</dd>
+              </div>
+              <div>
+                <dt>Ctrl/Cmd + Shift + X</dt>
+                <dd>{t(lang, 'shortcut_stop')}</dd>
+              </div>
+              <div>
+                <dt>Ctrl/Cmd + Shift + L</dt>
+                <dd>{t(lang, 'shortcut_panel')}</dd>
+              </div>
+              <div>
+                <dt>Esc</dt>
+                <dd>{t(lang, 'shortcut_esc')}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      )}
 
       {errorBanner && (
         <div className="banner error" role="alert">
@@ -1039,6 +1106,24 @@ export default function App() {
               ))}
             </select>
           </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.freeOnly}
+              onChange={(e) => {
+                const on = e.target.checked;
+                const patch: Partial<Settings> = { freeOnly: on };
+                // Attivando il filtro con un modello OpenRouter a pagamento già
+                // selezionato, passa subito al router free invece di fallire al run.
+                if (on && settings.providerId === 'openrouter' && !isFreeOpenRouterModel(settings.model)) {
+                  patch.model = 'openrouter/free';
+                }
+                update(patch);
+              }}
+            />
+            {t(lang, 'free_only')}
+          </label>
+          <p className="muted">{t(lang, 'free_only_hint')}</p>
           <label>
             {t(lang, 'model')}
             <span className="key-row">
@@ -1060,11 +1145,19 @@ export default function App() {
               </button>
             </span>
             <datalist id="lmuse-models">
-              {[...new Set([...cachedModels, ...provider.models])].map((m) => (
-                <option key={m} value={m} />
-              ))}
+              {[...new Set([...cachedModels, ...provider.models])]
+                .filter(
+                  (m) =>
+                    !(settings.freeOnly && settings.providerId === 'openrouter') || isFreeOpenRouterModel(m),
+                )
+                .map((m) => (
+                  <option key={m} value={m} />
+                ))}
             </datalist>
             {modelsNotice && <span className="muted">{modelsNotice}</span>}
+            {settings.freeOnly && settings.providerId === 'openrouter' && (
+              <span className="warn">{t(lang, 'free_notice')}</span>
+            )}
           </label>
           {modelNotInList && (
             <div className="warn" role="status">
@@ -1154,6 +1247,9 @@ export default function App() {
             </button>
             <button type="button" className="secondary xs" onClick={() => applyPreset('local')}>
               {t(lang, 'preset_local')}
+            </button>
+            <button type="button" className="secondary xs" onClick={() => applyPreset('free')}>
+              {t(lang, 'preset_free')}
             </button>
           </div>
           {showBaseUrl && (
@@ -1621,26 +1717,47 @@ export default function App() {
             )}
             <div className="history">
               <span className="muted">{t(lang, 'templates_title')}</span>
-              {settings.savedPrompts.length === 0 && <p className="muted">{t(lang, 'template_ph')}</p>}
-              {settings.savedPrompts.map((p) => (
-                <span key={p} className="history-row">
-                  <button type="button" className="history-item" onClick={() => setTask(p)} title={p}>
-                    {p.length > 70 ? `${p.slice(0, 70)}…` : p}
+              {settings.templates.length === 0 && <p className="muted">{t(lang, 'template_ph')}</p>}
+              {settings.templates.map((tpl) => (
+                <span key={tpl.id} className="history-row">
+                  <button
+                    type="button"
+                    className="history-item"
+                    onClick={() => setTask(tpl.text)}
+                    title={tpl.text}
+                  >
+                    <strong>{tpl.name}</strong>
+                    {tpl.text !== tpl.name && (
+                      <span className="muted">
+                        {' '}
+                        — {tpl.text.slice(0, 60)}
+                        {tpl.text.length > 60 ? '…' : ''}
+                      </span>
+                    )}
                   </button>
                   <button
                     type="button"
                     className="ghost xs"
-                    onClick={() => update({ savedPrompts: settings.savedPrompts.filter((x) => x !== p) })}
-                    aria-label={t(lang, 'template_delete')}
+                    onClick={() => update({ templates: removeTemplate(settings.templates, tpl.id) })}
+                    aria-label={`${t(lang, 'template_delete')}: ${tpl.name}`}
                     title={t(lang, 'template_delete')}
                   >
                     ✕
                   </button>
                 </span>
               ))}
-              <button type="button" className="secondary xs" onClick={saveTemplate} disabled={!task.trim()}>
-                {t(lang, 'template_save')}
-              </button>
+              <div className="btn-row">
+                <input
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder={t(lang, 'template_name_ph')}
+                  maxLength={60}
+                  aria-label={t(lang, 'template_name_ph')}
+                />
+                <button type="button" className="secondary xs" onClick={saveTemplate} disabled={!task.trim()}>
+                  {t(lang, 'template_save')}
+                </button>
+              </div>
             </div>
             {history.length > 0 && (
               <div className="history">

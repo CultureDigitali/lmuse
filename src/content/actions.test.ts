@@ -2,11 +2,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   MAX_WAIT_MS,
+  assertNoFileUploadTarget,
   describeFocused,
+  dragElement,
   hoverElement,
   selectOption,
   waitFor,
-  assertNoFileUploadTarget,
 } from './actions';
 
 describe('selectOption', () => {
@@ -65,6 +66,52 @@ describe('describeFocused', () => {
     expect(describeFocused()).toBe('nessuno (body)');
     (document.querySelector('button') as HTMLButtonElement).focus();
     expect(describeFocused()).toBe('button "Vai"');
+  });
+});
+
+describe('dragElement', () => {
+  it('mousedown sulla sorgente, mousemove verso il bersaglio, mouseup sul bersaglio', () => {
+    document.body.innerHTML = '<div id="a">A</div><div id="b">B</div>';
+    const from = document.getElementById('a') as HTMLElement;
+    const to = document.getElementById('b') as HTMLElement;
+    from.getBoundingClientRect = () =>
+      ({
+        left: 10,
+        top: 20,
+        width: 40,
+        height: 20,
+        right: 50,
+        bottom: 40,
+        x: 10,
+        y: 20,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    to.getBoundingClientRect = () =>
+      ({
+        left: 110,
+        top: 220,
+        width: 40,
+        height: 20,
+        right: 150,
+        bottom: 240,
+        x: 110,
+        y: 220,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    const down = vi.fn();
+    const up = vi.fn();
+    const moves: MouseEvent[] = [];
+    from.addEventListener('mousedown', down);
+    to.addEventListener('mousemove', (e) => moves.push(e as MouseEvent));
+    to.addEventListener('mouseup', up);
+    const centers = dragElement(from, to);
+    expect(down).toHaveBeenCalledTimes(1);
+    expect(up).toHaveBeenCalledTimes(1);
+    expect(moves).toHaveLength(5);
+    expect(centers.from).toEqual({ x: 30, y: 30 });
+    expect(centers.to).toEqual({ x: 130, y: 230 });
+    expect(moves[4].clientX).toBe(130);
+    expect(moves[4].clientY).toBe(230);
   });
 });
 

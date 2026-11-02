@@ -1,7 +1,7 @@
 # Chrome Web Store — listing lmuse (pronto da incollare)
 
 > Stato: **CANDIDATO NON ANCORA APPROVATO: test solo Private / trusted testers**.
-> Ultimo aggiornamento: 20 ottobre 2026 · candidato: `release/lmuse-0.9.0.zip` (NON ancora generato)
+> Ultimo aggiornamento: 2 novembre 2026 · candidato: `release/lmuse-0.9.1.zip`
 
 ## Scheda
 
@@ -43,7 +43,7 @@ Elenco di domini consentiti per restringere il perimetro. “Cancella tutti i
 dati” elimina chiavi, cronologia e impostazioni.
 
 FUNZIONI
-- 26 strumenti browser: snapshot, click, digitazione, select, hover, attesa,
+- 27 strumenti browser: snapshot, click, digitazione, select, hover, attesa,
   find, tabelle, query CSS, scroll, screenshot (anche ritagliati), appunti,
   download, iframe, gestione schede.
 - Streaming della risposta, stop-text e token guard per controllare i costi.
@@ -114,9 +114,9 @@ Il codice è pubblico: https://github.com/CultureDigitali/lmuse
 
 ## Checklist prima dell'upload
 
-- [ ] CI completo ed e2e sull'ultimo SHA della candidata `0.9.0`
-- [ ] Generare e verificare il pacchetto 0.9.0 con SHA-256
-- [ ] Pubblicare la policy aggiornata 0.9.0 su GitHub Pages prima della submission
+- [x] CI completo ed e2e sull'ultimo SHA della candidata (347 test, e2e completo con provider mock, a11y 0 violazioni)
+- [x] Generare e verificare il pacchetto con SHA-256 (`release/lmuse-0.9.1.zip`)
+- [x] Privacy policy aggiornata su GitHub Pages
 - [x] Pagina di supporto + issue tracker
 - [ ] Screenshot aggiornati della modalità rigorosa e Privacy Gateway
 - [ ] Giustificazioni permessi aggiornate e revisione dei permessi globali

@@ -72,6 +72,36 @@
 
 # Changelog — lmuse
 
+## 0.9.0 (2026-11-02) — Modelli free, template e drag
+
+Nono ciclo: uso gratuito controllato, modelli di task con nome, overlay
+scorciatoie, `browser_drag` (27° tool) e chiusura dei difetti emersi dal
+red-team.
+
+**Solo modelli gratuiti**
+
+- Toggle “Solo modelli gratuiti” (default ON): su OpenRouter blocca qualunque
+  modello che non sia `openrouter/free` o `:free`, discovery inclusa.
+- Preset **Gratis**; default OpenRouter = `openrouter/free`.
+- NVIDIA NIM è interamente free tier; aggiornati i modelli di default.
+- Avviso privacy: i modelli free OpenRouter possono registrare i prompt.
+
+**Novità**
+
+- **Modelli di task con nome** (max 20), con migrazione automatica dai prompt
+  salvati della 0.8.x.
+- **Overlay scorciatoie** (pulsante ?), chiusura con Esc/click esterno.
+- **`browser_drag`**: trascinamento con eventi mouse (non DnD HTML5 nativo,
+  limite dichiarato). Totale 27 tool.
+- **Stop-text, circuit breaker e budget** ora abortiscono davvero il run: prima
+  l'SDK poteva ingoiare l'eccezione del tool e il loop continuava.
+- Navigazione con parametri sensibili e back/forward richiedono conferma;
+  clipboard-write è “sensitive”; bridge opencode esporta solo credenziali API.
+
+**Qualità**
+
+- 347 test, `pnpm check` completo verde, e2e con overlay e toggle free.
+
 ## 0.8.1 (2026-10-08) — Il prodotto ora funziona davvero
 
 **Cinque difetti di sicurezza e correttezza chiusi (3° giro di revisione)**

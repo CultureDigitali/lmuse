@@ -185,8 +185,14 @@ export const PROVIDERS: ProviderDef[] = [
     name: 'OpenRouter',
     group: 'gateway',
     needsKey: true,
-    defaultModel: 'anthropic/claude-sonnet-5',
-    models: ['anthropic/claude-sonnet-5', 'openai/gpt-5.6', 'google/gemini-3.8-flash'],
+    defaultModel: 'openrouter/free',
+    models: [
+      'openrouter/free',
+      'nvidia/nemotron-3.5-super-vl:free',
+      'google/gemma-4-31b-it:free',
+      'qwen/qwen3.8-27b:free',
+      'thinkingmachines/inkling:free',
+    ],
     defaultBaseUrl: 'https://openrouter.ai/api/v1',
     keyUrl: 'https://openrouter.ai/keys',
     supportsVision: true,
@@ -226,10 +232,10 @@ export const PROVIDERS: ProviderDef[] = [
     group: 'cloud',
     opencodeId: 'nvidia',
     needsKey: true,
-    defaultModel: 'meta/llama-3.3-70b-instruct',
+    defaultModel: 'nvidia/nemotron-3-super-120b-a12b',
     models: [
-      'meta/llama-3.3-70b-instruct',
-      'deepseek-ai/deepseek-r1',
+      'nvidia/nemotron-3-super-120b-a12b',
+      'deepseek-ai/deepseek-v4-flash',
       'nvidia/llama-3.1-nemotron-70b-instruct',
     ],
     defaultBaseUrl: 'https://integrate.api.nvidia.com/v1',
@@ -388,11 +394,14 @@ export interface Settings {
   privacyHidePasswords: boolean;
   privacyHostOnly: boolean;
   keepHistory: boolean;
+  /** Impedisce modelli a pagamento su OpenRouter (NVIDIA è free tier). */
+  freeOnly: boolean;
   approval: ApprovalPolicy;
   sendScreenshots: boolean;
   allowedDomains: string;
   trustedDomains: string[];
-  savedPrompts: string[];
+  /** Modelli di task riutilizzabili (nome + testo). */
+  templates: TaskTemplate[];
   theme: Theme;
   locale: Locale;
   maxTokensPerRun: number;
@@ -406,6 +415,73 @@ export interface Settings {
 }
 
 export const SETTINGS_KEY = 'lmuse.settings.v1';
+
+export interface TaskTemplate {
+  id: string;
+  name: string;
+  text: string;
+}
+
+export const TEMPLATES_MAX = 20;
+const TEMPLATE_TEXT_MAX = 300;
+const TEMPLATE_NAME_MAX = 60;
+
+/** Sorgente dei modelli: campo nuovo, oppure migrazione da savedPrompts (0.8.x). */
+function templatesSource(raw: Partial<Settings> | undefined): unknown {
+  const record = raw as Record<string, unknown> | undefined;
+  if (record?.['templates'] !== undefined) return record['templates'];
+  const legacy = record?.['savedPrompts'];
+  if (!Array.isArray(legacy)) return [];
+  return legacy.map((value, i) => ({
+    id: `legacy-${i}`,
+    name: String(value ?? '').slice(0, TEMPLATE_NAME_MAX),
+    text: String(value ?? ''),
+  }));
+}
+
+/** Normalizza i modelli letti dallo storage (id/nome/testo, dedup per id). */
+export function sanitizeTemplates(list: unknown): TaskTemplate[] {
+  if (!Array.isArray(list)) return [];
+  const out: TaskTemplate[] = [];
+  const seen = new Set<string>();
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Record<string, unknown>;
+    const text = String(r['text'] ?? '')
+      .trim()
+      .slice(0, TEMPLATE_TEXT_MAX);
+    if (!text) continue;
+    const id = typeof r['id'] === 'string' && r['id'] ? r['id'].slice(0, 64) : `t-${out.length}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      name:
+        String(r['name'] ?? '')
+          .trim()
+          .slice(0, TEMPLATE_NAME_MAX) || text.slice(0, TEMPLATE_NAME_MAX),
+      text,
+    });
+  }
+  return out.slice(0, TEMPLATES_MAX);
+}
+
+/** Aggiunge un modello (nome+testo), cap 20 FIFO. Pura, testata. */
+export function buildTemplateList(
+  list: TaskTemplate[],
+  entry: { name: string; text: string },
+): TaskTemplate[] {
+  const text = entry.text.trim().slice(0, TEMPLATE_TEXT_MAX);
+  if (!text) return list;
+  const name = entry.name.trim().slice(0, TEMPLATE_NAME_MAX) || text.slice(0, TEMPLATE_NAME_MAX);
+  const id = `tpl-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  return [...list, { id, name, text }].slice(-TEMPLATES_MAX);
+}
+
+/** Rimuove per id. Pura, testata. */
+export function removeTemplate(list: TaskTemplate[], id: string): TaskTemplate[] {
+  return list.filter((t) => t.id !== id);
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   providerId: 'openai',
@@ -422,11 +498,12 @@ export const DEFAULT_SETTINGS: Settings = {
   privacyHidePasswords: true,
   privacyHostOnly: true,
   keepHistory: false,
+  freeOnly: true,
   approval: 'all',
   sendScreenshots: false,
   allowedDomains: '',
   trustedDomains: [],
-  savedPrompts: [],
+  templates: [],
   theme: 'auto',
   locale: 'auto',
   maxTokensPerRun: 60000,
@@ -473,11 +550,12 @@ export function sanitizeSettings(raw: Partial<Settings> | undefined): Settings {
     privacyHidePasswords: Boolean(base.privacyHidePasswords),
     privacyHostOnly: Boolean(base.privacyHostOnly),
     keepHistory: base.keepHistory !== false,
+    freeOnly: base.freeOnly !== false,
     approval,
     sendScreenshots: Boolean(base.sendScreenshots),
     allowedDomains: normalizeDomainsCsv(String(base.allowedDomains ?? '')),
     trustedDomains: sanitizeDomainList(base.trustedDomains).slice(0, 50),
-    savedPrompts: sanitizePromptList(base.savedPrompts).slice(0, 20),
+    templates: sanitizeTemplates(templatesSource(raw)),
     theme: ['auto', 'dark', 'light'].includes(base.theme) ? base.theme : 'auto',
     locale: ['auto', 'it', 'en'].includes(base.locale) ? base.locale : 'auto',
     maxTokensPerRun: clamp(Number(base.maxTokensPerRun), 1000, 200000, DEFAULT_SETTINGS.maxTokensPerRun),
@@ -523,19 +601,6 @@ export function buildPromptList(list: string[], entry: string): string[] {
   const clean = entry.trim().slice(0, PROMPT_ENTRY_MAX);
   if (!clean) return list;
   return [clean, ...list.filter((t) => t !== clean)].slice(0, PROMPT_MAX);
-}
-
-function sanitizePromptList(list: unknown): string[] {
-  if (!Array.isArray(list)) return [];
-  const out: string[] = [];
-  for (const item of list) {
-    const clean = String(item ?? '')
-      .trim()
-      .slice(0, PROMPT_ENTRY_MAX);
-    if (clean && !out.includes(clean)) out.push(clean);
-    if (out.length >= PROMPT_MAX) break;
-  }
-  return out;
 }
 
 function sanitizeLastRuns(list: unknown): RunSummary[] {
@@ -588,6 +653,15 @@ export const PRESETS: RunPreset[] = [
   {
     id: 'local',
     patch: { providerId: 'ollama', model: 'qwen3:8b', baseUrl: 'http://localhost:11434/v1' },
+  },
+  {
+    id: 'free',
+    patch: {
+      providerId: 'openrouter',
+      model: 'openrouter/free',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      freeOnly: true,
+    },
   },
 ];
 

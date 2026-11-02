@@ -1,4 +1,5 @@
 import { runTask } from './agent';
+import { isRunAbortReason } from './tools';
 import {
   HOST_GRANTS_KEY,
   hasRevokedHostGrant,
@@ -38,6 +39,7 @@ import { maskPii } from '../shared/pii';
 import { sanitizeTaskText } from '../shared/task';
 import { buildLastRuns } from '../shared/settings';
 import { BridgePayloadSchema } from '../shared/opencode';
+import { filterFreeModels } from '../shared/free-models';
 
 /** Nome del native host registrato da `pnpm setup:opencode`. */
 export const OPENCODE_HOST = 'it.lmuse.opencode_bridge';
@@ -295,7 +297,8 @@ async function fetchModels(): Promise<string[]> {
     const ids = list
       .map((m) => (typeof m === 'string' ? m : ((m as { id?: unknown })?.id ?? '')))
       .filter((id): id is string => typeof id === 'string' && id.length > 0);
-    const clean = buildModelsCache([], ids);
+    let clean = buildModelsCache([], ids);
+    if (settings.freeOnly) clean = filterFreeModels(settings.providerId, clean);
     if (!clean.length) throw new Error('Lista modelli non valida dal provider.');
     await saveModelsCache(settings.providerId, clean);
     return clean;
@@ -576,7 +579,11 @@ async function startRun(task: string): Promise<void> {
       return;
     }
     const settings = await loadSettings().catch(() => null);
-    const message = mapProviderError(error);
+    // Circuit breaker / budget: il messaggio italiano è già nel reason, senza
+    // prefisso interno; non passare dal mapper dei provider.
+    const message = isRunAbortReason(error)
+      ? error.message.replace(/^[A-Z_]+:\s*/, '')
+      : mapProviderError(error);
     broadcast({
       type: 'ERROR',
       message: settings ? String(maskForPanel(settings, message)) : message,

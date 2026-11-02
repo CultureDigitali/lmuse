@@ -51,6 +51,33 @@ function toolArgs(record: unknown): Record<string, unknown> {
 }
 
 /**
+ * Nomi dei parametri URL che possono trasportare dati verso l'esterno
+ * (token di sessione, chiavi, codici). Stessa famiglia di URL_TOKEN in pii.ts.
+ */
+const SENSITIVE_QUERY_PARAM =
+  /(token|^key$|^auth|secret|api[-_]?key|session|^sid$|^code$|access[_-]?token|password|credential)/i;
+
+/**
+ * True se la query string dell'URL contiene dati potenzialmente sensibili:
+ * un parametro con nome sospetto o un valore insolitamente lungo (base64/blob).
+ * Serve a chiudere il canale di exfiltration "naviga verso il dominio già
+ * approvato portandosi dietro i dati nella query": senza questo check bastava
+ * un solo consenso a inizio run per aprire un canale in uscita silenzioso.
+ */
+export function hasSensitiveQuery(url: string): boolean {
+  try {
+    const params = new URL(url).searchParams;
+    for (const [name, value] of params) {
+      if (SENSITIVE_QUERY_PARAM.test(name)) return true;
+      if (value.length > 80) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Decide se un tool richiede approvazione umana.
  * Safety floor (vale anche con policy 'off'): invio di form.
  */
@@ -82,10 +109,20 @@ export function shouldApprove(
   // policy 'sensitive'
   if (toolName === 'browser_navigate' && typeof input['url'] === 'string') {
     const domain = extractDomain(input['url']);
+    // Navigare con dati nella query verso un dominio già visto fidato resta un
+    // canale in uscita: chiedere sempre, anche sul dominio già approvato.
+    if (hasSensitiveQuery(input['url'])) {
+      return { needed: true, reason: 'Navigazione con dati potenzialmente sensibili nell’URL' };
+    }
     if (domain && !ctx.seenDomains.includes(domain) && !isTrustedDomain(domain, ctx.trustedDomains)) {
       return { needed: true, reason: `Navigazione verso un dominio nuovo: ${domain}` };
     }
     return { needed: false, reason: '' };
+  }
+  if (toolName === 'browser_back' || toolName === 'browser_forward') {
+    // back/forward navigano verso qualunque dominio della cronologia del tab:
+    // senza questo check erano l'unico modo di cambiare dominio senza conferma.
+    return { needed: true, reason: 'Navigazione nella cronologia (il dominio di arrivo può cambiare)' };
   }
   if (toolName === 'browser_tab_focus') {
     return { needed: true, reason: 'Cambio di tab' };
@@ -108,8 +145,16 @@ export function shouldApprove(
   if (toolName === 'browser_screenshot' || toolName === 'browser_screenshot_element') {
     return { needed: true, reason: 'Invio di una schermata della pagina al modello' };
   }
+  if (toolName === 'browser_drag') {
+    return { needed: true, reason: 'Trascinamento di un elemento (può riordinare o spostare dati)' };
+  }
   if (toolName === 'browser_clipboard_read') {
     return { needed: true, reason: 'Lettura degli appunti (può contenere dati personali)' };
+  }
+  if (toolName === 'browser_clipboard_write') {
+    // Scrivere negli appunti è il classico clipboard-swap: il contenuto
+    // sostituito viene incollato altrove dall'utente. Simmetrico alla lettura.
+    return { needed: true, reason: 'Scrittura negli appunti (sostituisce ciò che hai copiato)' };
   }
   return { needed: false, reason: '' };
 }

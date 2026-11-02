@@ -11,6 +11,12 @@ import { containsStop } from '../shared/task';
 import type { PrivacyGateway } from '../shared/privacy-gateway';
 import { HostAccessDenied, requireHostAccess } from '../shared/hostAccess';
 import { assertTabSettledForRead, withStableTabRead } from '../shared/tabReadGuard';
+import {
+  CIRCUIT_PREFIX,
+  RUN_ABORT_PREFIXES,
+  STOP_TEXT_PREFIX,
+  TOOL_BUDGET_PREFIX,
+} from '../shared/run-markers';
 
 // ---------------------------------------------------------------------------
 // Strato di accesso al browser: i tool dell'agente parlano con il content
@@ -35,6 +41,8 @@ export interface BrowserToolConfig {
   budgetMax: number;
   policy: ApprovalPolicy;
   signal: AbortSignal;
+  /** Ferma il run quando un freno scatta dentro un tool (l'SDK ingoia i throw). */
+  abortRun: (reason: Error) => void;
   /** Il worker chiede al panel; true = approvato. Rifiuta su STOP. */
   requestApproval: (tool: string, description: string, domain?: string) => Promise<boolean>;
   onApprovalDecision?: (tool: string, approved: boolean, reason: string) => void;
@@ -307,7 +315,11 @@ async function refRescue(
 }
 
 const BUDGET_EXHAUSTED = 'Budget tool esaurito: chiudi il task o aumenta i passi massimi nelle impostazioni.';
-const STOP_TEXT_PREFIX = 'STOP_TEXT:';
+
+/** True se il reason di un abort è uno dei freni interni del run. */
+export function isRunAbortReason(reason: unknown): reason is Error {
+  return reason instanceof Error && RUN_ABORT_PREFIXES.some((p) => reason.message.startsWith(p));
+}
 
 export function createBrowserTools(cfg: BrowserToolConfig) {
   const privacyActive = cfg.privacyGateway != null && cfg.privacyGateway.mode !== 'off';
@@ -374,6 +386,13 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
     if (domain && !seenDomains.includes(domain)) seenDomains.push(domain);
   }
 
+  /** Freno del run: abortisce il controller e lancia (il throw è per il tool). */
+  function failRun(prefix: string, message: string): never {
+    const reason = new Error(`${prefix}${message}`);
+    cfg.abortRun(reason);
+    throw reason;
+  }
+
   /** Invia al tab iniettando on-demand al primo uso + un retry dopo navigazioni. */
   async function sendToTab<T>(tabId: number, message: unknown, timeoutMs?: number): Promise<T> {
     assertRunActive();
@@ -401,11 +420,14 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
   async function guarded<O>(fn: () => Promise<O>): Promise<O> {
     assertRunActive();
     if (circuit.open) {
-      throw new Error(
+      failRun(
+        CIRCUIT_PREFIX,
         `Troppi errori consecutivi (${circuit.failures}): run interrotto. Riformula il task o cambia pagina e riprova.`,
       );
     }
-    if (!budget.tryConsume()) throw new Error(`${BUDGET_EXHAUSTED} (${budget.max} chiamate per run).`);
+    if (!budget.tryConsume()) {
+      failRun(TOOL_BUDGET_PREFIX, `${BUDGET_EXHAUSTED} (${budget.max} chiamate per run).`);
+    }
     try {
       const out = await fn();
       // Revoche che arrivano mentre il tool attende la risposta del browser:
@@ -417,10 +439,9 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
       return safe;
     } catch (error) {
       circuit.recordFailure();
-      // Lo stop-text è un esito previsto, non un errore: non va rimappato come
-      // "timeout/chiave/quota del provider" (il worker lo riconosce dal prefisso).
-      const raw = error instanceof Error ? error.message : String(error);
-      if (raw.startsWith(STOP_TEXT_PREFIX)) throw error;
+      // I freni del run sono esiti previsti, non errori da rimappare come
+      // "timeout/chiave/quota del provider" (il worker li riconosce dal prefisso).
+      if (isRunAbortReason(error)) throw error;
       const message = mapProviderError(error);
       const safeMessage = privacyActive ? cfg.privacyGateway!.protectText(message) : message;
       const wrapped = new Error(safeMessage, { cause: error });
@@ -555,7 +576,7 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
   /** Se l'osservazione contiene lo stop-text utente, termina il run con successo parziale. */
   function checkStop(observation: string): string {
     if (cfg.stopText && containsStop(observation, cfg.stopText)) {
-      throw new Error(`${STOP_TEXT_PREFIX}condizione "${cfg.stopText}" rilevata nella pagina.`);
+      failRun(STOP_TEXT_PREFIX, `condizione "${cfg.stopText}" rilevata nella pagina.`);
     }
     return observation;
   }
@@ -766,6 +787,35 @@ export function createBrowserTools(cfg: BrowserToolConfig) {
             throw new Error(res.error ?? 'Digitazione fallita.');
           }
           return acted(tab.id, `Testo inserito in [${ref}] (${res.valueLength ?? '?'} caratteri nel campo).`);
+        });
+      },
+    }),
+
+    browser_drag: tool({
+      description:
+        'Trascina un elemento su un altro (slider, liste ordinabili). Usa eventi mouse sintetici, non il DnD HTML5 nativo: alcuni componenti che richiedono dragstart/drop non reagiranno.',
+      inputSchema: z.object({
+        fromRef: z.number().int().describe('Ref dell’elemento da trascinare'),
+        toRef: z.number().int().describe('Ref dell’elemento di destinazione'),
+      }),
+      execute: async ({ fromRef, toRef }: { fromRef: number; toRef: number }) => {
+        await approved('browser_drag', { fromRef, toRef }, `Drag da [${fromRef}] a [${toRef}]`);
+        return guarded(async () => {
+          await assertTabUnchanged();
+          const tab = await tabForAction(cfg.allowedDomains);
+          if (!tab.id) throw new Error('Tab senza id.');
+          const res = await sendToTab<SnapshotResult>(tab.id, {
+            kind: 'LMUSE_DRAG',
+            fromRef,
+            toRef,
+          });
+          if (!res.ok) {
+            if (res.error?.includes('scaduto')) {
+              return refRescue(tab.id, fromRef, snapOpts, 'Drag non riuscito.', sendToTab);
+            }
+            throw new Error(res.error ?? 'Drag fallito.');
+          }
+          return acted(tab.id, String(res.text ?? 'Drag eseguito.'));
         });
       },
     }),

@@ -64,6 +64,35 @@ export function waitFor(waitKind: 'text' | 'selector', value: string, timeoutMs:
   });
 }
 
+/**
+ * Drag sintetico con eventi mouse (non HTML5 DnD nativo).
+ * Sequenza: mousedown sulla sorgente, mousemove interpolati, mouseup sul
+ * bersaglio. Funziona con slider e liste custom che ascoltano i mouse event;
+ * non attiva i componenti che richiedono `dragstart`/`drop` nativi.
+ * Ritorna i centri usati (utile ai test e al log).
+ */
+export function dragElement(
+  from: Element,
+  to: Element,
+): { from: { x: number; y: number }; to: { x: number; y: number } } {
+  const center = (el: Element): { x: number; y: number } => {
+    const r = el.getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  };
+  const a = center(from);
+  const b = center(to);
+  const base: MouseEventInit = { bubbles: true, cancelable: true, button: 0, buttons: 1 };
+  from.dispatchEvent(new MouseEvent('mousedown', { ...base, clientX: a.x, clientY: a.y }));
+  const steps = 5;
+  for (let i = 1; i <= steps; i++) {
+    const x = Math.round(a.x + ((b.x - a.x) * i) / steps);
+    const y = Math.round(a.y + ((b.y - a.y) * i) / steps);
+    to.dispatchEvent(new MouseEvent('mousemove', { ...base, clientX: x, clientY: y }));
+  }
+  to.dispatchEvent(new MouseEvent('mouseup', { ...base, buttons: 0, clientX: b.x, clientY: b.y }));
+  return { from: a, to: b };
+}
+
 /** Hover sintetico: pointermove + mouseover/mouseenter (menu, tooltip). */
 export function hoverElement(el: Element): void {
   if (el instanceof HTMLElement) {

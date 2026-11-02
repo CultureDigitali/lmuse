@@ -102,6 +102,7 @@ function baseConfig(over: Partial<BrowserToolConfig> = {}): BrowserToolConfig {
     budgetMax: 50,
     policy: 'off',
     signal: new AbortController().signal,
+    abortRun: () => undefined,
     requestApproval: async () => true,
     ...over,
   };
@@ -300,6 +301,33 @@ describe('LM-009: navigator epoch nelle risposte asincrone', () => {
   });
 });
 
+describe('browser_drag', () => {
+  it('presente, chiede conferma e invia LMUSE_DRAG con i due ref', async () => {
+    sendMessage.mockResolvedValue({ ok: true, text: 'Drag ok' });
+    const requestApproval = vi.fn(async () => true);
+    const { tools } = createBrowserTools(baseConfig({ policy: 'sensitive', requestApproval }));
+    const out = await tools.browser_drag.execute({ fromRef: 1, toRef: 2 }, {} as never);
+    expect(requestApproval).toHaveBeenCalled();
+    const drag = sendMessage.mock.calls
+      .map((c) => c[1] as { kind: string; fromRef?: number; toRef?: number })
+      .find((m) => m.kind === 'LMUSE_DRAG');
+    expect(drag).toMatchObject({ fromRef: 1, toRef: 2 });
+    expect((out as { observation: string }).observation).toContain('Drag');
+  });
+
+  it('blocca il drag su tab fuori allowlist', async () => {
+    sendMessage.mockResolvedValue({ ok: true, text: 'Drag ok' });
+    setActiveTabUrl('https://intranet-banca.example.org/');
+    const requestApproval = vi.fn(async () => true);
+    const { tools } = createBrowserTools(
+      baseConfig({ policy: 'sensitive', requestApproval, allowedDomains: 'esempio.it' }),
+    );
+    await expect(
+      tools.browser_drag.execute({ fromRef: 1, toRef: 2 }, {} as never) as unknown as Promise<unknown>,
+    ).rejects.toThrow(/allowlist/);
+  });
+});
+
 describe('browser_download', () => {
   it('tool presente nel set e con descrizione', () => {
     const { tools } = createBrowserTools(baseConfig());
@@ -393,6 +421,18 @@ describe('stopText non viene rimappato come errore provider (regressione)', () =
     await expect(
       tools.browser_snapshot.execute({}, {} as never) as unknown as Promise<unknown>,
     ).rejects.toThrow(/STOP_TEXT/);
+  });
+
+  it('abortisce il run: il reason arriva al worker anche se l SDK ingoia il throw', async () => {
+    sendMessage.mockResolvedValue({ ok: true, tree: 'Totale 403 EUR' });
+    const abortRun = vi.fn();
+    const { tools } = createBrowserTools(baseConfig({ stopText: '403', abortRun }));
+    await expect(
+      tools.browser_snapshot.execute({}, {} as never) as unknown as Promise<unknown>,
+    ).rejects.toThrow(/STOP_TEXT/);
+    expect(abortRun).toHaveBeenCalledTimes(1);
+    const reason = abortRun.mock.calls[0][0] as Error;
+    expect(reason.message).toMatch(/^STOP_TEXT:/);
   });
 });
 

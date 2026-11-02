@@ -206,6 +206,33 @@ try {
       ),
     );
     check('panel interattivo (bottone impostazioni)', hasSettings);
+    const shortcutsOpened = await page.evaluate(async () => {
+      const btn = [...document.querySelectorAll('button')].find((b) =>
+        ['Mostra scorciatoie', 'Show shortcuts'].includes(b.getAttribute('aria-label') ?? ''),
+      );
+      if (!btn) return false;
+      btn.click();
+      await new Promise((r) => setTimeout(r, 150));
+      return !!document.querySelector('[role="dialog"]');
+    });
+    check('overlay scorciatoie si apre', shortcutsOpened);
+    const shortcutsClosed = await page.evaluate(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await new Promise((r) => setTimeout(r, 150));
+      return !document.querySelector('[role="dialog"]');
+    });
+    check('Esc chiude overlay scorciatoie', shortcutsClosed);
+    const freeUi = await page.evaluate(async () => {
+      const btn = [...document.querySelectorAll('button')].find((b) =>
+        ['Impostazioni', 'Settings'].includes(b.getAttribute('aria-label') ?? ''),
+      );
+      if (!btn) return false;
+      btn.click();
+      await new Promise((r) => setTimeout(r, 200));
+      const text = document.body.textContent ?? '';
+      return text.includes('Solo modelli gratuiti') || text.includes('Free models only');
+    });
+    check('impostazioni: toggle solo modelli gratuiti presente', freeUi);
     check('zero errori pagina', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
     // A11y: axe-core via CDP evaluate (esente da CSP extension_pages), zero serious/critical.
     const axeSource = readFileSync(join(root, 'node_modules', 'axe-core', 'axe.min.js'), 'utf8');
